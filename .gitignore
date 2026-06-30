@@ -1,0 +1,6 @@
+# Local-only Google Sheet link — keep the source sheet private, never on GitHub.
+.sheet-url
+
+# Python noise
+__pycache__/
+*.pyc
