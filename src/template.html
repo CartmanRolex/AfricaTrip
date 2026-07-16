@@ -84,12 +84,22 @@ body.danger-far .danger-label{display:none}
 .danger-label{font-family:var(--mono);font-size:8.5px;letter-spacing:.04em;color:#E28368;white-space:nowrap;
   background:rgba(20,17,14,.72);border:1px dashed rgba(217,91,67,.55);border-radius:5px;padding:2px 7px;
   transform:translate(-50%,0);box-shadow:0 2px 8px rgba(0,0,0,.4)}
-/* bulles photos partagées (Drive) */
-.photo-bubble{width:34px;height:34px;border-radius:50%;object-fit:cover;display:block;
-  border:2px solid var(--sand);box-shadow:0 2px 7px rgba(0,0,0,.55);cursor:pointer;
-  transform:translate(-50%,-50%);transition:transform .15s}
-.photo-bubble:hover{transform:translate(-50%,-50%) scale(1.5);z-index:50}
-body.danger-far .photo-bubble{width:22px;height:22px}
+/* bulles photos partagées (Drive) — regroupées en piles quand trop proches */
+.bubble-wrap{position:relative;width:34px;height:34px;transform:translate(-50%,-50%);cursor:pointer}
+.photo-bubble{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;
+  position:relative;z-index:1;border:2px solid var(--sand);
+  box-shadow:0 2px 7px rgba(0,0,0,.55);transition:transform .15s}
+.bubble-wrap:hover .photo-bubble{transform:scale(1.45)}
+.bubble-wrap:hover{z-index:60}
+/* effet de pile : deux disques décalés derrière la vignette */
+.bubble-wrap.stacked::before,.bubble-wrap.stacked::after{content:'';position:absolute;inset:0;
+  border-radius:50%;background:var(--panel2);border:2px solid var(--sand-dim)}
+.bubble-wrap.stacked::before{transform:translate(5px,-5px)}
+.bubble-wrap.stacked::after{transform:translate(10px,-10px);opacity:.55}
+.bubble-count{position:absolute;top:-7px;right:-9px;z-index:2;
+  font-family:var(--mono);font-weight:700;font-size:9px;color:#1a120a;
+  background:var(--c1);border:1.5px solid var(--bg);border-radius:9px;padding:1px 5px}
+body.danger-far .bubble-wrap{width:22px;height:22px}
 .lightbox{position:fixed;inset:0;z-index:2000;background:rgba(20,17,14,.93);
   display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px}
 .lightbox.open{display:flex}
@@ -97,6 +107,11 @@ body.danger-far .photo-bubble{width:22px;height:22px}
   box-shadow:0 12px 50px rgba(0,0,0,.7);border:1px solid var(--line)}
 .lightbox-cap{font-family:var(--mono);font-size:11px;color:var(--sand-dim);letter-spacing:.05em;text-align:center}
 .lightbox-cap b{color:var(--sand);font-weight:400}
+.lb-nav{position:fixed;top:50%;transform:translateY(-50%);width:44px;height:66px;z-index:2001;
+  display:grid;place-items:center;background:rgba(30,24,19,.85);border:1px solid var(--line);
+  border-radius:10px;color:var(--sand);font-size:28px;line-height:1;padding:0 0 4px}
+.lb-nav:hover{background:var(--panel2);border-color:var(--sand-dim)}
+.lb-prev{left:16px}.lb-next{right:16px}
 .convoy{filter:drop-shadow(0 0 6px rgba(232,146,74,.7))}
 .convoy-ring{animation:pulse 2.2s ease-out infinite}
 @keyframes pulse{0%{r:9;opacity:.8}100%{r:24;opacity:0}}
@@ -286,8 +301,10 @@ body.danger-far .photo-bubble{width:22px;height:22px}
 </div>
 
 <div class="lightbox" id="lightbox">
+  <button class="lb-nav lb-prev" aria-label="Photo précédente">‹</button>
   <img src="" alt="Photo du voyage">
   <div class="lightbox-cap"></div>
+  <button class="lb-nav lb-next" aria-label="Photo suivante">›</button>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -408,25 +425,57 @@ DANGER.forEach(z=>{
 function dangerZoom(){document.body.classList.toggle('danger-far',map.getZoom()<5);}
 map.on('zoomend',dangerZoom); dangerZoom();
 
-// bulles photos partagées : une vignette ronde par photo du Drive
-GALLERY.forEach((g,i)=>{
-  L.marker([g.lat,g.lng],{icon:L.divIcon({className:'',iconSize:[0,0],iconAnchor:[0,0],
-    html:`<img class="photo-bubble" src="${g.thumb}" alt="">`})})
-   .addTo(map).on('click',()=>openLightbox(i));
-});
+// bulles photos partagées : les photos qui se chevauchent à l'écran
+// fusionnent en une pile (compteur + clic = diaporama), recalcul à chaque zoom
+const bubbleLayer=L.layerGroup().addTo(map);
+function rebuildBubbles(){
+  bubbleLayer.clearLayers();
+  const z=map.getZoom(), R=document.body.classList.contains('danger-far')?30:42;
+  const pts=GALLERY.map(g=>map.project([g.lat,g.lng],z));
+  const used=new Array(pts.length).fill(false);
+  for(let a=0;a<pts.length;a++){
+    if(used[a])continue;
+    const c=[a]; used[a]=true;
+    for(let b=a+1;b<pts.length;b++){
+      if(!used[b]&&pts[a].distanceTo(pts[b])<R){c.push(b);used[b]=true;}
+    }
+    const g=GALLERY[c[0]], n=c.length;
+    const html=`<div class="bubble-wrap${n>1?' stacked':''}">
+      <img class="photo-bubble" src="${g.thumb}" alt="">
+      ${n>1?`<span class="bubble-count">${n}</span>`:''}</div>`;
+    L.marker([g.lat,g.lng],{icon:L.divIcon({className:'',iconSize:[0,0],iconAnchor:[0,0],html})})
+     .addTo(bubbleLayer).on('click',()=>openLightbox(c,0));
+  }
+}
+map.on('zoomend',rebuildBubbles); rebuildBubbles();
+
 const lb=document.getElementById('lightbox');
-function openLightbox(i){
-  const g=GALLERY[i];
+let lbList=[],lbIdx=0;
+function openLightbox(list,idx){ lbList=list; lbIdx=idx; showLb(); }
+function showLb(){
+  const g=GALLERY[lbList[lbIdx]];
   const img=lb.querySelector('img');
   img.src=g.file; img.onerror=()=>{img.onerror=null;img.src=g.thumb;};
   const d=new Date(g.date+'T12:00:00');
   lb.querySelector('.lightbox-cap').innerHTML=
     `<b>${d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}</b>`+
-    (g.gps?'':' · position estimée (convoi)');
+    (g.gps?'':' · position estimée (convoi)')+
+    (lbList.length>1?` · ${lbIdx+1}/${lbList.length}`:'');
+  const nav=lbList.length>1?'grid':'none';
+  lb.querySelector('.lb-prev').style.display=nav;
+  lb.querySelector('.lb-next').style.display=nav;
   lb.classList.add('open');
 }
+function lbStep(d){ lbIdx=(lbIdx+d+lbList.length)%lbList.length; showLb(); }
+lb.querySelector('.lb-prev').onclick=e=>{e.stopPropagation();lbStep(-1);};
+lb.querySelector('.lb-next').onclick=e=>{e.stopPropagation();lbStep(1);};
 lb.onclick=()=>lb.classList.remove('open');
-window.addEventListener('keydown',e=>{if(e.key==='Escape')lb.classList.remove('open');});
+window.addEventListener('keydown',e=>{
+  if(!lb.classList.contains('open'))return;
+  if(e.key==='Escape')lb.classList.remove('open');
+  else if(e.key==='ArrowLeft'&&lbList.length>1)lbStep(-1);
+  else if(e.key==='ArrowRight'&&lbList.length>1)lbStep(1);
+});
 
 // convoy marker
 const convoyIcon=L.divIcon({className:'',iconSize:[34,34],iconAnchor:[17,17],html:`

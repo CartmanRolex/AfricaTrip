@@ -63,12 +63,16 @@ Key JS structures (all near the top of the script):
 - The Étapes list is a horizontal scroll-snap slider (`.legs`), ‹ › buttons
   (`#legs-prev/next`), and `render()` auto-scrolls the active card into view.
 - `GALLERY` — shared Drive photos `[{id, name, date(iso), lat, lng,
-  gps(bool), thumb(dataURI), file}]` (see `fetch_photos.py`). Each renders as
-  a round `.photo-bubble` marker (34 px, sand border, 22 px when
-  `body.danger-far`); click opens the `#lightbox` overlay showing
-  `photos/uploads/<id>.jpg` (relative path; `onerror` falls back to the
-  embedded thumb so the standalone file still works), with a date caption
-  plus "position estimée (convoi)" when `gps` is false. Esc/click closes.
+  gps(bool), thumb(dataURI), file}]` (see `fetch_photos.py`). Rendered by
+  `rebuildBubbles()` (rerun on every zoomend): photos within ~42 screen px
+  (30 when zoomed out) greedily merge into one `.bubble-wrap` pile — round
+  thumb (34 px, sand border, 22 px when `body.danger-far`), offset discs
+  behind (`.stacked`) and an orange `.bubble-count` badge. Clicking a pile
+  opens the `#lightbox` slideshow over the cluster: ‹ › buttons + arrow
+  keys navigate, caption shows date + "position estimée (convoi)" when
+  `gps` is false + `k/n`. Image is `photos/uploads/<id>.jpg` (relative;
+  `onerror` falls back to the embedded thumb so the standalone file
+  works). Esc/click closes.
 
 ### `build.py`
 Reads `template.html` + `data.json` + `photos.json` + `gallery.json`,
