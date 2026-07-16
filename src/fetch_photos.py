@@ -136,8 +136,11 @@ def exif_gps(im):
 
 
 def exif_date(im):
+    """Capture date from the image's own metadata — the photo's REAL date,
+    never the upload date. Priority: DateTimeOriginal (shutter press),
+    DateTimeDigitized, then DateTime (last modification)."""
     ex = im.getexif()
-    for tag in (36867, 306):                # DateTimeOriginal, DateTime
+    for tag in (36867, 36868, 306):
         v = ex.get(tag) or ex.get_ifd(0x8769).get(tag)
         if v:
             try:
