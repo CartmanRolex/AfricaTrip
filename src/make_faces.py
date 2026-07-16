@@ -200,7 +200,22 @@ def clean_rects(img, rects):
     return out.crop(out.getchannel("A").getbbox())
 
 
+SOURCES_HELP = """\
+The source images (photos/<name>.jpeg, voitures.jpg, terros.jpg) are no
+longer kept in the working tree — the generated crops in photos/faces/ and
+photos/emojis/ are committed, so the site never needs them. To re-crop,
+restore them from git history first:
+    git checkout 3962b0d -- photos/
+then rerun this script (and delete the restored originals again after)."""
+
+
 def main():
+    missing = [f for f in ["voitures.jpg", "terros.jpg"]
+               + [c[0] for c in CROPS.values()]
+               if not os.path.exists(os.path.join(PHOTOS, f))]
+    if missing:
+        raise SystemExit(f"Missing source images: {', '.join(missing)}\n\n"
+                         + SOURCES_HELP)
     os.makedirs(FACES, exist_ok=True)
     os.makedirs(EMOJIS, exist_ok=True)
     faces = {}

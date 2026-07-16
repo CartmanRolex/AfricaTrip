@@ -17,7 +17,8 @@ right. **Mobile (≤880 px)**: app-style split — fixed map on top (38vh), the
 panel becomes a rounded bottom sheet with its own scroll; the timeline
 section (`.sec-tl`) is sticky inside it and the cars section (`.sec-cars`)
 reorders before the legs list (CSS `order`). Header compacts to one row
-(tagline hidden, pax stat hidden, seats grid goes 1-column).
+(tagline hidden, pax stat hidden); the seats grid stays 2 columns but the
+seat cards compact (smaller padding/chip/fonts, 42 px HP bar).
 
 Key JS structures (all near the top of the script):
 - `DATA.records` — one entry per day: `{date, iso, checkpoint, location,
@@ -116,7 +117,10 @@ into `src/gallery.json`, and reruns `build.py`. Setup steps in the
 docstring (share the folder with the service account as Viewer).
 
 ### `make_faces.py`
-Produces `photos.json` + the generated image folders. Three parts:
+Produces `photos.json` + the generated image folders. **The source images
+were removed from the working tree** (outputs are committed); the script
+exits with restore instructions (`git checkout 3962b0d -- photos/`) if they
+are missing — see `photos/CLAUDE.md`. Three parts:
 1. **Faces**: hand-tuned square crops of `photos/<name>.jpeg` via the
    `CROPS` dict (cx, cy, size as fractions; tweak these to reframe someone)
    → `photos/faces/<name>.jpg`, 128 px.

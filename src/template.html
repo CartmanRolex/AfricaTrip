@@ -239,7 +239,13 @@ body.danger-far .bubble-wrap{width:22px;height:22px}
     margin:0 -14px;padding:8px 14px 12px;border-bottom:1px solid var(--line)}
   .sec-tl .tl-date{font-size:18px}
   .sec-cars{order:-1}
-  .seats{grid-template-columns:1fr}
+  /* two compact seat cards per row (space is scarce) */
+  .seats{grid-template-columns:1fr 1fr;gap:7px}
+  .seat{padding:7px 8px;gap:7px;min-height:42px}
+  .seat-chip{width:26px;height:26px;font-size:11px}
+  .seat-name{font-size:12px}
+  .hp-bar{width:42px}
+  .seat-skill{font-size:9px}
 }
 </style>
 </head>
