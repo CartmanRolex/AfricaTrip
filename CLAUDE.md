@@ -72,7 +72,12 @@ Gotchas learned the hard way:
 
 ## Data access
 
-- The Google Sheet is read-only for us (public CSV export). We cannot write
-  to it; changes to trip data are made in the sheet by the humans, then
-  pulled with `python src/refresh.py`.
-- Google Drive MCP connector: read/search/copy/create only, no editing.
+- **Read**: `python src/refresh.py` pulls the sheet's public CSV export and
+  rebuilds the site.
+- **Write**: `python src/sheet_edit.py` (tabs/get/set/setrows/clear) edits
+  the live sheet through the Sheets API using a service-account key stored
+  in the git-ignored `.sheet-credentials.json` (setup steps in its
+  docstring). After writing to the sheet, run `refresh.py` so the site
+  reflects the change.
+- Google Drive MCP connector: read/search/copy/create only, no editing —
+  use `sheet_edit.py` instead for sheet writes.

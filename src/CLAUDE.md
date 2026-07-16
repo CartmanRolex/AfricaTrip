@@ -63,6 +63,15 @@ Downloads the live Google Sheet as CSV (URL/ID from git-ignored
 `.sheet-url`, or CLI arg), then runs parse_csv + build in-process. The sheet
 must be shared "anyone with link can view". Stdlib only.
 
+### `sheet_edit.py`
+CLI to read and **write** the live Google Sheet (`tabs`, `get "A1:E5"`,
+`set "B3" value…`, `setrows "A10:C12" rows.json`, `clear "Z100"`; A1 ranges,
+optional `Tab!` prefix, first tab by default). Auth is a Google Cloud
+service account: JSON key in the git-ignored `.sheet-credentials.json` at
+the repo root, sheet shared with the service-account email as Editor
+(one-time setup steps in the docstring). Sheet ID comes from `.sheet-url`
+like `refresh.py`. After sheet writes, run `refresh.py` to sync the site.
+
 ### `make_faces.py`
 Produces `photos.json` + the generated image folders. Three parts:
 1. **Faces**: hand-tuned square crops of `photos/<name>.jpeg` via the
