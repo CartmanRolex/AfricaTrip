@@ -111,8 +111,10 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
   padding:8px 10px;min-height:46px;transition:border-color .15s,transform .12s}
 .seat:not(.empty):hover{border-color:var(--cc);transform:translateY(-1px)}
 .seat.empty{border-style:dashed;opacity:.5}
-.seat-chip{width:26px;height:26px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;
+.seat-chip{width:30px;height:30px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;
   font-family:var(--display);font-weight:700;font-size:12px;color:#16120c}
+.seat-chip.photo{padding:2px}
+.seat-chip img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
 .seat-chip.present{background:var(--present)}
 .seat-chip.unknown{background:var(--unknown)}
 .seat-chip.tentative{background:var(--unknown);box-shadow:inset 0 0 0 2px var(--bg)}
@@ -199,6 +201,7 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 const DATA = __DATA__;
+const PHOTOS = __PHOTOS__;
 const REC = DATA.records, ROUTE = DATA.route, CARS = DATA.cars;
 const CAR1 = DATA.car1, CAR2 = DATA.car2;
 
@@ -363,8 +366,10 @@ function stop(){ playing=false; clearInterval(timer); document.getElementById('p
 const carsEl=document.getElementById('cars');
 function seatHTML(name,state,isDriver,color){
   const lbl={present:'présent',unknown:'non confirmé',tentative:'pressenti'}[state]||'';
+  const ph=PHOTOS[name];
+  const face=ph?`<img src="${ph}" alt="${name}">`:name[0];
   return `<div class="seat">
-    <div class="seat-chip ${state}">${name[0]}</div>
+    <div class="seat-chip ${state}${ph?' photo':''}">${face}</div>
     <div class="seat-info"><span class="seat-name ${isDriver?'driver':''}">${name}</span>
     <span class="seat-stat">${lbl}</span></div></div>`;
 }
