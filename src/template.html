@@ -56,6 +56,10 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
 .open-label{font-family:var(--mono);font-size:9.5px;letter-spacing:.03em;color:var(--unknown);white-space:nowrap;
   background:rgba(20,17,14,.7);border:1px dashed rgba(227,181,63,.55);border-radius:5px;padding:3px 8px;
   transform:translate(-50%,0);box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.danger-emoji{font-size:19px;line-height:1;text-align:center;filter:drop-shadow(0 1px 3px rgba(0,0,0,.7))}
+.danger-label{font-family:var(--mono);font-size:8.5px;letter-spacing:.04em;color:#E28368;white-space:nowrap;
+  background:rgba(20,17,14,.72);border:1px dashed rgba(217,91,67,.55);border-radius:5px;padding:2px 7px;
+  transform:translate(-50%,0);box-shadow:0 2px 8px rgba(0,0,0,.4)}
 .convoy{filter:drop-shadow(0 0 6px rgba(232,146,74,.7))}
 .convoy-ring{animation:pulse 2.2s ease-out infinite}
 @keyframes pulse{0%{r:9;opacity:.8}100%{r:24;opacity:0}}
@@ -298,6 +302,9 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
 const latlngs = ROUTE.map(p=>[p.lat,p.lng]);
 // base (faint full route)
 L.polyline(latlngs,{color:'#6b5b44',weight:2.5,opacity:.45,dashArray:'1 7',lineCap:'round'}).addTo(map);
+// active leg highlight (sand dashes) — shows WHICH leg is selected before
+// the convoy has driven it; the traveled line is drawn on top of it
+const legLine = L.polyline([],{color:'#EFE7D6',weight:2.5,opacity:.8,dashArray:'2 7',lineCap:'round'}).addTo(map);
 // traveled (bright) — updated dynamically, with a soft glow underneath
 const glow = L.polyline([],{color:'#E8924A',weight:9,opacity:.16,lineCap:'round',lineJoin:'round'}).addTo(map);
 const traveled = L.polyline([],{color:'#E8924A',weight:3.5,opacity:.95,lineCap:'round',lineJoin:'round'}).addTo(map);
@@ -311,6 +318,21 @@ ROUTE.forEach((p,i)=>{ if(!p.cp) return;
 });
 function refreshCp(upTo){ document.querySelectorAll('.cp-dot').forEach(el=>{
   el.classList.toggle('done', (+el.dataset.i)<=upTo);}); }
+
+// zones à risque du Sahel, façon carte de jeu vidéo (loin de la route côtière)
+const DANGER=[
+  {lat:20.6,lng:-8.6, e:'🏴‍☠️', t:'ZONE DE BANDITS — RESTER SUR LA PISTE', r:230000},
+  {lat:18.0,lng:-0.8, e:'💀',  t:'ZONE PVP — NIV. 99 REQUIS',            r:300000},
+  {lat:14.3,lng:0.6,  e:'⚔️',  t:'BOSS HOSTILES — CARTE ROUGE',          r:250000},
+];
+DANGER.forEach(z=>{
+  L.circle([z.lat,z.lng],{radius:z.r,color:'#D95B43',weight:1.2,opacity:.5,
+    dashArray:'4 8',fillColor:'#D95B43',fillOpacity:.055,interactive:false}).addTo(map);
+  L.marker([z.lat,z.lng],{interactive:false,icon:L.divIcon({className:'',iconSize:[24,24],
+    iconAnchor:[12,12],html:`<div class="danger-emoji">${z.e}</div>`})}).addTo(map);
+  L.marker([z.lat,z.lng],{interactive:false,icon:L.divIcon({className:'',iconSize:[0,0],
+    iconAnchor:[0,-13],html:`<div class="danger-label">${z.t}</div>`})}).addTo(map);
+});
 
 // convoy marker
 const convoyIcon=L.divIcon({className:'',iconSize:[34,34],iconAnchor:[17,17],html:`
@@ -478,6 +500,9 @@ function render(){
   const tl=[]; for(let i=0;i<=P.upTo;i++)tl.push([ROUTE[i].lat,ROUTE[i].lng]);
   if(P.partial)tl.push([P.partial.lat,P.partial.lng]);
   traveled.setLatLngs(tl); glow.setLatLngs(tl);
+  const AL=LEGS[P.legIdx], lpts=[];
+  if(!AL.stay){ for(let i=AL.ri0;i<=AL.ri1;i++) lpts.push([ROUTE[i].lat,ROUTE[i].lng]); }
+  legLine.setLatLngs(lpts);
   refreshCp(P.upTo);
   setOpenZone(P.legIdx===LEGS.length-1);   // final leg = onward route undecided
   // panel
