@@ -19,6 +19,7 @@ HERE = os.path.dirname(__file__)
 TEMPLATE = os.path.join(HERE, "template.html")
 DATA = os.path.join(HERE, "data.json")
 PHOTOS = os.path.join(HERE, "photos.json")
+GALLERY = os.path.join(HERE, "gallery.json")
 OUTS = [os.path.join(HERE, "..", "voyage-afrique.html"),
         os.path.join(HERE, "..", "index.html")]
 
@@ -26,7 +27,9 @@ def main():
     template = open(TEMPLATE, encoding="utf-8").read()
     data = open(DATA, encoding="utf-8").read()
     photos = open(PHOTOS, encoding="utf-8").read() if os.path.exists(PHOTOS) else "{}"
-    html = template.replace("__DATA__", data).replace("__PHOTOS__", photos)
+    gallery = open(GALLERY, encoding="utf-8").read() if os.path.exists(GALLERY) else "[]"
+    html = (template.replace("__DATA__", data).replace("__PHOTOS__", photos)
+            .replace("__GALLERY__", gallery))
     for out in OUTS:
         open(out, "w", encoding="utf-8").write(html)
         print(f"Wrote {os.path.normpath(out)} ({len(html):,} chars)")

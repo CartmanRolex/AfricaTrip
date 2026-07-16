@@ -10,3 +10,6 @@ __pycache__/
 
 # fichier local chiffré — ne jamais publier
 photos/gal.enc
+
+# Lien local du dossier Drive photos partagées — jamais sur GitHub
+.drive-folder

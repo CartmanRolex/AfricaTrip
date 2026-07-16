@@ -55,13 +55,13 @@ def load_key():
         raise RuntimeError(SETUP_HELP.format(key=os.path.normpath(KEY_FILE)))
 
 
-def access_token(key):
+def access_token(key, scope=SCOPE):
     """Exchange a signed service-account JWT for a bearer token (no transport deps)."""
     from google.auth import crypt, jwt as gjwt
     now = int(time.time())
     assertion = gjwt.encode(
         crypt.RSASigner.from_service_account_info(key),
-        {"iss": key["client_email"], "scope": SCOPE, "aud": TOKEN_URL,
+        {"iss": key["client_email"], "scope": scope, "aud": TOKEN_URL,
          "iat": now, "exp": now + 3600},
     ).decode()
     body = urllib.parse.urlencode({

@@ -46,13 +46,32 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
 .leaflet-bar a:hover{background:#28201A}
 
 /* convoy + checkpoint markers */
-.cp-dot{width:13px;height:13px;border-radius:50%;background:var(--sand);
-  border:2.5px solid var(--bg);box-shadow:0 0 0 2px var(--sand-dim);}
-.cp-dot.done{background:var(--c1);box-shadow:0 0 0 2px var(--c1)}
-.cp-label{font-family:var(--display);font-weight:600;font-size:10.5px;letter-spacing:.07em;
+.cp-badge{display:flex;align-items:center;gap:5px;pointer-events:none}
+.cp-badge b{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto;
+  font-family:var(--display);font-weight:600;font-size:10.5px;color:var(--sand-dim);
+  background:var(--panel);border:1.5px solid var(--sand-dim);
+  box-shadow:0 0 0 2.5px rgba(20,17,14,.78),0 2px 8px rgba(0,0,0,.5);
+  transition:background .2s,border-color .2s,color .2s}
+.cp-badge span{font-family:var(--display);font-weight:600;font-size:10px;letter-spacing:.07em;
   text-transform:uppercase;color:var(--sand);white-space:nowrap;
   background:rgba(20,17,14,.74);border:1px solid var(--line);border-radius:5px;padding:2px 7px;
   box-shadow:0 2px 8px rgba(0,0,0,.45)}
+.cp-badge.done b{background:var(--c1);border-color:var(--c1);color:#1a120a}
+.cp-badge.next b{border-color:var(--unknown);color:var(--unknown);animation:cpnext 1.6s ease-in-out infinite}
+@keyframes cpnext{0%,100%{box-shadow:0 0 0 2.5px rgba(20,17,14,.78)}
+  50%{box-shadow:0 0 0 2.5px rgba(20,17,14,.78),0 0 0 8px rgba(227,181,63,.22)}}
+/* dézoomé : numéros seuls, noms masqués */
+body.danger-far .cp-badge span{display:none}
+/* étiquette flottante de l'étape active (milieu du tracé) */
+.leg-chip{transform:translate(-50%,0);display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--dc,#EFE7D6);
+  background:rgba(20,17,14,.8);border:1px solid var(--dc,#EFE7D6);border-radius:14px;padding:3px 10px;
+  box-shadow:0 2px 10px rgba(0,0,0,.5)}
+.leg-chip i{font-style:normal;font-size:8px;letter-spacing:.12em}
+body.danger-far .leg-chip i{display:none}
+/* tracé animé de l'étape active */
+.leg-flow{stroke-dasharray:2 10;animation:legflow 1.1s linear infinite}
+@keyframes legflow{to{stroke-dashoffset:-12}}
 .open-label{font-family:var(--mono);font-size:9.5px;letter-spacing:.03em;color:var(--unknown);white-space:nowrap;
   background:rgba(20,17,14,.7);border:1px dashed rgba(227,181,63,.55);border-radius:5px;padding:3px 8px;
   transform:translate(-50%,0);box-shadow:0 2px 8px rgba(0,0,0,.4)}
@@ -65,6 +84,19 @@ body.danger-far .danger-label{display:none}
 .danger-label{font-family:var(--mono);font-size:8.5px;letter-spacing:.04em;color:#E28368;white-space:nowrap;
   background:rgba(20,17,14,.72);border:1px dashed rgba(217,91,67,.55);border-radius:5px;padding:2px 7px;
   transform:translate(-50%,0);box-shadow:0 2px 8px rgba(0,0,0,.4)}
+/* bulles photos partagées (Drive) */
+.photo-bubble{width:34px;height:34px;border-radius:50%;object-fit:cover;display:block;
+  border:2px solid var(--sand);box-shadow:0 2px 7px rgba(0,0,0,.55);cursor:pointer;
+  transform:translate(-50%,-50%);transition:transform .15s}
+.photo-bubble:hover{transform:translate(-50%,-50%) scale(1.5);z-index:50}
+body.danger-far .photo-bubble{width:22px;height:22px}
+.lightbox{position:fixed;inset:0;z-index:2000;background:rgba(20,17,14,.93);
+  display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px}
+.lightbox.open{display:flex}
+.lightbox img{max-width:92vw;max-height:82vh;border-radius:10px;
+  box-shadow:0 12px 50px rgba(0,0,0,.7);border:1px solid var(--line)}
+.lightbox-cap{font-family:var(--mono);font-size:11px;color:var(--sand-dim);letter-spacing:.05em;text-align:center}
+.lightbox-cap b{color:var(--sand);font-weight:400}
 .convoy{filter:drop-shadow(0 0 6px rgba(232,146,74,.7))}
 .convoy-ring{animation:pulse 2.2s ease-out infinite}
 @keyframes pulse{0%{r:9;opacity:.8}100%{r:24;opacity:0}}
@@ -78,20 +110,32 @@ body.danger-far .danger-label{display:none}
 
 .eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:0 0 9px}
 
-/* legs */
-.legs{display:flex;flex-direction:column;gap:6px}
-.leg{display:grid;grid-template-columns:30px 1fr auto;align-items:center;gap:11px;
-  background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;text-align:left;
-  transition:border-color .15s,background .15s,transform .12s,box-shadow .15s;width:100%}
+/* legs — slider horizontal compact */
+.legs-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+.legs-head .eyebrow{margin:0}
+.legs-nav{display:flex;gap:6px}
+.legs-nav button{width:26px;height:24px;border-radius:7px;background:var(--panel2);
+  border:1px solid var(--line);color:var(--sand-dim);font-size:14px;line-height:1;padding:0 0 2px;
+  transition:border-color .15s,color .15s}
+.legs-nav button:hover{border-color:var(--sand-dim);color:var(--sand)}
+.legs{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;
+  padding:2px 2px 8px;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.legs::-webkit-scrollbar{height:7px}
+.legs::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
+.leg{flex:0 0 176px;scroll-snap-align:start;display:flex;flex-direction:column;gap:6px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:10px 12px;text-align:left;
+  transition:border-color .15s,background .15s,transform .12s,box-shadow .15s}
 .leg:hover{border-color:var(--sand-dim);transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,.28)}
 .leg.active{border-color:var(--c1);background:linear-gradient(180deg,#2c2117,#241c15);box-shadow:inset 0 0 0 1px rgba(232,146,74,.35)}
-.leg-num{font-family:var(--display);font-weight:700;font-size:16px;color:var(--muted);text-align:center}
+.leg-top{display:flex;align-items:center;gap:7px}
+.leg-emoji{font-size:16px;line-height:1}
+.leg-num{font-family:var(--mono);font-size:8.5px;letter-spacing:.14em;color:var(--muted)}
 .leg.active .leg-num{color:var(--c1)}
-.leg-route{display:block;font-family:var(--display);font-weight:600;font-size:14px;letter-spacing:.03em;text-transform:uppercase;line-height:1.2}
-.leg-sub{display:block;font-family:var(--mono);font-size:9.5px;color:var(--sand-dim);margin-top:3px;letter-spacing:.01em}
-.leg-diff{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.08em;margin-top:3px}
-.leg-pax{font-family:var(--mono);font-weight:700;font-size:11px;color:var(--sand-dim);
-  background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:4px 8px;white-space:nowrap}
+.leg-route{display:block;font-family:var(--display);font-weight:600;font-size:13px;letter-spacing:.03em;text-transform:uppercase;line-height:1.25}
+.leg-sub{display:block;font-family:var(--mono);font-size:8.5px;color:var(--sand-dim);letter-spacing:.01em;margin-top:auto}
+.leg-diff{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.08em}
+.leg-pax{margin-left:auto;font-family:var(--mono);font-weight:700;font-size:9.5px;color:var(--sand-dim);
+  background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:2px 6px;white-space:nowrap}
 .leg.active .leg-pax{color:var(--c1);border-color:rgba(232,146,74,.5)}
 
 /* timeline */
@@ -201,7 +245,13 @@ body.danger-far .danger-label{display:none}
   <div class="panel">
     <div class="panel-scroll">
       <section>
-        <p class="eyebrow">Étapes du voyage</p>
+        <div class="legs-head">
+          <p class="eyebrow">Étapes du voyage</p>
+          <div class="legs-nav">
+            <button id="legs-prev" aria-label="Étapes précédentes">‹</button>
+            <button id="legs-next" aria-label="Étapes suivantes">›</button>
+          </div>
+        </div>
         <div class="legs" id="legs"></div>
       </section>
 
@@ -235,10 +285,16 @@ body.danger-far .danger-label{display:none}
   </div>
 </div>
 
+<div class="lightbox" id="lightbox">
+  <img src="" alt="Photo du voyage">
+  <div class="lightbox-cap"></div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 const DATA = __DATA__;
 const PHOTOS = __PHOTOS__;
+const GALLERY = __GALLERY__;
 const REC = DATA.records, ROUTE = DATA.route, CARS = DATA.cars;
 const CAR1 = DATA.car1, CAR2 = DATA.car2;
 // tout le contenu "modifiable" vient de l'onglet Config de la feuille
@@ -314,22 +370,26 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
 const latlngs = ROUTE.map(p=>[p.lat,p.lng]);
 // base (faint full route)
 L.polyline(latlngs,{color:'#6b5b44',weight:2.5,opacity:.45,dashArray:'1 7',lineCap:'round'}).addTo(map);
-// active leg highlight (sand dashes) — shows WHICH leg is selected before
-// the convoy has driven it; the traveled line is drawn on top of it
-const legLine = L.polyline([],{color:'#EFE7D6',weight:2.5,opacity:.8,dashArray:'2 7',lineCap:'round'}).addTo(map);
+// active leg highlight — animated dashes, coloured by leg difficulty; shows
+// WHICH leg is selected before the convoy has driven it (traveled sits on top)
+const legLine = L.polyline([],{color:'#EFE7D6',weight:3,opacity:.85,lineCap:'round',className:'leg-flow'}).addTo(map);
 // traveled (bright) — updated dynamically, with a soft glow underneath
 const glow = L.polyline([],{color:'#E8924A',weight:9,opacity:.16,lineCap:'round',lineJoin:'round'}).addTo(map);
 const traveled = L.polyline([],{color:'#E8924A',weight:3.5,opacity:.95,lineCap:'round',lineJoin:'round'}).addTo(map);
 
-// checkpoint markers
+// checkpoint milestones: numbered badge + name pill (names hide when zoomed out)
 const cpMarkers=[];
 ROUTE.forEach((p,i)=>{ if(!p.cp) return;
-  const m=L.marker([p.lat,p.lng],{icon:L.divIcon({className:'',html:`<div class="cp-dot" data-i="${i}"></div>`,iconSize:[13,13],iconAnchor:[6,6]})}).addTo(map);
-  L.marker([p.lat,p.lng],{icon:L.divIcon({className:'',html:`<div class="cp-label">${p.cp.replace('⛴️','')}</div>`,iconSize:[0,0],iconAnchor:[-9,8]}),interactive:false}).addTo(map);
-  cpMarkers.push({i,el:null,marker:m});
+  const n=cpMarkers.length+1;
+  const m=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'',iconSize:[0,0],
+    iconAnchor:[10,10],html:`<div class="cp-badge" data-i="${i}"><b>${n}</b><span>${pretty(p.cp)}</span></div>`})}).addTo(map);
+  cpMarkers.push({i,marker:m});
 });
-function refreshCp(upTo){ document.querySelectorAll('.cp-dot').forEach(el=>{
-  el.classList.toggle('done', (+el.dataset.i)<=upTo);}); }
+// done = déjà atteint · next = prochaine destination (pulsation ambre)
+function refreshCp(upTo,nextIdx){ document.querySelectorAll('.cp-badge').forEach(el=>{
+  const i=+el.dataset.i;
+  el.classList.toggle('done', i<=upTo);
+  el.classList.toggle('next', i===nextIdx && i>upTo);}); }
 
 // zones à risque (section "danger" de l'onglet Config), habillées façon
 // carte de jeu vidéo — toutes loin de la route côtière
@@ -347,6 +407,26 @@ DANGER.forEach(z=>{
 });
 function dangerZoom(){document.body.classList.toggle('danger-far',map.getZoom()<5);}
 map.on('zoomend',dangerZoom); dangerZoom();
+
+// bulles photos partagées : une vignette ronde par photo du Drive
+GALLERY.forEach((g,i)=>{
+  L.marker([g.lat,g.lng],{icon:L.divIcon({className:'',iconSize:[0,0],iconAnchor:[0,0],
+    html:`<img class="photo-bubble" src="${g.thumb}" alt="">`})})
+   .addTo(map).on('click',()=>openLightbox(i));
+});
+const lb=document.getElementById('lightbox');
+function openLightbox(i){
+  const g=GALLERY[i];
+  const img=lb.querySelector('img');
+  img.src=g.file; img.onerror=()=>{img.onerror=null;img.src=g.thumb;};
+  const d=new Date(g.date+'T12:00:00');
+  lb.querySelector('.lightbox-cap').innerHTML=
+    `<b>${d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}</b>`+
+    (g.gps?'':' · position estimée (convoi)');
+  lb.classList.add('open');
+}
+lb.onclick=()=>lb.classList.remove('open');
+window.addEventListener('keydown',e=>{if(e.key==='Escape')lb.classList.remove('open');});
 
 // convoy marker
 const convoyIcon=L.divIcon({className:'',iconSize:[34,34],iconAnchor:[17,17],html:`
@@ -387,7 +467,9 @@ function paxCount(rec){
 const legsEl=document.getElementById('legs');
 // thème + niveau de difficulté de chaque étape (section "etapes" de Config)
 const LEG_META=CFG.etapes||[];
-const DIFF_COLOR=d=>d<=2?'var(--present)':d<=3?'var(--unknown)':'#D9704F';
+const legMeta=i=>LEG_META[i]||{emoji:'🗺️',diff:3,lbl:'Inconnu'};
+// hex (pas de var() : réutilisé pour le tracé SVG de la carte)
+const DIFF_COLOR=d=>d<=2?'#8FC36A':d<=3?'#E3B53F':'#D9704F';
 LEGS.forEach((L,i)=>{
   const r0=REC[L.s], rEnd=REC[L.e];
   const days=L.e-L.s;
@@ -395,16 +477,20 @@ LEGS.forEach((L,i)=>{
     ? `${r0.date} → ${rEnd.date} · ${days} j · ${T.stay_cap||'cap à définir'}`
     : `${r0.date} → ${rEnd.date} · ${kmFmt(legKm(L))} km`;
   const title = L.stay ? `${pretty(L.to)} ${T.stay_title_suffix||'& au-delà'}` : `${pretty(L.from)} → ${pretty(L.to)}`;
-  const m=LEG_META[i]||{emoji:'🗺️',diff:3,lbl:'Inconnu'};
+  const m=legMeta(i);
   const pips='◆'.repeat(m.diff)+'◇'.repeat(5-m.diff);
   const b=document.createElement('button'); b.className='leg'; b.dataset.leg=i;
-  b.innerHTML=`<span class="leg-num">${m.emoji}</span>
-    <span><span class="leg-route">${title}</span><span class="leg-sub">${sub}</span>
-    <span class="leg-diff" style="color:${DIFF_COLOR(m.diff)}">${pips} ${m.lbl}</span></span>
-    <span class="leg-pax">${paxRange(L)}</span>`;
+  b.innerHTML=`<span class="leg-top"><span class="leg-emoji">${m.emoji}</span>
+    <span class="leg-num">ÉTAPE ${String(i+1).padStart(2,'0')}</span>
+    <span class="leg-pax">${paxRange(L)}</span></span>
+    <span class="leg-route">${title}</span>
+    <span class="leg-sub">${sub}</span>
+    <span class="leg-diff" style="color:${DIFF_COLOR(m.diff)}">${pips} ${m.lbl}</span>`;
   b.onclick=()=>{ setIndex(L.s); fitLeg(L); };
   legsEl.appendChild(b);
 });
+document.getElementById('legs-prev').onclick=()=>legsEl.scrollBy({left:-legsEl.clientWidth*.8,behavior:'smooth'});
+document.getElementById('legs-next').onclick=()=>legsEl.scrollBy({left: legsEl.clientWidth*.8,behavior:'smooth'});
 function paxRange(L){ // min–max passengers across the leg
   let mn=99,mx=0; for(let r=L.s;r<=L.e;r++){const c=paxCount(REC[r]);mn=Math.min(mn,c);mx=Math.max(mx,c);}
   return mn===mx?`${mn} pax`:`${mn}–${mx} pax`;
@@ -418,6 +504,29 @@ function fitLeg(L){
   const pts=[]; for(let i=L.ri0;i<=L.ri1;i++)pts.push([ROUTE[i].lat,ROUTE[i].lng]);
   if(pts.length<2)pts.push([ROUTE[L.ri1].lat+0.01,ROUTE[L.ri1].lng+0.01]);
   map.flyToBounds(pts,{padding:[70,70],duration:.7,maxZoom:7});
+}
+
+// étiquette flottante au milieu du tracé de l'étape active
+const legChip=L.marker([0,0],{interactive:false,icon:L.divIcon({className:'',iconSize:[0,0],iconAnchor:[0,0],html:''})});
+function legMid(Lg){
+  if(Lg.stay||Lg.ri0===Lg.ri1) return [ROUTE[Lg.ri1].lat,ROUTE[Lg.ri1].lng];
+  let tot=0; for(let i=Lg.ri0;i<Lg.ri1;i++) tot+=hav(ROUTE[i],ROUTE[i+1]);
+  let t=tot/2;
+  for(let i=Lg.ri0;i<Lg.ri1;i++){
+    const dk=hav(ROUTE[i],ROUTE[i+1]);
+    if(dk>=t){const f=dk?t/dk:0,A=ROUTE[i],B=ROUTE[i+1];
+      return [A.lat+(B.lat-A.lat)*f,A.lng+(B.lng-A.lng)*f];}
+    t-=dk;
+  }
+  return [ROUTE[Lg.ri1].lat,ROUTE[Lg.ri1].lng];
+}
+function updateLegChip(li){
+  const m=legMeta(li);
+  const pips='◆'.repeat(m.diff)+'◇'.repeat(5-m.diff);
+  legChip.setIcon(L.divIcon({className:'',iconSize:[0,0],iconAnchor:[0,30],
+    html:`<div class="leg-chip" style="--dc:${DIFF_COLOR(m.diff)}">${m.emoji} ${m.lbl} <i>${pips}</i></div>`}));
+  legChip.setLatLng(legMid(LEGS[li]));
+  if(!map.hasLayer(legChip)) legChip.addTo(map);
 }
 
 /* ---- timeline ---- */
@@ -498,7 +607,9 @@ function render(){
   const AL=LEGS[P.legIdx], lpts=[];
   if(!AL.stay){ for(let i=AL.ri0;i<=AL.ri1;i++) lpts.push([ROUTE[i].lat,ROUTE[i].lng]); }
   legLine.setLatLngs(lpts);
-  refreshCp(P.upTo);
+  legLine.setStyle({color:DIFF_COLOR(legMeta(P.legIdx).diff)});
+  refreshCp(P.upTo, AL.stay?-1:AL.ri1);
+  updateLegChip(P.legIdx);
   setOpenZone(P.legIdx===LEGS.length-1);   // final leg = onward route undecided
   // panel
   document.getElementById('tl-date').textContent=rec.date;
@@ -509,9 +620,14 @@ function render(){
   document.getElementById('s-day').textContent=`${idx+1} / ${REC.length}`;
   document.getElementById('s-km').textContent=kmFmt(traveledKm(P));
   carsEl.innerHTML=renderCar(1,rec)+'<div style="height:14px"></div>'+renderCar(2,rec);
-  // active leg
+  // active leg: highlight card + keep it visible in the slider
   const li=P.legIdx;
   document.querySelectorAll('.leg').forEach(el=>el.classList.toggle('active',+el.dataset.leg===li));
+  if(render._leg!==li){
+    render._leg=li;
+    const el=legsEl.children[li];
+    if(el) legsEl.scrollTo({left:Math.max(0,el.offsetLeft-legsEl.offsetLeft-8),behavior:'smooth'});
+  }
 }
 
 document.getElementById('s-km-tot').textContent=`/ ${kmFmt(totalKm)} km`;

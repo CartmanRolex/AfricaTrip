@@ -22,14 +22,21 @@ Key JS structures (all near the top of the script):
 - `DATA.records` — one entry per day: `{date, iso, checkpoint, location,
   cap1, cap2, car1:{Name:state}, car2:{...}}`; states: `present | unknown |
   tentative | absent`.
-- `DATA.route` — polyline points `{lat,lng, cp?}`; points with `cp` are
-  checkpoints (SUISSE, MALAGA, ALGECIRAS, DAKHLA, DAKAR).
+- `DATA.config` — the parsed Config sheet tab; **all editorial content
+  comes from it** (`CFG` in the JS): `textes` (tagline, foot, open-route
+  labels), `checkpoints` (display names), `etapes` → `LEG_META`, `rpg` →
+  `RPG`, `rpgVoitures` → `CAR_RPG`, `danger` → `DANGER`, `couleurs`.
+  Fallbacks are minimal — edit the sheet, not the JS.
+- `DATA.route` — polyline points `{lat,lng, cp?}` (Config `## route`);
+  points with `cp` are checkpoints (SUISSE, MALAGA, ALGECIRAS, DAKHLA,
+  DAKAR, CONAKRY, ABIDJAN, ACCRA, LOMÉ).
 - `LEGS` — derived legs between checkpoints (`s`/`e` = record indices,
-  `ri0`/`ri1` = route indices; last leg is the open-ended stay at Dakar).
+  `ri0`/`ri1` = route indices; last leg is the open-ended stay at Lomé).
 - `LEG_META` — per-leg theme emoji + difficulty 1-5 + label (◆ pips,
-  color-coded green/amber/red).
-- `RPG` — per-traveler `{xp, pv, skill}` (fun, hand-written; PV bar color
-  thresholds ≥7 green, ≥4 amber, else red).
+  color-coded green/amber/red via `DIFF_COLOR`, hex on purpose: reused as
+  SVG stroke on the map where `var()` doesn't work).
+- `RPG` — per-traveler `{xp, pv, skill}` (PV bar color thresholds ≥7
+  green, ≥4 amber, else red).
 - `CAR_RPG` — same for the cars + a `malus` line with their real-world
   afflictions (car 1 wheel bearings, car 2 holed exhaust −700 CHF).
 - `DANGER` — Sahel danger zones `{lat, lng, img:'terroN', s:size_px, r:radius_m,
@@ -45,23 +52,32 @@ Key JS structures (all near the top of the script):
   ×3.2 via `.seat-chip.photo:hover img`); missing faces (Thomas, Jehan) fall
   back to the initial letter.
 - Map rendering in `render()`: `traveled` orange polyline (+ glow) up to the
-  convoy, `legLine` sand-dashed polyline highlighting the ACTIVE leg (this is
-  what makes a clicked leg visible — don't remove it), checkpoint dots,
-  pulsing convoy marker (amber "?" variant past Dakar with the "open route"
-  circle).
+  convoy, `legLine` highlighting the ACTIVE leg (this is what makes a clicked
+  leg visible — don't remove it) with animated dashes (`.leg-flow` CSS) and
+  difficulty color, a floating `leg-chip` (emoji + label + pips) at the leg's
+  mid-distance, numbered `cp-badge` milestones (done = orange fill, next
+  destination pulses amber; name pills hide below zoom 5 via
+  `body.danger-far`), pulsing convoy marker (amber "?" variant on the final
+  stay leg with the "open route" circle).
+- The Étapes list is a horizontal scroll-snap slider (`.legs`), ‹ › buttons
+  (`#legs-prev/next`), and `render()` auto-scrolls the active card into view.
 
 ### `build.py`
 Reads `template.html` + `data.json` + `photos.json`, writes the two root
 HTML files. Trivial; run after ANY change to template or JSON.
 
 ### `parse_csv.py`
-`data/AfriqueCalendrier_-_Presences_Voyage.csv` → `data.json`. Only needs
-rerunning when the CSV changes (usually via `refresh.py`).
+`data/AfriqueCalendrier_-_Presences_Voyage.csv` (+ `data/Config.csv`, the
+Config tab: `read_config()` parses its `## section` blocks) → `data.json`.
+The `ROUTE`/`CAR_COLORS` constants are only fallbacks for a missing
+Config.csv. Only needs rerunning when the CSVs change (usually via
+`refresh.py`).
 
 ### `refresh.py`
 Downloads the live Google Sheet as CSV (URL/ID from git-ignored
-`.sheet-url`, or CLI arg), then runs parse_csv + build in-process. The sheet
-must be shared "anyone with link can view". Stdlib only.
+`.sheet-url`, or CLI arg) — both the presence grid and the Config tab
+(`CONFIG_GID`) — then runs parse_csv + build in-process. The sheet must be
+shared "anyone with link can view". Stdlib only.
 
 ### `sheet_edit.py`
 CLI to read and **write** the live Google Sheet (`tabs`, `get "A1:E5"`,
