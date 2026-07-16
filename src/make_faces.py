@@ -33,7 +33,7 @@ THUMB = 128  # px, plenty for a ~30px chip on retina
 
 # name-in-data -> (file, cx, cy, size_frac_of_width)
 CROPS = {
-    "Gal":     ("Gal.jpeg",     0.66, 0.55, 0.50),
+    "Gal":     ("Gal.png",      0.45, 0.58, 0.52),
     "Arthur":  ("arthur.jpeg",  0.46, 0.42, 0.42),
     "Dorvan":  ("dorvan.jpeg",  0.72, 0.425, 0.22),
     "Edouard": ("edouard.jpeg", 0.50, 0.46, 0.42),
