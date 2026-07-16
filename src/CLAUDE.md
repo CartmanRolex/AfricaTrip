@@ -119,7 +119,7 @@ docstring (share the folder with the service account as Viewer).
 ### `make_faces.py`
 Produces `photos.json` + the generated image folders. **The source images
 were removed from the working tree** (outputs are committed); the script
-exits with restore instructions (`git checkout 3962b0d -- photos/`) if they
+exits with restore instructions (`git checkout 8e10997 -- photos/`) if they
 are missing — see `photos/CLAUDE.md`. Three parts:
 1. **Faces**: hand-tuned square crops of `photos/<name>.jpeg` via the
    `CROPS` dict (cx, cy, size as fractions; tweak these to reframe someone)
