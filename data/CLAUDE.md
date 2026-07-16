@@ -17,7 +17,7 @@ into `data.json` as `config`; edit the sheet, then rerun `refresh.py`.
 
 Shape (parsed by `src/parse_csv.py` into `src/data.json`):
 - Decorative title/period rows at the top, then a header row with dates.
-- One row per day (Aug 1 → Sep 30, 2025), one column per traveler, grouped
+- One row per day (Aug 2 → Sep 30, 2025), one column per traveler, grouped
   in two car blocks (car 1 "HUGODOUARD": Gal, Hugo, Malen, Arthur, Edouard,
   Younous; car 2 "PAUL POT": Paul, Thomas, Jehan, Dorvan).
 - Cell values encode presence: present / unknown ("?") / tentative /

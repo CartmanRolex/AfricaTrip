@@ -11,9 +11,10 @@ edit by hand**, regenerate instead. Embedded as data URIs in
 - `car2.png` — grey Subaru Outback, header icon of car 2 "PAUL POT".
 
 ## Stickers `terro1..12` (row-major order of `photos/terros.jpg`)
-Used by the `DANGER` array in `src/template.html`; chosen so the fighters'
-apparent ethnicity matches the dominant makeup of each region's armed
-groups (Arab-looking → Arab/Tuareg north; Black → Sahel/Lake Chad groups).
+Used by the `## danger` section of the sheet's Config tab (rendered as the
+`DANGER` array in the site); chosen so the fighters' apparent ethnicity
+matches the dominant makeup of each region's armed groups (Arab-looking →
+Arab/Tuareg north; Black → Sahel/Lake Chad/west-Mali groups).
 
 | # | Sticker                        | Zone on the map                      |
 |---|--------------------------------|--------------------------------------|
@@ -25,10 +26,10 @@ groups (Arab-looking → Arab/Tuareg north; Black → Sahel/Lake Chad groups).
 | 6 | Arab fighter, profile + AK     | NE-Mauritania military zone          |
 | 7 | Green jeep (Arab driver)       | (spare; had baked sheet artifacts, cleaned via `CLEAN`) |
 | 8 | Blue pickup, 2 Black fighters  | Lake Chad                            |
-| 9 | Helicopter (Black pilot)       | (spare)                              |
+| 9 | Helicopter (Black pilot)       | Kayes west (Senegal border)          |
 | 10| Arab fighter running, hoodie   | East-Mauritanian axes to Mali        |
 | 11| Black fighter on yellow disc   | East Burkina                         |
-| 12| Black fighter standing, bandage| (spare)                              |
+| 12| Black fighter standing, bandage| Falémé south (Senegal border)        |
 
-Spares are still embedded in `photos.json`, so using one is just an edit to
-`DANGER` in the template.
+Spares (3, 5, 7) are still embedded in `photos.json`, so using one is just a
+new row in the Config tab's `## danger` section.

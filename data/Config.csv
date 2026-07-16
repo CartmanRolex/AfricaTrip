@@ -2,7 +2,7 @@
 ,,,,,
 ## textes,,,,,
 clé,valeur,,,,
-tagline,Carnet de route · 1er août → 30 septembre 2025,,,,
+tagline,Carnet de route · 2 août → 30 septembre 2025,,,,
 foot,Capacité max. 4 places par voiture. Les jours sans nouveau lieu reprennent le dernier point de passage. Glisse la frise ou choisis une étape pour voir l'équipage évoluer.,,,,
 open_zone_label,Au-delà : itinéraire à définir,,,,
 open_route_suffix,itinéraire ouvert,,,,
@@ -11,7 +11,7 @@ stay_cap,cap à définir,,,,
 ,,,,,
 ## checkpoints,,,,,
 cp,label,,,,
-SUISSE,Suisse,,,,
+SUISSE,Bienne,,,,
 MALAGA,Málaga,,,,
 ALGECIRAS,Algeciras,,,,
 DAKHLA,Dakhla,,,,
@@ -23,7 +23,8 @@ LOMÉ,Lomé,,,,
 ,,,,,
 ## route,,,,,
 nom,lat,lng,cp,ferry,
-Genève,46.204,6.143,SUISSE,,
+Bienne,47.137,7.247,SUISSE,,
+Genève,46.204,6.143,,,
 Montpellier,43.611,3.877,,,
 Barcelona,41.390,2.170,,,
 Valencia,39.470,-0.376,,,
@@ -97,3 +98,5 @@ lat,lng,img,taille,rayon,label
 15.1,1.0,terro1,60,240000,TRIPLE FRONTIÈRE — BOSS FINAL
 12.1,0.9,terro11,44,170000,BURKINA EST — ZONE ROUGE
 13.2,13.6,terro8,52,260000,LAC TCHAD — RAID EN COURS
+14.35,-11.5,terro9,54,150000,KAYES OUEST — HÉLICO EN MARAUDE
+12.95,-11.15,terro12,44,120000,FALÉMÉ SUD — GUET-APENS NIV. 20
