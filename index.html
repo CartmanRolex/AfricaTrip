@@ -80,6 +80,7 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
 .leg.active .leg-num{color:var(--c1)}
 .leg-route{display:block;font-family:var(--display);font-weight:600;font-size:14px;letter-spacing:.03em;text-transform:uppercase;line-height:1.2}
 .leg-sub{display:block;font-family:var(--mono);font-size:9.5px;color:var(--sand-dim);margin-top:3px;letter-spacing:.01em}
+.leg-diff{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.08em;margin-top:3px}
 .leg-pax{font-family:var(--mono);font-weight:700;font-size:11px;color:var(--sand-dim);
   background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:4px 8px;white-space:nowrap}
 .leg.active .leg-pax{color:var(--c1);border-color:rgba(232,146,74,.5)}
@@ -105,6 +106,10 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
 .car-emoji{font-size:20px;filter:saturate(1.1)}
 .car-img{height:36px;width:auto;flex:0 0 auto;filter:drop-shadow(0 2px 5px rgba(0,0,0,.4))}
 .car-name{font-family:var(--display);font-weight:700;font-size:16px;letter-spacing:.05em;text-transform:uppercase;color:var(--cc)}
+.car-sheet{display:flex;flex-wrap:wrap;align-items:center;gap:3px 12px;margin:-3px 0 10px;
+  padding:7px 10px;background:var(--bg);border:1px solid var(--line);border-radius:9px}
+.car-sheet .hp{margin:0}
+.car-malus{flex-basis:100%;font-family:var(--mono);font-size:8.5px;letter-spacing:.02em;color:#D9704F}
 .car-cap{margin-left:auto;font-family:var(--mono);font-weight:700;font-size:13px;color:var(--sand-dim);
   background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:3px 9px}
 .seats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -344,6 +349,15 @@ function paxCount(rec){
   return n;
 }
 const legsEl=document.getElementById('legs');
+// thème + niveau de difficulté de chaque étape (1 à 5)
+const LEG_META=[
+  {emoji:'🏔️', diff:2, lbl:'Tranquille'},   // descente des Alpes, autoroute
+  {emoji:'⛴️', diff:1, lbl:'Promenade'},    // petit saut vers le détroit
+  {emoji:'🏜️', diff:4, lbl:'Corsé'},        // ferry + Maroc + Sahara occidental
+  {emoji:'🐫', diff:5, lbl:'Légendaire'},    // no man's land & Mauritanie
+  {emoji:'🧭', diff:3, lbl:'Inconnu'},       // au-delà : carte non révélée
+];
+const DIFF_COLOR=d=>d<=2?'var(--present)':d<=3?'var(--unknown)':'#D9704F';
 LEGS.forEach((L,i)=>{
   const r0=REC[L.s], rEnd=REC[L.e];
   const days=L.e-L.s;
@@ -351,9 +365,12 @@ LEGS.forEach((L,i)=>{
     ? `${r0.date} → ${rEnd.date} · ${days} j · cap à définir`
     : `${r0.date} → ${rEnd.date} · ${kmFmt(legKm(L))} km`;
   const title = L.stay ? `${pretty(L.to)} & au-delà` : `${pretty(L.from)} → ${pretty(L.to)}`;
+  const m=LEG_META[i]||{emoji:'🗺️',diff:3,lbl:'Inconnu'};
+  const pips='◆'.repeat(m.diff)+'◇'.repeat(5-m.diff);
   const b=document.createElement('button'); b.className='leg'; b.dataset.leg=i;
-  b.innerHTML=`<span class="leg-num">${i+1}</span>
-    <span><span class="leg-route">${title}</span><span class="leg-sub">${sub}</span></span>
+  b.innerHTML=`<span class="leg-num">${m.emoji}</span>
+    <span><span class="leg-route">${title}</span><span class="leg-sub">${sub}</span>
+    <span class="leg-diff" style="color:${DIFF_COLOR(m.diff)}">${pips} ${m.lbl}</span></span>
     <span class="leg-pax">${paxRange(L)}</span>`;
   b.onclick=()=>{ setIndex(L.s); fitLeg(L); };
   legsEl.appendChild(b);
@@ -417,6 +434,13 @@ function emptySeat(){return `<div class="seat empty"><div class="seat-chip empty
   <div class="seat-info"><span class="seat-name" style="color:var(--muted)">libre</span>
   <span class="seat-stat">—</span></div></div>`;}
 
+// fiche RPG des montures : avaries réelles incluses
+const CAR_RPG={
+  1:{xp:4444, pv:5, skill:'Coffre Tetris niv. 8',
+     malus:'⚠ Roulements de roue en sursis — jet de sauvegarde à chaque étape'},
+  2:{xp:3707, pv:6, skill:'Vrombissement intimidant +3',
+     malus:'⚠ Pot d’échappement troué — dégâts subis : 700 CHF'},
+};
 function renderCar(carNo,rec){
   const roster = carNo===1?CAR1:CAR2;
   const states = carNo===1?rec.car1:rec.car2;
@@ -428,10 +452,18 @@ function renderCar(carNo,rec){
   for(let k=onboard.length;k<4;k++) seats+=emptySeat();
   const cap = carNo===1?rec.cap1:rec.cap2;
   const carImg = PHOTOS.cars[carNo];
+  const cr = CAR_RPG[carNo];
+  const hpc = cr.pv>=7?'var(--present)':cr.pv>=4?'var(--unknown)':'#D95B43';
+  const sheet = `<div class="car-sheet">
+      <span class="seat-stat">${cr.xp} XP</span>
+      <span class="hp">PV <i class="hp-bar"><i class="hp-fill" style="width:${cr.pv*10}%;background:${hpc}"></i></i> ${cr.pv}/10</span>
+      <span class="seat-skill">${cr.skill}</span>
+      <span class="car-malus">${cr.malus}</span></div>`;
   return `<div class="car" style="--cc:${meta.color}">
     <div class="car-head">${carImg?`<img class="car-img" src="${carImg}" alt="">`:`<span class="car-emoji">${meta.emoji}</span>`}
       <span class="car-name">${meta.name}</span>
       <span class="car-cap">${cap||'0/4'}</span></div>
+    ${sheet}
     <div class="seats">${seats}</div>
     ${absent.length?`<div class="bench">Pas à bord : <b>${absent.join(', ')}</b></div>`:''}
   </div>`;
