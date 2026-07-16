@@ -139,14 +139,28 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
 
 .foot{font-family:var(--mono);font-size:9.5px;color:var(--muted);line-height:1.5;border-top:1px solid var(--line);padding-top:12px}
 
-/* mobile */
+/* mobile: fixed map on top, bottom-sheet panel with its own scroll.
+   Sections reorder so timeline (sticky) + cars come first; legs after. */
 @media (max-width:880px){
-  body{overflow:auto}
-  .app{grid-template-columns:1fr;grid-template-rows:auto 44vh auto;grid-template-areas:"head" "map" "panel";height:auto;min-height:100vh}
-  .panel{border-left:none;border-top:1px solid var(--line)}
-  .panel-scroll{overflow:visible}
-  .head-stats{width:100%;margin-left:0;justify-content:space-between;gap:12px}
-  .stat{text-align:left}
+  .app{grid-template-columns:1fr;grid-template-rows:auto minmax(0,38vh) minmax(0,1fr);
+    grid-template-areas:"head" "map" "panel";height:100vh;height:100dvh}
+  header{padding:9px 14px;gap:10px;align-items:center;flex-wrap:nowrap}
+  .brand{font-size:15px}
+  .tagline{display:none}
+  .head-stats{gap:10px}
+  .head-stats .stat:last-child{display:none} /* pax déjà visible sur les voitures */
+  .stat b{font-size:13px}
+  .stat span{font-size:7.5px;letter-spacing:.06em}
+  #map{z-index:1}
+  .panel{position:relative;z-index:5;border-left:none;border-top:1px solid var(--line);
+    margin-top:-14px;border-radius:16px 16px 0 0;box-shadow:0 -8px 24px rgba(0,0,0,.45)}
+  .panel::before{content:"";flex:0 0 auto;width:44px;height:4px;border-radius:2px;
+    background:var(--line);margin:8px auto 2px}
+  .panel-scroll{padding:0 14px calc(20px + env(safe-area-inset-bottom));gap:16px}
+  .sec-tl{order:-2;position:sticky;top:0;z-index:6;background:var(--panel);
+    margin:0 -14px;padding:8px 14px 12px;border-bottom:1px solid var(--line)}
+  .sec-tl .tl-date{font-size:18px}
+  .sec-cars{order:-1}
 }
 </style>
 </head>
@@ -171,7 +185,7 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
         <div class="legs" id="legs"></div>
       </section>
 
-      <section>
+      <section class="sec-tl">
         <div class="tl-head">
           <div>
             <div class="tl-date" id="tl-date">—</div>
@@ -185,7 +199,7 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
         <div class="ticks" id="ticks"></div>
       </section>
 
-      <section id="cars"></section>
+      <section id="cars" class="sec-cars"></section>
 
       <section>
         <div class="legend">
