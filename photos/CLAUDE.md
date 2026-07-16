@@ -30,5 +30,5 @@ Historical note on the removed sheets: both were AI-generated with a FAKE
 painted checkerboard background (the transparency pattern is painted INTO
 the pixels); `make_faces.py` removes it (see `src/CLAUDE.md` for the
 algorithm and its tuned thresholds). `voitures.jpg`: red Toyota RAV4 =
-car 1 "HUGODOUARD", grey Subaru Outback = car 2 "PAUL POT". Thomas and
-Jehan have no photo → the site shows their initial.
+car 1 "HUGODOUARD", grey Subaru Outback = car 2 "PAUL POT". All 10
+travelers have a photo (Jehan/Thomas arrived later as `.png`).

@@ -51,8 +51,8 @@ Key JS structures (all near the top of the script):
   zoom 5 (`body.danger-far`, `dangerZoom()`).
 - `PHOTOS` — `{faces:{Name:dataURI}, cars:{1:…,2:…}, terros:{terroN:…}}`.
   Faces render in seat chips (30 px circle, status-colored ring, hover zoom
-  ×3.2 via `.seat-chip.photo:hover img`); missing faces (Thomas, Jehan) fall
-  back to the initial letter.
+  ×3.2 via `.seat-chip.photo:hover img`); all 10 travelers have one (a
+  missing face would fall back to the initial letter).
 - Map rendering in `render()`: `traveled` orange polyline (+ glow) up to the
   convoy, `legLine` highlighting the ACTIVE leg (this is what makes a clicked
   leg visible — don't remove it) with animated dashes (`.leg-flow` CSS) and
