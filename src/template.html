@@ -327,13 +327,13 @@ function refreshCp(upTo){ document.querySelectorAll('.cp-dot').forEach(el=>{
 // zones à risque réelles du Sahel (sources : France Diplomatie, ACLED 2025-26),
 // habillées façon carte de jeu vidéo — toutes loin de la route côtière
 const DANGER=[
-  {lat:21.2,lng:-7.2, img:'terro6', s:36, r:260000, t:'ZONE MILITAIRE NE — ACCÈS NIV. 40'},
-  {lat:16.8,lng:-7.5, img:'terro9', s:36, r:190000, t:'AXES MALIENS — EMBUSCADES'},
-  {lat:18.3,lng:-1.2, img:'terro2', s:40, r:330000, t:'NORD MALI — ZONE PVP NIV. 99'},
-  {lat:14.3,lng:-5.0, img:'terro3', s:36, r:200000, t:'CENTRE MALI — MOBS AGRESSIFS'},
-  {lat:15.1,lng:1.0,  img:'terro1', s:46, r:240000, t:'TRIPLE FRONTIÈRE — BOSS FINAL'},
-  {lat:12.1,lng:0.9,  img:'terro5', s:34, r:170000, t:'BURKINA EST — ZONE ROUGE'},
-  {lat:13.2,lng:13.6, img:'terro8', s:40, r:260000, t:'LAC TCHAD — RAID EN COURS'},
+  {lat:21.2,lng:-7.2, img:'terro6',  s:36, r:260000, t:'ZONE MILITAIRE NE — ACCÈS NIV. 40'},
+  {lat:16.8,lng:-7.5, img:'terro10', s:36, r:190000, t:'AXES MALIENS — EMBUSCADES'},
+  {lat:18.3,lng:-1.2, img:'terro2',  s:40, r:330000, t:'NORD MALI — ZONE PVP NIV. 99'},
+  {lat:14.3,lng:-5.0, img:'terro4',  s:36, r:200000, t:'CENTRE MALI — MOBS AGRESSIFS'},
+  {lat:15.1,lng:1.0,  img:'terro1',  s:46, r:240000, t:'TRIPLE FRONTIÈRE — BOSS FINAL'},
+  {lat:12.1,lng:0.9,  img:'terro11', s:34, r:170000, t:'BURKINA EST — ZONE ROUGE'},
+  {lat:13.2,lng:13.6, img:'terro8',  s:40, r:260000, t:'LAC TCHAD — RAID EN COURS'},
 ];
 DANGER.forEach(z=>{
   L.circle([z.lat,z.lng],{radius:z.r,color:'#D95B43',weight:1.2,opacity:.5,

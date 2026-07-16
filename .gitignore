@@ -4,3 +4,6 @@
 # Python noise
 __pycache__/
 *.pyc
+
+# fichier local chiffré — ne jamais publier
+photos/gal.enc

@@ -2,13 +2,13 @@
 Crop traveler photos to square face thumbnails and extract the car icons.
 
 Usage:  python src/make_faces.py
-Reads:  photos/<name>.jpeg
-        photos/voitures.jpg  (two cartoon cars on a FAKE checkerboard
-                              "transparency" painted into the JPEG)
-Writes: photos/faces/<name>.jpg   (small square face crop, for inspection/reuse)
-        photos/faces/car1.png, car2.png  (cars with real alpha transparency)
-        src/photos.json           ({faces: {...}, cars: {...}} data URIs,
-                                   injected by build.py)
+Reads:  photos/<name>.jpeg      (traveler photos)
+        photos/voitures.jpg     (two cartoon cars, fake painted checkerboard)
+        photos/terros.jpg       (danger-zone sticker sheet, same fake checker)
+Writes: photos/faces/<name>.jpg     (face crops ONLY — people live here)
+        photos/emojis/car1.png, car2.png, terro<N>.png  (true-alpha cutouts)
+        src/photos.json             ({faces, cars, terros} data URIs,
+                                     injected by build.py)
 
 Each face entry below frames the face by hand: (cx, cy) is the face center
 and `size` the square side, all as fractions of the image WIDTH (cx, size)
@@ -26,6 +26,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageOps
 HERE = os.path.dirname(__file__)
 PHOTOS = os.path.join(HERE, "..", "photos")
 FACES = os.path.join(PHOTOS, "faces")
+EMOJIS = os.path.join(PHOTOS, "emojis")
 OUT_JSON = os.path.join(HERE, "photos.json")
 
 THUMB = 128  # px, plenty for a ~30px chip on retina
@@ -97,7 +98,7 @@ def outside_mask(im):
     w, h = im.size
     a = np.asarray(im, dtype=np.int16)
     mx, mn = a.max(2), a.min(2)
-    cand = ((mx - mn < 20) & (mx > 140)).astype(np.uint8) * 255
+    cand = ((mx - mn < 20) & (mx > 105)).astype(np.uint8) * 255
     # .copy() unshares the numpy buffer, else floodfill writes are lost
     candim = Image.fromarray(cand, "L").copy()
     seeds = [(x, y) for x in range(0, w, 48) for y in (0, h - 1)]
@@ -114,9 +115,11 @@ def cut_stickers(path, thumb_h=120):
     im = Image.open(path).convert("RGB")
     w, h = im.size
     outside = outside_mask(im)
-    # find sticker blobs on a 4x downscale, dilated so close parts merge
-    fg = Image.fromarray((~outside[::4, ::4]).astype(np.uint8) * 255, "L")
-    fg = np.asarray(fg.filter(ImageFilter.MaxFilter(9))) > 0
+    # find sticker blobs on a 2x downscale, dilated so close parts merge
+    # (dilation radius ~2 small px = merges gaps under ~8 full px)
+    ds = 2
+    fg = Image.fromarray((~outside[::ds, ::ds]).astype(np.uint8) * 255, "L")
+    fg = np.asarray(fg.filter(ImageFilter.MaxFilter(5))) > 0
     sh, sw = fg.shape
     seen = np.zeros_like(fg, dtype=bool)
     boxes = []
@@ -133,8 +136,8 @@ def cut_stickers(path, thumb_h=120):
                     ny, nx = y + dy, x + dx
                     if 0 <= ny < sh and 0 <= nx < sw and fg[ny, nx] and not seen[ny, nx]:
                         seen[ny, nx] = True; q.append((ny, nx))
-            if area > 400:  # drop specks
-                boxes.append((xs * 4, ys * 4, xe * 4 + 4, ye * 4 + 4))
+            if area * ds * ds > 3000:  # drop specks
+                boxes.append((xs * ds, ys * ds, xe * ds + ds, ye * ds + ds))
     # row-major order: cluster by vertical band, then left to right
     boxes.sort(key=lambda b: (round((b[1] + b[3]) / 2 / (h / 3.0)), b[0]))
     alpha_full = Image.fromarray(((~outside) * 255).astype(np.uint8), "L") \
@@ -152,6 +155,7 @@ def cut_stickers(path, thumb_h=120):
 
 def main():
     os.makedirs(FACES, exist_ok=True)
+    os.makedirs(EMOJIS, exist_ok=True)
     faces = {}
     for name, (fname, cx, cy, size) in CROPS.items():
         face = crop_face(os.path.join(PHOTOS, fname), cx, cy, size)
@@ -165,17 +169,17 @@ def main():
     voitures = Image.open(os.path.join(PHOTOS, "voitures.jpg"))
     for no, box in CAR_BOXES.items():
         car = cut_car(voitures, box)
-        out = os.path.join(FACES, f"car{no}.png")
+        out = os.path.join(EMOJIS, f"car{no}.png")
         car.save(out, "PNG", optimize=True)
         buf = io.BytesIO()
         car.save(buf, "PNG", optimize=True)
         cars[no] = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
         print(f"car{no}     -> {os.path.normpath(out)} ({buf.tell():,} B embedded)")
     terros = {}
-    sheet = os.path.join(PHOTOS, "terros.png")
+    sheet = os.path.join(PHOTOS, "terros.jpg")
     if os.path.exists(sheet):
         for i, st in enumerate(cut_stickers(sheet, thumb_h=96), 1):
-            out = os.path.join(FACES, f"terro{i}.png")
+            out = os.path.join(EMOJIS, f"terro{i}.png")
             st.save(out, "PNG", optimize=True)
             buf = io.BytesIO()
             st.save(buf, "PNG", optimize=True)
