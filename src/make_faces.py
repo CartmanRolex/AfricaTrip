@@ -190,7 +190,8 @@ def defringe(img):
 DEFRINGE = set()  # plus nécessaire depuis que les liserés blancs sont préservés
 
 # artefacts de la planche à gommer : sticker -> rectangles (fractions l,t,r,b)
-CLEAN = {7: [(0.92, 0.0, 1.0, 0.18), (0.0, 0.92, 0.42, 1.0)]}
+CLEAN = {7: [(0.92, 0.0, 1.0, 0.18), (0.0, 0.92, 0.42, 1.0)],
+         9: [(0.0, 0.0, 0.05, 1.0)]}  # bande du sticker voisin, à gauche de l'hélico
 
 
 def clean_rects(img, rects):

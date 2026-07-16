@@ -18,18 +18,18 @@ Arab/Tuareg north; Black → Sahel/Lake Chad/west-Mali groups).
 
 | # | Sticker                        | Zone on the map                      |
 |---|--------------------------------|--------------------------------------|
-| 1 | Black fighter, crossed AKs     | Liptako-Gourma tri-border ("boss")   |
+| 1 | Black fighter, crossed AKs     | (spare — retired from the boss zone, owner disliked it) |
 | 2 | Beige Toyota technical (Arab)  | North Mali                           |
 | 3 | Arab fighter, camo + AK        | (spare)                              |
 | 4 | Black fighter, vest + AK       | Central Mali                         |
-| 5 | Arab fighter, helmet + fist    | (spare)                              |
+| 5 | Arab fighter, helmet + fist    | Liptako-Gourma tri-border ("boss")   |
 | 6 | Arab fighter, profile + AK     | NE-Mauritania military zone          |
 | 7 | Green jeep (Arab driver)       | (spare; had baked sheet artifacts, cleaned via `CLEAN`) |
 | 8 | Blue pickup, 2 Black fighters  | Lake Chad                            |
-| 9 | Helicopter (Black pilot)       | Kayes west (Senegal border)          |
+| 9 | Helicopter (Black pilot)       | Kayes west (Senegal border); neighbour-sticker strip on its left erased via `CLEAN` |
 | 10| Arab fighter running, hoodie   | East-Mauritanian axes to Mali        |
 | 11| Black fighter on yellow disc   | East Burkina                         |
 | 12| Black fighter standing, bandage| Falémé south (Senegal border)        |
 
-Spares (3, 5, 7) are still embedded in `photos.json`, so using one is just a
+Spares (1, 3, 7) are still embedded in `photos.json`, so using one is just a
 new row in the Config tab's `## danger` section.
