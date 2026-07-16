@@ -103,6 +103,7 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
 .car{background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:14px;border-top:3px solid var(--cc)}
 .car-head{display:flex;align-items:center;gap:9px;margin-bottom:12px}
 .car-emoji{font-size:20px;filter:saturate(1.1)}
+.car-img{height:36px;width:auto;flex:0 0 auto;filter:drop-shadow(0 2px 5px rgba(0,0,0,.4))}
 .car-name{font-family:var(--display);font-weight:700;font-size:16px;letter-spacing:.05em;text-transform:uppercase;color:var(--cc)}
 .car-cap{margin-left:auto;font-family:var(--mono);font-weight:700;font-size:13px;color:var(--sand-dim);
   background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:3px 9px}
@@ -124,8 +125,12 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
 .seat-chip.empty{background:transparent;border:1.5px dashed var(--muted)}
 .seat-info{display:flex;flex-direction:column;line-height:1.15;min-width:0}
 .seat-name{font-family:var(--body);font-weight:600;font-size:13px;color:var(--sand);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.seat-stat{font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.seat-stat{font-family:var(--mono);font-size:8px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted)}
 .seat-name.driver::after{content:"  ⌖";color:var(--cc);font-size:11px}
+.hp{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:8.5px;color:var(--sand-dim);margin:3px 0 2px}
+.hp-bar{display:block;width:52px;height:5px;border-radius:3px;background:var(--line);overflow:hidden}
+.hp-fill{display:block;height:100%;border-radius:3px}
+.seat-skill{font-style:italic;font-size:9.5px;color:var(--sand-dim);line-height:1.25}
 .bench{margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--muted)}
 .bench b{color:var(--sand-dim);font-weight:400}
 
@@ -161,6 +166,7 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
     margin:0 -14px;padding:8px 14px 12px;border-bottom:1px solid var(--line)}
   .sec-tl .tl-date{font-size:18px}
   .sec-cars{order:-1}
+  .seats{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -204,7 +210,7 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
       <section>
         <div class="legend">
           <span><i class="dot present"></i> présent</span>
-          <span><i class="dot unknown"></i> non confirmé</span>
+          <span><i class="dot unknown"></i> incertain</span>
           <span><i class="dot tentative"></i> pressenti</span>
           <span><i class="dot absent"></i> absent</span>
         </div>
@@ -381,14 +387,31 @@ function stop(){ playing=false; clearInterval(timer); document.getElementById('p
 
 /* ---- car dashboards ---- */
 const carsEl=document.getElementById('cars');
+// fiche RPG : XP, points de vie et compétence signature de chaque aventurier
+const RPG={
+  Gal:    {xp:1337, pv:8,  skill:'Cap au sud +4'},
+  Hugo:   {xp:420,  pv:6,  skill:'Poncho violet niv. 5'},
+  Malen:  {xp:666,  pv:5,  skill:'Pause clope stratégique +3'},
+  Arthur: {xp:256,  pv:9,  skill:'Croqueur de banquise +2'},
+  Edouard:{xp:1024, pv:7,  skill:'Regard de mille bornes +10'},
+  Younous:{xp:808,  pv:8,  skill:'Béret rouge tactique +2'},
+  Paul:   {xp:999,  pv:7,  skill:'Négociation de check-out +3'},
+  Thomas: {xp:42,   pv:10, skill:'Apparition surprise +1'},
+  Jehan:  {xp:314,  pv:6,  skill:'Copilote fantôme +2'},
+  Dorvan: {xp:512,  pv:9,  skill:"Armoire à dos d'homme +4"},
+};
 function seatHTML(name,state,isDriver,color){
-  const lbl={present:'présent',unknown:'non confirmé',tentative:'pressenti'}[state]||'';
-  const ph=PHOTOS[name];
+  const lbl={present:'présent',unknown:'incertain',tentative:'pressenti'}[state]||'';
+  const ph=PHOTOS.faces[name];
   const face=ph?`<img src="${ph}" alt="${name}">`:name[0];
+  const r=RPG[name]||{xp:0,pv:5,skill:'—'};
+  const hpc=r.pv>=7?'var(--present)':r.pv>=4?'var(--unknown)':'#D95B43';
   return `<div class="seat">
     <div class="seat-chip ${state}${ph?' photo':''}">${face}</div>
     <div class="seat-info"><span class="seat-name ${isDriver?'driver':''}">${name}</span>
-    <span class="seat-stat">${lbl}</span></div></div>`;
+    <span class="seat-stat">${lbl} · ${r.xp} XP</span>
+    <span class="hp">PV <i class="hp-bar"><i class="hp-fill" style="width:${r.pv*10}%;background:${hpc}"></i></i> ${r.pv}/10</span>
+    <span class="seat-skill">${r.skill}</span></div></div>`;
 }
 function emptySeat(){return `<div class="seat empty"><div class="seat-chip empty"></div>
   <div class="seat-info"><span class="seat-name" style="color:var(--muted)">libre</span>
@@ -404,8 +427,9 @@ function renderCar(carNo,rec){
   onboard.slice(0,4).forEach((p,k)=> seats+=seatHTML(p,states[p],k===0,meta.color));
   for(let k=onboard.length;k<4;k++) seats+=emptySeat();
   const cap = carNo===1?rec.cap1:rec.cap2;
+  const carImg = PHOTOS.cars[carNo];
   return `<div class="car" style="--cc:${meta.color}">
-    <div class="car-head"><span class="car-emoji">${meta.emoji}</span>
+    <div class="car-head">${carImg?`<img class="car-img" src="${carImg}" alt="">`:`<span class="car-emoji">${meta.emoji}</span>`}
       <span class="car-name">${meta.name}</span>
       <span class="car-cap">${cap||'0/4'}</span></div>
     <div class="seats">${seats}</div>
