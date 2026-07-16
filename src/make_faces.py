@@ -18,7 +18,9 @@ import base64
 import io
 import json
 import os
+from collections import deque
 
+import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageOps
 
 HERE = os.path.dirname(__file__)
@@ -89,6 +91,65 @@ def cut_car(im, box):
     return out.resize((round(out.width * scale), 120), Image.LANCZOS)
 
 
+def outside_mask(im):
+    """Boolean array of pixels belonging to the border-connected fake
+    checkerboard background (light, unsaturated, reachable from the edges)."""
+    w, h = im.size
+    a = np.asarray(im, dtype=np.int16)
+    mx, mn = a.max(2), a.min(2)
+    cand = ((mx - mn < 20) & (mx > 140)).astype(np.uint8) * 255
+    # .copy() unshares the numpy buffer, else floodfill writes are lost
+    candim = Image.fromarray(cand, "L").copy()
+    seeds = [(x, y) for x in range(0, w, 48) for y in (0, h - 1)]
+    seeds += [(x, y) for y in range(0, h, 48) for x in (0, w - 1)]
+    for s in seeds:
+        if candim.getpixel(s) == 255:
+            ImageDraw.floodfill(candim, s, 128)
+    return np.asarray(candim) == 128
+
+
+def cut_stickers(path, thumb_h=120):
+    """Split a sticker sheet on a painted checkerboard into individual
+    RGBA images (row-major order)."""
+    im = Image.open(path).convert("RGB")
+    w, h = im.size
+    outside = outside_mask(im)
+    # find sticker blobs on a 4x downscale, dilated so close parts merge
+    fg = Image.fromarray((~outside[::4, ::4]).astype(np.uint8) * 255, "L")
+    fg = np.asarray(fg.filter(ImageFilter.MaxFilter(9))) > 0
+    sh, sw = fg.shape
+    seen = np.zeros_like(fg, dtype=bool)
+    boxes = []
+    for y0 in range(sh):
+        for x0 in range(sw):
+            if not fg[y0, x0] or seen[y0, x0]:
+                continue
+            q = deque([(y0, x0)]); seen[y0, x0] = True
+            ys, xs, ye, xe, area = y0, x0, y0, x0, 0
+            while q:
+                y, x = q.popleft(); area += 1
+                ys, xs, ye, xe = min(ys, y), min(xs, x), max(ye, y), max(xe, x)
+                for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    ny, nx = y + dy, x + dx
+                    if 0 <= ny < sh and 0 <= nx < sw and fg[ny, nx] and not seen[ny, nx]:
+                        seen[ny, nx] = True; q.append((ny, nx))
+            if area > 400:  # drop specks
+                boxes.append((xs * 4, ys * 4, xe * 4 + 4, ye * 4 + 4))
+    # row-major order: cluster by vertical band, then left to right
+    boxes.sort(key=lambda b: (round((b[1] + b[3]) / 2 / (h / 3.0)), b[0]))
+    alpha_full = Image.fromarray(((~outside) * 255).astype(np.uint8), "L") \
+        .filter(ImageFilter.GaussianBlur(0.8))
+    rgba = im.convert("RGBA"); rgba.putalpha(alpha_full)
+    out = []
+    for (x0, y0, x1, y1) in boxes:
+        crop = rgba.crop((max(0, x0 - 8), max(0, y0 - 8), min(w, x1 + 8), min(h, y1 + 8)))
+        bb = crop.getchannel("A").getbbox()
+        crop = crop.crop(bb)
+        scale = thumb_h / crop.height
+        out.append(crop.resize((max(1, round(crop.width * scale)), thumb_h), Image.LANCZOS))
+    return out
+
+
 def main():
     os.makedirs(FACES, exist_ok=True)
     faces = {}
@@ -110,8 +171,18 @@ def main():
         car.save(buf, "PNG", optimize=True)
         cars[no] = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
         print(f"car{no}     -> {os.path.normpath(out)} ({buf.tell():,} B embedded)")
+    terros = {}
+    sheet = os.path.join(PHOTOS, "terros.png")
+    if os.path.exists(sheet):
+        for i, st in enumerate(cut_stickers(sheet, thumb_h=96), 1):
+            out = os.path.join(FACES, f"terro{i}.png")
+            st.save(out, "PNG", optimize=True)
+            buf = io.BytesIO()
+            st.save(buf, "PNG", optimize=True)
+            terros[f"terro{i}"] = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+            print(f"terro{i}   -> {os.path.normpath(out)} ({buf.tell():,} B embedded)")
     with open(OUT_JSON, "w", encoding="utf-8") as f:
-        json.dump({"faces": faces, "cars": cars}, f)
+        json.dump({"faces": faces, "cars": cars, "terros": terros}, f)
     print(f"Wrote {os.path.normpath(OUT_JSON)}")
 
 

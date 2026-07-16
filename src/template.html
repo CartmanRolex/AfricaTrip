@@ -57,6 +57,11 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
   background:rgba(20,17,14,.7);border:1px dashed rgba(227,181,63,.55);border-radius:5px;padding:3px 8px;
   transform:translate(-50%,0);box-shadow:0 2px 8px rgba(0,0,0,.4)}
 .danger-emoji{font-size:19px;line-height:1;text-align:center;filter:drop-shadow(0 1px 3px rgba(0,0,0,.7))}
+.danger-img{width:auto;transform:translate(-50%,-50%);filter:drop-shadow(0 2px 6px rgba(0,0,0,.6));
+  transition:transform .2s}
+/* dézoomé : stickers réduits, étiquettes masquées (elles reviennent en zoomant) */
+body.danger-far .danger-img{transform:translate(-50%,-50%) scale(.62)}
+body.danger-far .danger-label{display:none}
 .danger-label{font-family:var(--mono);font-size:8.5px;letter-spacing:.04em;color:#E28368;white-space:nowrap;
   background:rgba(20,17,14,.72);border:1px dashed rgba(217,91,67,.55);border-radius:5px;padding:2px 7px;
   transform:translate(-50%,0);box-shadow:0 2px 8px rgba(0,0,0,.4)}
@@ -319,20 +324,30 @@ ROUTE.forEach((p,i)=>{ if(!p.cp) return;
 function refreshCp(upTo){ document.querySelectorAll('.cp-dot').forEach(el=>{
   el.classList.toggle('done', (+el.dataset.i)<=upTo);}); }
 
-// zones à risque du Sahel, façon carte de jeu vidéo (loin de la route côtière)
+// zones à risque réelles du Sahel (sources : France Diplomatie, ACLED 2025-26),
+// habillées façon carte de jeu vidéo — toutes loin de la route côtière
 const DANGER=[
-  {lat:20.6,lng:-8.6, e:'🏴‍☠️', t:'ZONE DE BANDITS — RESTER SUR LA PISTE', r:230000},
-  {lat:18.0,lng:-0.8, e:'💀',  t:'ZONE PVP — NIV. 99 REQUIS',            r:300000},
-  {lat:14.3,lng:0.6,  e:'⚔️',  t:'BOSS HOSTILES — CARTE ROUGE',          r:250000},
+  {lat:21.2,lng:-7.2, img:'terro6', s:36, r:260000, t:'ZONE MILITAIRE NE — ACCÈS NIV. 40'},
+  {lat:16.8,lng:-7.5, img:'terro9', s:36, r:190000, t:'AXES MALIENS — EMBUSCADES'},
+  {lat:18.3,lng:-1.2, img:'terro2', s:40, r:330000, t:'NORD MALI — ZONE PVP NIV. 99'},
+  {lat:14.3,lng:-5.0, img:'terro3', s:36, r:200000, t:'CENTRE MALI — MOBS AGRESSIFS'},
+  {lat:15.1,lng:1.0,  img:'terro1', s:46, r:240000, t:'TRIPLE FRONTIÈRE — BOSS FINAL'},
+  {lat:12.1,lng:0.9,  img:'terro5', s:34, r:170000, t:'BURKINA EST — ZONE ROUGE'},
+  {lat:13.2,lng:13.6, img:'terro8', s:40, r:260000, t:'LAC TCHAD — RAID EN COURS'},
 ];
 DANGER.forEach(z=>{
   L.circle([z.lat,z.lng],{radius:z.r,color:'#D95B43',weight:1.2,opacity:.5,
     dashArray:'4 8',fillColor:'#D95B43',fillOpacity:.055,interactive:false}).addTo(map);
-  L.marker([z.lat,z.lng],{interactive:false,icon:L.divIcon({className:'',iconSize:[24,24],
-    iconAnchor:[12,12],html:`<div class="danger-emoji">${z.e}</div>`})}).addTo(map);
+  const pic=(PHOTOS.terros||{})[z.img];
+  const html=pic?`<img class="danger-img" style="height:${z.s}px" src="${pic}">`
+               :`<div class="danger-emoji">💀</div>`;
   L.marker([z.lat,z.lng],{interactive:false,icon:L.divIcon({className:'',iconSize:[0,0],
-    iconAnchor:[0,-13],html:`<div class="danger-label">${z.t}</div>`})}).addTo(map);
+    iconAnchor:[0,0],html})}).addTo(map);
+  L.marker([z.lat,z.lng],{interactive:false,icon:L.divIcon({className:'',iconSize:[0,0],
+    iconAnchor:[0,-(z.s/2+5)],html:`<div class="danger-label">${z.t}</div>`})}).addTo(map);
 });
+function dangerZoom(){document.body.classList.toggle('danger-far',map.getZoom()<5);}
+map.on('zoomend',dangerZoom); dangerZoom();
 
 // convoy marker
 const convoyIcon=L.divIcon({className:'',iconSize:[34,34],iconAnchor:[17,17],html:`
