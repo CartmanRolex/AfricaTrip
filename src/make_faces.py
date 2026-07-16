@@ -98,7 +98,8 @@ def outside_mask(im):
     w, h = im.size
     a = np.asarray(im, dtype=np.int16)
     mx, mn = a.max(2), a.min(2)
-    cand = ((mx - mn < 20) & (mx > 105)).astype(np.uint8) * 255
+    # 105..230 : gris du damier + ombres, mais PAS les liserés blancs (>=230)
+    cand = ((mx - mn < 20) & (mx > 105) & (mx < 230)).astype(np.uint8) * 255
     # .copy() unshares the numpy buffer, else floodfill writes are lost
     candim = Image.fromarray(cand, "L").copy()
     seeds = [(x, y) for x in range(0, w, 48) for y in (0, h - 1)]
@@ -153,6 +154,52 @@ def cut_stickers(path, thumb_h=120):
     return out
 
 
+def defringe(img):
+    """Strip the muddy halo left where a sticker's soft glow blended with the
+    checkerboard: peel off outside-connected, dull light pixels."""
+    a = np.asarray(img).astype(np.int16)
+    rgb, alpha = a[..., :3], a[..., 3]
+    mx, mn = rgb.max(2), rgb.min(2)
+    cand = (mx - mn < 60) & (mx > 110)
+    h, w = alpha.shape
+    q = deque()
+    kill = np.zeros((h, w), bool)
+    for y in range(h):
+        for x in range(w):
+            edge = x in (0, w - 1) or y in (0, h - 1) or \
+                (alpha[max(0, y-1):y+2, max(0, x-1):x+2] < 10).any()
+            if edge and alpha[y, x] >= 10 and cand[y, x] and not kill[y, x]:
+                kill[y, x] = True; q.append((y, x))
+    while q:
+        y, x = q.popleft()
+        for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            ny, nx = y + dy, x + dx
+            if 0 <= ny < h and 0 <= nx < w and cand[ny, nx] and alpha[ny, nx] >= 10 \
+                    and not kill[ny, nx]:
+                kill[ny, nx] = True; q.append((ny, nx))
+    out = np.asarray(img).copy()
+    out[..., 3][kill] = 0
+    res = Image.fromarray(out, "RGBA")
+    al = res.getchannel("A").filter(ImageFilter.GaussianBlur(0.6))
+    res.putalpha(al)
+    return res
+
+
+DEFRINGE = set()  # plus nécessaire depuis que les liserés blancs sont préservés
+
+# artefacts de la planche à gommer : sticker -> rectangles (fractions l,t,r,b)
+CLEAN = {7: [(0.92, 0.0, 1.0, 0.18), (0.0, 0.92, 0.42, 1.0)]}
+
+
+def clean_rects(img, rects):
+    a = np.asarray(img).copy()
+    h, w = a.shape[:2]
+    for (l, t, r, b) in rects:
+        a[int(t*h):int(b*h), int(l*w):int(r*w), 3] = 0
+    out = Image.fromarray(a, "RGBA")
+    return out.crop(out.getchannel("A").getbbox())
+
+
 def main():
     os.makedirs(FACES, exist_ok=True)
     os.makedirs(EMOJIS, exist_ok=True)
@@ -179,6 +226,10 @@ def main():
     sheet = os.path.join(PHOTOS, "terros.jpg")
     if os.path.exists(sheet):
         for i, st in enumerate(cut_stickers(sheet, thumb_h=96), 1):
+            if i in DEFRINGE:
+                st = defringe(st)
+            if i in CLEAN:
+                st = clean_rects(st, CLEAN[i])
             out = os.path.join(EMOJIS, f"terro{i}.png")
             st.save(out, "PNG", optimize=True)
             buf = io.BytesIO()
