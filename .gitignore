@@ -1,6 +1,9 @@
 # Local-only Google Sheet link — keep the source sheet private, never on GitHub.
 .sheet-url
 
+# Local-only service account key for editing the Google Sheet — never on GitHub.
+.sheet-credentials.json
+
 # Python noise
 __pycache__/
 *.pyc

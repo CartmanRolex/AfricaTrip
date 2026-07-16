@@ -57,6 +57,37 @@ python src/refresh.py "https://docs.google.com/spreadsheets/d/<ID>/edit"
 python src/refresh.py "<ID>" --gid 123456
 ```
 
+## Editing the Google Sheet
+
+`src/sheet_edit.py` can read **and write** the live sheet through the Sheets
+API v4, so changes can be made at the source instead of the exported CSV:
+
+```bash
+python src/sheet_edit.py tabs                         # list tabs (name + gid)
+python src/sheet_edit.py get  "A1:E5"                 # print a range
+python src/sheet_edit.py set  "B3" "new value"        # write one cell
+python src/sheet_edit.py set  "B3:D3" v1 v2 v3        # write one row
+python src/sheet_edit.py setrows "A10:C12" rows.json  # write a 2-D JSON block
+python src/sheet_edit.py clear "Z100"                 # clear a range
+```
+
+Ranges use A1 notation, optionally prefixed with a tab name (`"Feuille 1!B3"`).
+After editing, run `python src/refresh.py` so the site picks up the change.
+
+**One-time setup** — it authenticates as a Google Cloud *service account*:
+
+1. In [Google Cloud console](https://console.cloud.google.com), create/pick a
+   project and enable the **Google Sheets API**.
+2. IAM & Admin → Service Accounts → create one (no roles needed), then
+   Keys → Add key → **JSON** and download it.
+3. Save the key as **`.sheet-credentials.json`** in the repo root — like
+   `.sheet-url` it is git-ignored and never committed.
+4. Share the trip sheet with the service account's email
+   (`…@…iam.gserviceaccount.com`) as **Editor**.
+
+Requires `pip install google-auth` (only for signing the auth token; the API
+calls themselves are plain standard-library `urllib`).
+
 ## Rebuild from the local CSV
 
 If you've edited `data/…csv` by hand and just want to rebuild without fetching:
