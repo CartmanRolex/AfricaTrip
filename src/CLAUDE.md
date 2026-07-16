@@ -7,9 +7,10 @@
 
 ### `template.html` — the entire app (HTML + CSS + JS, ~600 lines)
 Built into `index.html`/`voyage-afrique.html` by `build.py`, which replaces
-two literal tokens:
-- `__DATA__`   ← contents of `data.json`
-- `__PHOTOS__` ← contents of `photos.json`
+three literal tokens:
+- `__DATA__`    ← contents of `data.json`
+- `__PHOTOS__`  ← contents of `photos.json`
+- `__GALLERY__` ← contents of `gallery.json` (`[]` if absent)
 
 Layout: CSS grid `header / map / panel`. Desktop: map left, 392 px panel
 right. **Mobile (≤880 px)**: app-style split — fixed map on top (38vh), the
@@ -61,10 +62,18 @@ Key JS structures (all near the top of the script):
   stay leg with the "open route" circle).
 - The Étapes list is a horizontal scroll-snap slider (`.legs`), ‹ › buttons
   (`#legs-prev/next`), and `render()` auto-scrolls the active card into view.
+- `GALLERY` — shared Drive photos `[{id, name, date(iso), lat, lng,
+  gps(bool), thumb(dataURI), file}]` (see `fetch_photos.py`). Each renders as
+  a round `.photo-bubble` marker (34 px, sand border, 22 px when
+  `body.danger-far`); click opens the `#lightbox` overlay showing
+  `photos/uploads/<id>.jpg` (relative path; `onerror` falls back to the
+  embedded thumb so the standalone file still works), with a date caption
+  plus "position estimée (convoi)" when `gps` is false. Esc/click closes.
 
 ### `build.py`
-Reads `template.html` + `data.json` + `photos.json`, writes the two root
-HTML files. Trivial; run after ANY change to template or JSON.
+Reads `template.html` + `data.json` + `photos.json` + `gallery.json`,
+writes the two root HTML files. Trivial; run after ANY change to template
+or JSON.
 
 ### `parse_csv.py`
 `data/AfriqueCalendrier_-_Presences_Voyage.csv` (+ `data/Config.csv`, the
@@ -87,6 +96,20 @@ service account: JSON key in the git-ignored `.sheet-credentials.json` at
 the repo root, sheet shared with the service-account email as Editor
 (one-time setup steps in the docstring). Sheet ID comes from `.sheet-url`
 like `refresh.py`. After sheet writes, run `refresh.py` to sync the site.
+
+### `fetch_photos.py`
+Syncs the shared Drive photo folder onto the map (`--dry-run` to preview).
+Folder URL/ID in the git-ignored `.drive-folder` (same pattern as
+`.sheet-url`); auth reuses `sheet_edit.load_key()`/`access_token()` with the
+`drive.readonly` scope. For each NEW image (incremental via ids already in
+`gallery.json`): downloads it, dates it (EXIF `DateTimeOriginal` → Drive
+`imageMediaMetadata.time` → `createdTime`), locates it (EXIF GPS → Drive
+location → **convoy position on that date**: `convoy_position()` is a Python
+port of the template's `posAt()`/`legOf()` interpolation, plus a
+deterministic ±0.12° `jitter()` seeded by the Drive id), then writes
+`photos/uploads/<id>.jpg` (max 1600 px) + a 96 px square thumb as data URI
+into `src/gallery.json`, and reruns `build.py`. Setup steps in the
+docstring (share the folder with the service account as Viewer).
 
 ### `make_faces.py`
 Produces `photos.json` + the generated image folders. Three parts:
@@ -114,6 +137,9 @@ Hard-won gotchas (do not re-learn these):
   next to a sticker (currently terro7). `DEFRINGE` (halo peeling) exists but
   is unused since the outline fix.
 
-### `data.json` / `photos.json`
-Generated. Never edit by hand; regenerate with the scripts above. Both are
-committed so a rebuild doesn't depend on the private sheet.
+### `data.json` / `photos.json` / `gallery.json`
+Generated. Never edit by hand; regenerate with the scripts above. All are
+committed so a rebuild doesn't depend on the private sheet or Drive.
+To remove a photo permanently, delete it from the Drive folder AND from
+`gallery.json` + `photos/uploads/` (a sync re-adds any Drive file whose id
+is missing from `gallery.json`).

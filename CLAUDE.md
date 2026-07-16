@@ -36,6 +36,11 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
 
 - `src/photos.json` (face/car/sticker images as data URIs) is produced by
   `python src/make_faces.py` from the images in `photos/`.
+- `src/gallery.json` (shared trip photos shown as bubbles on the map) is
+  produced by `python src/fetch_photos.py`, which pulls new images from the
+  shared Google Drive folder (`.drive-folder`, git-ignored), geolocates them
+  (EXIF GPS, else convoy position on the photo's date), saves resized copies
+  in `photos/uploads/`, and rebuilds. Injected as `__GALLERY__`.
 - The site is **fully self-contained**: all images are embedded as data URIs
   so `voyage-afrique.html` opens from disk; only map tiles/fonts/Leaflet come
   from CDNs.
@@ -49,6 +54,7 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
 | `photos/`   | Source images (traveler photos, sticker sheets) + generated subfolders |
 | `index.html`, `voyage-afrique.html` | Generated site (do not edit)            |
 | `.sheet-url`| Local only, git-ignored: link to the live Google Sheet          |
+| `.drive-folder` | Local only, git-ignored: link to the shared Drive photo folder |
 
 ## Verifying changes (headless, no dev server needed)
 
@@ -79,5 +85,8 @@ Gotchas learned the hard way:
   in the git-ignored `.sheet-credentials.json` (setup steps in its
   docstring). After writing to the sheet, run `refresh.py` so the site
   reflects the change.
+- **Shared photos**: friends upload images to a shared Drive folder;
+  `python src/fetch_photos.py` syncs them onto the map (service account with
+  `drive.readonly` scope; folder link in the git-ignored `.drive-folder`).
 - Google Drive MCP connector: read/search/copy/create only, no editing —
-  use `sheet_edit.py` instead for sheet writes.
+  use `sheet_edit.py` / `fetch_photos.py` instead for scripted access.

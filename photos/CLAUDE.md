@@ -23,5 +23,7 @@ algorithm and its tuned thresholds).
 
 - `faces/` — travelers' face crops only. See `faces/CLAUDE.md`.
 - `emojis/` — car + sticker cutouts with real alpha. See `emojis/CLAUDE.md`.
+- `uploads/` — shared Drive trip photos (map bubbles), synced by
+  `python src/fetch_photos.py`. See `uploads/CLAUDE.md`.
 
 To reframe a face, adjust `CROPS` in `src/make_faces.py`, not the images.
