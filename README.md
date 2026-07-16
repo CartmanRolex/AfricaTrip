@@ -16,6 +16,7 @@ CDNs, so it needs an internet connection to render the map.
 voyage-afrique.html          <- the deliverable (open this)
 data/
   AfriqueCalendrier_-_Presences_Voyage.csv   <- source data (Google Sheets export)
+  Config.csv       <- export of the sheet's "Config" tab (route, textes, RPG…)
 src/
   refresh.py       <- pull the live Google Sheet + rebuild (one command)
   parse_csv.py     <- CSV  -> src/data.json   (parses the presence grid)
@@ -33,9 +34,20 @@ regenerate the page in one step:
 python src/refresh.py
 ```
 
-This downloads the sheet as CSV (into `data/`), re-parses it, and rebuilds
-`voyage-afrique.html`. It uses only the Python standard library, and the sheet
-must be shared as "anyone with the link can view".
+This downloads the sheet as CSV (into `data/` — both the presence grid and the
+**Config** tab), re-parses it, and rebuilds `voyage-afrique.html`. It uses only
+the Python standard library, and the sheet must be shared as "anyone with the
+link can view".
+
+### The Config tab
+
+Everything "editorial" lives in the sheet's **Config** tab so it can be changed
+without touching code: route waypoints & checkpoint labels, per-leg emoji +
+difficulty, traveler and car RPG stats (XP/PV/compétences/malus), danger-zone
+stickers, car colours, and UI texts (tagline, footer, "itinéraire ouvert"…).
+The tab is a stack of sections — a `## nom` marker row, a header row, then data
+rows. Edit cells (or add rows) and run `python src/refresh.py`; new sections
+pass through `parse_csv.py` untouched, so add the sheet side first.
 
 **The sheet link is kept out of the repo on purpose** (so it isn't public on
 GitHub). `refresh.py` reads it from a local, git-ignored file at the repo root:
@@ -108,10 +120,13 @@ layout, behaviour), edit `src/template.html` and re-run `build.py`.
   `location` (carried forward), `cap1`/`cap2`/`total`, and `car1`/`car2` maps of
   `person -> state`.
 - `state` is one of `present` (●), `unknown` (?), `tentative` (○), `absent` (blank).
-- `route[]` — ordered waypoints `{name, lat, lng}`. Five carry a `cp` field and
-  are the official checkpoints from the sheet (SUISSE, MALAGA, ALGECIRAS, DAKHLA,
-  DAKAR); the rest are intermediate points so the drawn line follows roads/coast.
+- `route[]` — ordered waypoints `{name, lat, lng}` from the Config tab. Nine
+  carry a `cp` field and are the official checkpoints matched against the sheet
+  (SUISSE, MALAGA, ALGECIRAS, DAKHLA, DAKAR, CONAKRY, ABIDJAN, ACCRA, LOMÉ);
+  the rest are intermediate points so the drawn line follows roads/coast.
 - `car1`/`car2` — roster arrays. `cars` — display metadata (name, emoji, colour).
+- `config` — the parsed Config tab (`textes`, `checkpoints`, `route`, `couleurs`,
+  `etapes`, `rpg`, `rpgVoitures`, `danger`), consumed by the front-end.
 
 ## How the front-end works (`template.html`)
 
@@ -128,9 +143,13 @@ All logic is vanilla JS in one `<script>` at the bottom:
 
 ## Notes / assumptions to revisit
 
-- "SUISSE" was placed at Geneva; intermediate Spanish/Moroccan/Mauritanian
-  waypoints are plausible guesses, not confirmed stops. Edit `ROUTE` in
-  `src/parse_csv.py` (or `route` in `data.json`) to correct coordinates.
+- "SUISSE" was placed at Geneva; intermediate waypoints (Spain, Morocco,
+  Mauritania, Guinea, Côte d'Ivoire, Ghana) are plausible guesses, not confirmed
+  stops. Correct coordinates in the sheet's Config tab (`## route` section);
+  the `ROUTE` constant in `src/parse_csv.py` is only a fallback.
+- The October continuation (Dakar → Conakry → Abidjan → Accra → Lomé) is an
+  arbitrary scenario: dates, crew changes and difficulty levels are inventions
+  to be refined in the sheet.
 - Crew composition changes *within* legs (e.g. Malen→Edouard around Dakhla,
   Arthur leaves at Dakar, several go unconfirmed in September), which is why the
   seats update per day rather than per leg.

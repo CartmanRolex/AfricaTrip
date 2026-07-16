@@ -23,6 +23,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CSV_OUT = os.path.join(HERE, "..", "data", "AfriqueCalendrier_-_Presences_Voyage.csv")
 SHEET_FILE = os.path.join(HERE, "..", ".sheet-url")
 
+# The "Config" tab (route, RPG stats, textes…) — created 2026-07, stable gid.
+CONFIG_GID = "2029368965"
+CONFIG_OUT = os.path.join(HERE, "..", "data", "Config.csv")
+
 
 def configured_sheet():
     """Read the sheet URL/ID from the local, git-ignored .sheet-url file."""
@@ -96,6 +100,16 @@ def main():
     with open(CSV_OUT, "w", encoding="utf-8", newline="") as f:
         f.write(csv_text)
     print(f"Saved {os.path.normpath(CSV_OUT)} ({len(csv_text):,} bytes)")
+
+    # The Config tab is optional: keep the last local copy if it can't be fetched.
+    try:
+        cfg_text = download_csv(export_url(sheet, CONFIG_GID))
+        with open(CONFIG_OUT, "w", encoding="utf-8", newline="") as f:
+            f.write(cfg_text)
+        print(f"Saved {os.path.normpath(CONFIG_OUT)} ({len(cfg_text):,} bytes)")
+    except Exception as e:
+        print(f"WARNING: could not fetch the Config tab ({e}) — "
+              "using the existing local data/Config.csv if present.")
 
     # Run the existing pipeline in-process so paths resolve the same way.
     runpy.run_path(os.path.join(HERE, "parse_csv.py"), run_name="__main__")

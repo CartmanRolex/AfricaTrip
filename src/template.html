@@ -189,7 +189,7 @@ body.danger-far .danger-label{display:none}
   <header>
     <div>
       <div class="brand"><span class="pin">◆</span> Voyage en Afrique</div>
-      <div class="tagline">Carnet de route · 1er août → 30 septembre 2025</div>
+      <div class="tagline" id="tagline">Carnet de route · 1er août → 30 septembre 2025</div>
     </div>
     <div class="head-stats">
       <div class="stat"><b id="s-day">—</b><span>jour du voyage</span></div>
@@ -230,7 +230,7 @@ body.danger-far .danger-label{display:none}
         </div>
       </section>
 
-      <p class="foot">Capacité max. 4 places par voiture. Les jours sans nouveau lieu reprennent le dernier point de passage. Glisse la frise ou choisis une étape pour voir l'équipage évoluer.</p>
+      <p class="foot" id="foot">Capacité max. 4 places par voiture. Les jours sans nouveau lieu reprennent le dernier point de passage. Glisse la frise ou choisis une étape pour voir l'équipage évoluer.</p>
     </div>
   </div>
 </div>
@@ -241,6 +241,13 @@ const DATA = __DATA__;
 const PHOTOS = __PHOTOS__;
 const REC = DATA.records, ROUTE = DATA.route, CARS = DATA.cars;
 const CAR1 = DATA.car1, CAR2 = DATA.car2;
+// tout le contenu "modifiable" vient de l'onglet Config de la feuille
+const CFG = DATA.config || {}, T = CFG.textes || {};
+if (T.tagline) document.getElementById('tagline').textContent = T.tagline;
+if (T.foot) document.getElementById('foot').textContent = T.foot;
+// libellés d'affichage des checkpoints (section "checkpoints" de Config)
+const normCp = s => (s||'').replace(/[^A-Za-zÀ-ÿ]/g,'').toUpperCase();
+const CP_LABEL={}; Object.entries(CFG.checkpoints||{}).forEach(([k,v])=>CP_LABEL[normCp(k)]=v);
 
 /* ---- geometry helpers ---- */
 function hav(a,b){const R=6371,d=Math.PI/180;
@@ -324,17 +331,9 @@ ROUTE.forEach((p,i)=>{ if(!p.cp) return;
 function refreshCp(upTo){ document.querySelectorAll('.cp-dot').forEach(el=>{
   el.classList.toggle('done', (+el.dataset.i)<=upTo);}); }
 
-// zones à risque réelles du Sahel (sources : France Diplomatie, ACLED 2025-26),
-// habillées façon carte de jeu vidéo — toutes loin de la route côtière
-const DANGER=[
-  {lat:21.2,lng:-7.2, img:'terro6',  s:47, r:260000, t:'ZONE MILITAIRE NE — ACCÈS NIV. 40'},
-  {lat:16.8,lng:-7.5, img:'terro10', s:47, r:190000, t:'AXES MALIENS — EMBUSCADES'},
-  {lat:18.3,lng:-1.2, img:'terro2',  s:52, r:330000, t:'NORD MALI — ZONE PVP NIV. 99'},
-  {lat:14.3,lng:-5.0, img:'terro4',  s:47, r:200000, t:'CENTRE MALI — MOBS AGRESSIFS'},
-  {lat:15.1,lng:1.0,  img:'terro1',  s:60, r:240000, t:'TRIPLE FRONTIÈRE — BOSS FINAL'},
-  {lat:12.1,lng:0.9,  img:'terro11', s:44, r:170000, t:'BURKINA EST — ZONE ROUGE'},
-  {lat:13.2,lng:13.6, img:'terro8',  s:52, r:260000, t:'LAC TCHAD — RAID EN COURS'},
-];
+// zones à risque (section "danger" de l'onglet Config), habillées façon
+// carte de jeu vidéo — toutes loin de la route côtière
+const DANGER=CFG.danger||[];
 DANGER.forEach(z=>{
   L.circle([z.lat,z.lng],{radius:z.r,color:'#D95B43',weight:1.2,opacity:.5,
     dashArray:'4 8',fillColor:'#D95B43',fillOpacity:.055,interactive:false}).addTo(map);
@@ -366,13 +365,13 @@ const convoyIconOpen=L.divIcon({className:'',iconSize:[34,34],iconAnchor:[17,17]
   </svg>`});
 const convoy=L.marker([ROUTE[0].lat,ROUTE[0].lng],{icon:convoyIcon,zIndexOffset:1000}).addTo(map);
 
-// "open road" overlay past Dakar: a dashed horizon zone + label, shown only
-// during the final, undecided leg so it's clear the trip isn't stuck in Dakar.
-const DAKAR=ROUTE[ROUTE.length-1];
-const openZone=L.circle([DAKAR.lat-0.4,DAKAR.lng+0.3],{radius:300000,color:'#E3B53F',
+// "open road" overlay past the last checkpoint: a dashed horizon zone + label,
+// shown only during the final, undecided leg so it's clear the trip goes on.
+const ENDPT=ROUTE[ROUTE.length-1];
+const openZone=L.circle([ENDPT.lat-0.4,ENDPT.lng+0.3],{radius:300000,color:'#E3B53F',
   weight:1.5,opacity:.55,dashArray:'3 9',fillColor:'#E3B53F',fillOpacity:.05,interactive:false});
-const openLabel=L.marker([DAKAR.lat-2.3,DAKAR.lng+0.2],{interactive:false,icon:L.divIcon({className:'',
-  iconSize:[0,0],iconAnchor:[0,0],html:`<div class="open-label">Au-delà&nbsp;: itinéraire à définir</div>`})});
+const openLabel=L.marker([ENDPT.lat-2.3,ENDPT.lng+0.2],{interactive:false,icon:L.divIcon({className:'',
+  iconSize:[0,0],iconAnchor:[0,0],html:`<div class="open-label">${T.open_zone_label||'Au-delà : itinéraire à définir'}</div>`})});
 let zoneOn=false;
 function setOpenZone(on){
   if(on===zoneOn) return; zoneOn=on;
@@ -386,22 +385,16 @@ function paxCount(rec){
   return n;
 }
 const legsEl=document.getElementById('legs');
-// thème + niveau de difficulté de chaque étape (1 à 5)
-const LEG_META=[
-  {emoji:'🏔️', diff:2, lbl:'Tranquille'},   // descente des Alpes, autoroute
-  {emoji:'⛴️', diff:1, lbl:'Promenade'},    // petit saut vers le détroit
-  {emoji:'🏜️', diff:4, lbl:'Corsé'},        // ferry + Maroc + Sahara occidental
-  {emoji:'🐫', diff:5, lbl:'Légendaire'},    // no man's land & Mauritanie
-  {emoji:'🧭', diff:3, lbl:'Inconnu'},       // au-delà : carte non révélée
-];
+// thème + niveau de difficulté de chaque étape (section "etapes" de Config)
+const LEG_META=CFG.etapes||[];
 const DIFF_COLOR=d=>d<=2?'var(--present)':d<=3?'var(--unknown)':'#D9704F';
 LEGS.forEach((L,i)=>{
   const r0=REC[L.s], rEnd=REC[L.e];
   const days=L.e-L.s;
   const sub = L.stay
-    ? `${r0.date} → ${rEnd.date} · ${days} j · cap à définir`
+    ? `${r0.date} → ${rEnd.date} · ${days} j · ${T.stay_cap||'cap à définir'}`
     : `${r0.date} → ${rEnd.date} · ${kmFmt(legKm(L))} km`;
-  const title = L.stay ? `${pretty(L.to)} & au-delà` : `${pretty(L.from)} → ${pretty(L.to)}`;
+  const title = L.stay ? `${pretty(L.to)} ${T.stay_title_suffix||'& au-delà'}` : `${pretty(L.from)} → ${pretty(L.to)}`;
   const m=LEG_META[i]||{emoji:'🗺️',diff:3,lbl:'Inconnu'};
   const pips='◆'.repeat(m.diff)+'◇'.repeat(5-m.diff);
   const b=document.createElement('button'); b.className='leg'; b.dataset.leg=i;
@@ -416,8 +409,11 @@ function paxRange(L){ // min–max passengers across the leg
   let mn=99,mx=0; for(let r=L.s;r<=L.e;r++){const c=paxCount(REC[r]);mn=Math.min(mn,c);mx=Math.max(mx,c);}
   return mn===mx?`${mn} pax`:`${mn}–${mx} pax`;
 }
-function pretty(s){return s.replace('⛴️','').replace('SUISSE','Suisse').replace('MALAGA','Málaga')
-  .replace('ALGECIRAS','Algeciras').replace('DAKHLA','Dakhla').replace('DAKAR','Dakar');}
+function pretty(s){
+  const lbl=CP_LABEL[normCp(s)]; if(lbl) return lbl;
+  s=s.replace('⛴️','');
+  return s.charAt(0)+s.slice(1).toLowerCase();
+}
 function fitLeg(L){
   const pts=[]; for(let i=L.ri0;i<=L.ri1;i++)pts.push([ROUTE[i].lat,ROUTE[i].lng]);
   if(pts.length<2)pts.push([ROUTE[L.ri1].lat+0.01,ROUTE[L.ri1].lng+0.01]);
@@ -441,19 +437,8 @@ function stop(){ playing=false; clearInterval(timer); document.getElementById('p
 
 /* ---- car dashboards ---- */
 const carsEl=document.getElementById('cars');
-// fiche RPG : XP, points de vie et compétence signature de chaque aventurier
-const RPG={
-  Gal:    {xp:1337, pv:8,  skill:'Cap au sud +4'},
-  Hugo:   {xp:420,  pv:6,  skill:'Poncho violet niv. 5'},
-  Malen:  {xp:666,  pv:5,  skill:'Pause clope stratégique +3'},
-  Arthur: {xp:256,  pv:9,  skill:'Croqueur de banquise +2'},
-  Edouard:{xp:1024, pv:7,  skill:'Regard de mille bornes +10'},
-  Younous:{xp:808,  pv:8,  skill:'Béret rouge tactique +2'},
-  Paul:   {xp:999,  pv:7,  skill:'Négociation de check-out +3'},
-  Thomas: {xp:42,   pv:10, skill:'Apparition surprise +1'},
-  Jehan:  {xp:314,  pv:6,  skill:'Copilote fantôme +2'},
-  Dorvan: {xp:512,  pv:9,  skill:"Armoire à dos d'homme +4"},
-};
+// fiche RPG de chaque aventurier (section "rpg" de Config)
+const RPG=CFG.rpg||{};
 function seatHTML(name,state,isDriver,color){
   const lbl={present:'présent',unknown:'incertain',tentative:'pressenti'}[state]||'';
   const ph=PHOTOS.faces[name];
@@ -471,13 +456,8 @@ function emptySeat(){return `<div class="seat empty"><div class="seat-chip empty
   <div class="seat-info"><span class="seat-name" style="color:var(--muted)">libre</span>
   <span class="seat-stat">—</span></div></div>`;}
 
-// fiche RPG des montures : avaries réelles incluses
-const CAR_RPG={
-  1:{xp:4444, pv:5, skill:'Coffre Tetris niv. 8',
-     malus:'⚠ Roulements de roue en sursis — jet de sauvegarde à chaque étape'},
-  2:{xp:3707, pv:6, skill:'Vrombissement intimidant +3',
-     malus:'⚠ Pot d’échappement troué — dégâts subis : 700 CHF'},
-};
+// fiche RPG des montures (section "rpg_voitures" de Config)
+const CAR_RPG=CFG.rpgVoitures||{};
 function renderCar(carNo,rec){
   const roster = carNo===1?CAR1:CAR2;
   const states = carNo===1?rec.car1:rec.car2;
@@ -489,13 +469,13 @@ function renderCar(carNo,rec){
   for(let k=onboard.length;k<4;k++) seats+=emptySeat();
   const cap = carNo===1?rec.cap1:rec.cap2;
   const carImg = PHOTOS.cars[carNo];
-  const cr = CAR_RPG[carNo];
+  const cr = CAR_RPG[carNo]||{xp:0,pv:5,skill:'—',malus:''};
   const hpc = cr.pv>=7?'var(--present)':cr.pv>=4?'var(--unknown)':'#D95B43';
   const sheet = `<div class="car-sheet">
       <span class="seat-stat">${cr.xp} XP</span>
       <span class="hp">PV <i class="hp-bar"><i class="hp-fill" style="width:${cr.pv*10}%;background:${hpc}"></i></i> ${cr.pv}/10</span>
       <span class="seat-skill">${cr.skill}</span>
-      <span class="car-malus">${cr.malus}</span></div>`;
+      ${cr.malus?`<span class="car-malus">${cr.malus}</span>`:''}</div>`;
   return `<div class="car" style="--cc:${meta.color}">
     <div class="car-head">${carImg?`<img class="car-img" src="${carImg}" alt="">`:`<span class="car-emoji">${meta.emoji}</span>`}
       <span class="car-name">${meta.name}</span>
@@ -523,7 +503,7 @@ function render(){
   // panel
   document.getElementById('tl-date').textContent=rec.date;
   const onFinal=P.legIdx===LEGS.length-1;
-  document.getElementById('tl-loc').textContent='⌖ '+pretty(rec.location||'—')+(onFinal?' · itinéraire ouvert':'');
+  document.getElementById('tl-loc').textContent='⌖ '+pretty(rec.location||'—')+(onFinal?' · '+(T.open_route_suffix||'itinéraire ouvert'):'');
   const pct=(idx/(REC.length-1))*100; scrub.style.setProperty('--pct',pct+'%');
   document.getElementById('s-pax').textContent=paxCount(rec);
   document.getElementById('s-day').textContent=`${idx+1} / ${REC.length}`;
