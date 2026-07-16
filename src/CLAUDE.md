@@ -125,6 +125,12 @@ deterministic ±0.12° `jitter()` seeded by the Drive id), then writes
 into `src/gallery.json`, and reruns `build.py`. Setup steps in the
 docstring (share the folder with the service account as Viewer).
 
+### `sync.py`
+The user-facing one-shot updater (`python src/sync.py`, or `sync.bat` at the
+root for double-click): refresh.py → fetch_photos.py → `git add` of an
+explicit whitelist of pipeline outputs (never `photos/gal.enc`) → commit →
+push. Exits without committing when nothing changed.
+
 ### `make_faces.py`
 Produces `photos.json` + the generated image folders. **The source images
 were removed from the working tree** (outputs are committed); the script

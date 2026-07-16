@@ -44,6 +44,10 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
 - The site is **fully self-contained**: all images are embedded as data URIs
   so `voyage-afrique.html` opens from disk; only map tiles/fonts/Leaflet come
   from CDNs.
+- **One-shot update for the user**: `python src/sync.py` (or double-clicking
+  `sync.bat` at the root) chains refresh.py + fetch_photos.py, then commits
+  and pushes ONLY the pipeline outputs (explicit whitelist — safe wrt
+  `photos/gal.enc`). No-op if nothing changed.
 
 ## Folder map
 
@@ -53,6 +57,7 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
 | `data/`     | CSV snapshot downloaded from the Google Sheet                   |
 | `photos/`   | Source images (traveler photos, sticker sheets) + generated subfolders |
 | `index.html`, `voyage-afrique.html` | Generated site (do not edit)            |
+| `sync.bat`  | Double-click updater for the user (runs `src/sync.py`)         |
 | `.sheet-url`| Local only, git-ignored: link to the live Google Sheet          |
 | `.drive-folder` | Local only, git-ignored: link to the shared Drive photo folder |
 
