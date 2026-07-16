@@ -119,6 +119,9 @@ def read_config():
     cfg["danger"] = [{"lat": num(r["lat"]), "lng": num(r["lng"]), "img": r["img"],
                       "s": num(r["taille"], int, 47), "r": num(r["rayon"], int, 200000),
                       "t": r["label"]} for r in sections.get("danger", [])]
+    # purely decorative map stickers (camels in the desert…): no circle, no label
+    cfg["deco"] = [{"lat": num(r["lat"]), "lng": num(r["lng"]), "img": r["img"],
+                    "s": num(r["taille"], int, 36)} for r in sections.get("deco", [])]
     return cfg
 
 

@@ -94,14 +94,18 @@ def cut_car(im, box):
     return out.resize((round(out.width * scale), 120), Image.LANCZOS)
 
 
-def outside_mask(im):
+def outside_mask(im, bg="checker"):
     """Boolean array of pixels belonging to the border-connected fake
-    checkerboard background (light, unsaturated, reachable from the edges)."""
+    background (unsaturated, reachable from the edges). bg="checker" for the
+    painted grey checkerboard sheets, bg="white" for plain white sheets."""
     w, h = im.size
     a = np.asarray(im, dtype=np.int16)
     mx, mn = a.max(2), a.min(2)
-    # 105..230 : gris du damier + ombres, mais PAS les liserés blancs (>=230)
-    cand = ((mx - mn < 20) & (mx > 105) & (mx < 230)).astype(np.uint8) * 255
+    if bg == "white":
+        cand = ((mx - mn < 25) & (mx > 235)).astype(np.uint8) * 255
+    else:
+        # 105..230 : gris du damier + ombres, mais PAS les liserés blancs (>=230)
+        cand = ((mx - mn < 20) & (mx > 105) & (mx < 230)).astype(np.uint8) * 255
     # .copy() unshares the numpy buffer, else floodfill writes are lost
     candim = Image.fromarray(cand, "L").copy()
     seeds = [(x, y) for x in range(0, w, 48) for y in (0, h - 1)]
@@ -112,12 +116,12 @@ def outside_mask(im):
     return np.asarray(candim) == 128
 
 
-def cut_stickers(path, thumb_h=120):
-    """Split a sticker sheet on a painted checkerboard into individual
-    RGBA images (row-major order)."""
+def cut_stickers(path, thumb_h=120, bg="checker", rows=3):
+    """Split a sticker sheet into individual RGBA images (row-major order;
+    `rows` = number of sticker rows on the sheet, for the ordering bands)."""
     im = Image.open(path).convert("RGB")
     w, h = im.size
-    outside = outside_mask(im)
+    outside = outside_mask(im, bg)
     # find sticker blobs on a 2x downscale, dilated so close parts merge
     # (dilation radius ~2 small px = merges gaps under ~8 full px)
     ds = 2
@@ -142,7 +146,7 @@ def cut_stickers(path, thumb_h=120):
             if area * ds * ds > 3000:  # drop specks
                 boxes.append((xs * ds, ys * ds, xe * ds + ds, ye * ds + ds))
     # row-major order: cluster by vertical band, then left to right
-    boxes.sort(key=lambda b: (round((b[1] + b[3]) / 2 / (h / 3.0)), b[0]))
+    boxes.sort(key=lambda b: (round((b[1] + b[3]) / 2 / (h / float(rows))), b[0]))
     alpha_full = Image.fromarray(((~outside) * 255).astype(np.uint8), "L") \
         .filter(ImageFilter.GaussianBlur(0.8))
     rgba = im.convert("RGBA"); rgba.putalpha(alpha_full)
@@ -213,7 +217,7 @@ then rerun this script (and delete the restored originals again after)."""
 
 
 def main():
-    missing = [f for f in ["voitures.jpg", "terros.jpg"]
+    missing = [f for f in ["voitures.jpg", "terros.jpg", "chameaux.jpg"]
                + [c[0] for c in CROPS.values()]
                if not os.path.exists(os.path.join(PHOTOS, f))]
     if missing:
@@ -254,8 +258,22 @@ def main():
             st.save(buf, "PNG", optimize=True)
             terros[f"terro{i}"] = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
             print(f"terro{i}   -> {os.path.normpath(out)} ({buf.tell():,} B embedded)")
+    chameaux = {}
+    sheet = os.path.join(PHOTOS, "chameaux.jpg")
+    if os.path.exists(sheet):
+        for i, st in enumerate(cut_stickers(sheet, thumb_h=72, bg="white",
+                                            rows=4), 1):
+            # aplats cartoon -> palette 64 couleurs, ~4x plus léger en data URI
+            st = st.quantize(colors=64, method=Image.FASTOCTREE)
+            out = os.path.join(EMOJIS, f"chameau{i}.png")
+            st.save(out, "PNG", optimize=True)
+            buf = io.BytesIO()
+            st.save(buf, "PNG", optimize=True)
+            chameaux[f"chameau{i}"] = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+            print(f"chameau{i} -> {os.path.normpath(out)} ({buf.tell():,} B embedded)")
     with open(OUT_JSON, "w", encoding="utf-8") as f:
-        json.dump({"faces": faces, "cars": cars, "terros": terros}, f)
+        json.dump({"faces": faces, "cars": cars, "terros": terros,
+                   "chameaux": chameaux}, f)
     print(f"Wrote {os.path.normpath(OUT_JSON)}")
 
 

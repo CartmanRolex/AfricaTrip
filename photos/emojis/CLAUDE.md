@@ -21,7 +21,7 @@ Arab/Tuareg north; Black → Sahel/Lake Chad/west-Mali groups).
 | 1 | Black fighter, crossed AKs     | (spare — retired from the boss zone, owner disliked it) |
 | 2 | Beige Toyota technical (Arab)  | North Mali                           |
 | 3 | Arab fighter, camo + AK        | (spare)                              |
-| 4 | Black fighter, vest + AK       | Central Mali                         |
+| 4 | Black fighter, vest + AK       | Central Mali + South Bamako (Guinea axis) |
 | 5 | Arab fighter, helmet + fist    | Liptako-Gourma tri-border ("boss")   |
 | 6 | Arab fighter, profile + AK     | NE-Mauritania military zone          |
 | 7 | Green jeep (Arab driver)       | (spare; had baked sheet artifacts, cleaned via `CLEAN`) |
@@ -33,3 +33,12 @@ Arab/Tuareg north; Black → Sahel/Lake Chad/west-Mali groups).
 
 Spares (1, 3, 7) are still embedded in `photos.json`, so using one is just a
 new row in the Config tab's `## danger` section.
+
+## Stickers `chameau1..16` (row-major order of `photos/chameaux.jpg`)
+Cartoon camels cut from a plain-WHITE sheet (`cut_stickers(bg="white",
+rows=4)`), quantized to a 64-colour palette to keep the embedded data URIs
+small (72 px tall). Used by the `## deco` section of the sheet's Config tab:
+purely decorative markers along the desert stretch of the route (no danger
+circle, no label, not interactive). Currently on the map: 1 (walking), 6
+(fluffy), 10 (harnessed pair), 12 (standing), 13 (baby); the other 11 are
+spares, embedded and ready.

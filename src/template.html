@@ -439,6 +439,16 @@ DANGER.forEach(z=>{
   L.marker([z.lat,z.lng],{interactive:false,icon:L.divIcon({className:'',iconSize:[0,0],
     iconAnchor:[0,-(z.s/2+5)],html:`<div class="danger-label">${z.t}</div>`})}).addTo(map);
 });
+// stickers décoratifs (section "deco" de l'onglet Config) : chameaux dans le
+// désert le long de la route — pas de cercle ni d'étiquette, non interactifs
+(CFG.deco||[]).forEach(z=>{
+  const pic=(PHOTOS.chameaux||{})[z.img]||(PHOTOS.terros||{})[z.img];
+  if(!pic)return;
+  L.marker([z.lat,z.lng],{interactive:false,icon:L.divIcon({className:'',iconSize:[0,0],
+    iconAnchor:[0,0],html:`<img class="danger-img deco-img" style="height:${z.s}px" src="${pic}">`}
+  )}).addTo(map);
+});
+
 function dangerZoom(){document.body.classList.toggle('danger-far',map.getZoom()<5);}
 map.on('zoomend',dangerZoom); dangerZoom();
 

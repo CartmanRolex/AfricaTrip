@@ -31,7 +31,7 @@ Key JS structures (all near the top of the script):
 - `DATA.config` — the parsed Config sheet tab; **all editorial content
   comes from it** (`CFG` in the JS): `textes` (tagline, foot, open-route
   labels), `checkpoints` (display names), `etapes` → `LEG_META`, `rpg` →
-  `RPG`, `rpgVoitures` → `CAR_RPG`, `danger` → `DANGER`, `couleurs`.
+  `RPG`, `rpgVoitures` → `CAR_RPG`, `danger` → `DANGER`, `deco` (decorative stickers), `couleurs`.
   Fallbacks are minimal — edit the sheet, not the JS.
 - `DATA.route` — polyline points `{lat,lng, cp?}` (Config `## route`);
   points with `cp` are checkpoints (SUISSE, MALAGA, ALGECIRAS, DAKHLA,
@@ -52,8 +52,13 @@ Key JS structures (all near the top of the script):
   tri-border, east Burkina, Lake Chad. Stickers are ethnically matched to the
   dominant makeup of the region's armed groups (Arab-looking north,
   Black-looking Sahel/Lake Chad). Labels hide + stickers scale to 62 % below
-  zoom 5 (`body.danger-far`, `dangerZoom()`).
-- `PHOTOS` — `{faces:{Name:dataURI}, cars:{1:…,2:…}, terros:{terroN:…}}`.
+  zoom 5 (`body.danger-far`, `dangerZoom()`). Includes the South-Bamako /
+  Guinea-axis zone (JNIM pushed south-west in 2025 to isolate Bamako).
+- `CFG.deco` — decorative stickers `{lat, lng, img:'chameauN', s}` (Config
+  `## deco`): camels along the desert stretch, plain `<img>` markers reusing
+  `.danger-img` (drop-shadow + danger-far scaling), no circle/label.
+- `PHOTOS` — `{faces:{Name:dataURI}, cars:{1:…,2:…}, terros:{terroN:…},
+  chameaux:{chameauN:…}}`.
   Faces render in seat chips (30 px circle, status-colored ring, hover zoom
   ×3.2 via `.seat-chip.photo:hover img`); all 10 travelers have one (a
   missing face would fall back to the initial letter).
@@ -131,9 +136,12 @@ are missing — see `photos/CLAUDE.md`. Three parts:
 2. **Cars**: `cut_car()` crops the two cars out of `photos/voitures.jpg`
    (boxes in `CAR_BOXES`) and removes the FAKE painted checkerboard
    background by flood-filling light unsaturated pixels from the borders.
-3. **Stickers**: `cut_stickers()` splits `photos/terros.jpg` into individual
-   RGBA stickers: background mask (`outside_mask`) → connected-component
-   labeling on a 2× downscale (pure-python BFS, no scipy) → per-blob crop.
+3. **Stickers**: `cut_stickers()` splits sticker sheets into individual RGBA
+   stickers: background mask (`outside_mask`) → connected-component labeling
+   on a 2× downscale (pure-python BFS, no scipy) → per-blob crop. Two sheets:
+   `photos/terros.jpg` (grey fake-checkerboard bg) and `photos/chameaux.jpg`
+   (plain white bg → `bg="white"` mask, `rows=4` ordering bands, quantized
+   to 64-colour palette PNGs).
 
 Hard-won gotchas (do not re-learn these):
 - `Image.fromarray(np_array)` shares a **read-only** buffer —

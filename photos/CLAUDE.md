@@ -3,8 +3,8 @@
 > Rule: update this file in the same commit as any feature change here.
 
 Only the **generated** crops/cutouts live here now; the pre-crop source
-images (traveler photos `<name>.jpeg`, `voitures.jpg` car sheet, `terros.jpg`
-sticker sheet) were removed from the working tree — the site only ever embeds
+images (traveler photos, `voitures.jpg` car sheet, `terros.jpg` and
+`chameaux.jpg` sticker sheets) were removed from the working tree — the site only ever embeds
 the generated files, so the originals were dead weight. They remain in git
 history: restore with
 

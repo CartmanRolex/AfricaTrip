@@ -100,3 +100,12 @@ lat,lng,img,taille,rayon,label
 13.2,13.6,terro8,52,260000,LAC TCHAD — RAID EN COURS
 14.35,-11.5,terro9,54,150000,KAYES OUEST — HÉLICO EN MARAUDE
 12.95,-11.15,terro12,44,120000,FALÉMÉ SUD — GUET-APENS NIV. 20
+11.9,-8.4,terro4,44,160000,SUD BAMAKO — EMBUSCADES NIV. 35
+,,,,,
+## deco,,,,,
+lat,lng,img,taille,,
+29.3,-10.3,chameau1,38,,
+27.7,-12.3,chameau6,34,,
+25.4,-14.3,chameau10,40,,
+22.2,-16.1,chameau12,34,,
+19.4,-15.9,chameau13,30,,
