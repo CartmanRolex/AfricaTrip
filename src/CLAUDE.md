@@ -13,7 +13,11 @@ three literal tokens:
 - `__GALLERY__` ← contents of `gallery.json` (`[]` if absent)
 
 Layout: CSS grid `header / map / panel`. Desktop: map left, 392 px panel
-right. **Mobile (≤880 px)**: app-style split — fixed map on top (38vh), the
+right; the timeline section (`.sec-tl`) is moved INTO the header by
+`placeTl()` (JS `matchMedia`, compact `header .sec-tl` grid styles: date +
+play left, full-width scrub over the ticks) so the panel only holds legs +
+cars. **Mobile (≤880 px)**: `placeTl()` puts `.sec-tl` back in the panel —
+app-style split — fixed map on top (38vh), the
 panel becomes a rounded bottom sheet with its own scroll; the timeline
 section (`.sec-tl`) is sticky inside it and the cars section (`.sec-cars`)
 reorders before the legs list (CSS `order`). Header compacts to one row

@@ -168,6 +168,17 @@ body.danger-far .bubble-wrap{width:22px;height:22px}
 .scrub::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--sand);border:3px solid var(--c1);cursor:pointer}
 .ticks{display:flex;justify-content:space-between;font-family:var(--mono);font-size:8.5px;color:var(--muted);letter-spacing:.05em}
 
+/* desktop: the timeline lives in the header (moved there by placeTl() in JS,
+   it goes back into the panel below 880px) — compact 2-row grid: infos+play
+   on the left, scrub over the ticks filling the rest */
+header .sec-tl{flex:1 1 300px;min-width:260px;align-self:center;margin:0 6px;
+  display:grid;grid-template-columns:auto 1fr;column-gap:16px;align-items:center}
+header .sec-tl .tl-head{grid-row:1/3;margin-bottom:0;gap:12px}
+header .sec-tl .tl-date{font-size:15px}
+header .sec-tl .tl-loc{font-size:9px}
+header .sec-tl .play{width:30px;height:30px}
+header .sec-tl .scrub{margin:2px 0 3px}
+
 /* car dashboards */
 .car{background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:14px;border-top:3px solid var(--cc)}
 .car-head{display:flex;align-items:center;gap:9px;margin-bottom:12px}
@@ -586,6 +597,16 @@ function updateLegChip(li){
 
 /* ---- timeline ---- */
 const scrub=document.getElementById('scrub'); scrub.max=REC.length-1;
+
+// desktop: timeline in the header (gains panel space); mobile: back in the
+// panel where the bottom-sheet CSS (sticky .sec-tl) expects it
+const tlSec=document.querySelector('.sec-tl'), mqMobile=matchMedia('(max-width:880px)');
+function placeTl(){
+  if(mqMobile.matches) document.querySelector('.panel-scroll').insertBefore(tlSec,document.getElementById('cars'));
+  else document.querySelector('header').insertBefore(tlSec,document.querySelector('.head-stats'));
+}
+mqMobile.addEventListener('change',placeTl); placeTl();
+
 const ticks=document.getElementById('ticks');
 cpName.forEach((nm,k)=>{const s=document.createElement('span');s.textContent=pretty(nm);ticks.appendChild(s);});
 
