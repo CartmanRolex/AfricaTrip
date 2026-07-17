@@ -233,7 +233,7 @@ header .sec-tl .scrub{margin:2px 0 3px}
 @media (max-width:880px){
   .app{grid-template-columns:1fr;grid-template-rows:auto minmax(0,38vh) minmax(0,1fr);
     grid-template-areas:"head" "map" "panel";height:100vh;height:100dvh}
-  header{padding:9px 14px;gap:10px;align-items:center;flex-wrap:nowrap}
+  header{padding:8px 14px 9px;gap:4px 10px;align-items:center;flex-wrap:wrap}
   .brand{font-size:15px}
   .tagline{display:none}
   .head-stats{gap:10px}
@@ -246,10 +246,18 @@ header .sec-tl .scrub{margin:2px 0 3px}
   .panel::before{content:"";flex:0 0 auto;width:44px;height:4px;border-radius:2px;
     background:var(--line);margin:8px auto 2px}
   .panel-scroll{padding:0 14px calc(20px + env(safe-area-inset-bottom));gap:16px}
-  .sec-tl{order:-2;position:sticky;top:0;z-index:6;background:var(--panel);
-    margin:0 -14px;padding:8px 14px 12px;border-bottom:1px solid var(--line)}
-  .sec-tl .tl-date{font-size:18px}
+  /* timeline = 2e ligne du header (brand + stats restent sur la 1re) */
+  header .sec-tl{order:5;flex-basis:100%;min-width:0;margin:2px 0 0;column-gap:12px}
+  header .sec-tl .tl-date{font-size:13.5px;white-space:nowrap}
+  header .sec-tl .tl-loc{font-size:8.5px;white-space:nowrap}
+  header .sec-tl .play{width:27px;height:27px}
+  header .sec-tl .scrub{margin:0;grid-row:1/3;align-self:center}
+  header .sec-tl .ticks{display:none} /* redondant avec les badges numérotés */
   .sec-cars{order:-1}
+  /* carte dézoomée : plus petit écran => stickers bien plus discrets,
+     et les chameaux déco disparaissent (ils reviennent en zoomant) */
+  body.danger-far .danger-img{transform:translate(-50%,-50%) scale(.38)}
+  body.danger-far .deco-img{display:none}
   /* two compact seat cards per row (space is scarce) */
   .seats{grid-template-columns:1fr 1fr;gap:7px}
   .seat{padding:7px 8px;gap:7px;min-height:42px}
@@ -267,6 +275,19 @@ header .sec-tl .scrub{margin:2px 0 3px}
       <div class="brand"><span class="pin">◆</span> Voyage en Afrique</div>
       <div class="tagline" id="tagline">Carnet de route · 1er août → 30 septembre 2025</div>
     </div>
+    <section class="sec-tl">
+      <div class="tl-head">
+        <div>
+          <div class="tl-date" id="tl-date">—</div>
+          <div class="tl-loc" id="tl-loc">—</div>
+        </div>
+        <button class="play" id="play" aria-label="Lecture">
+          <svg id="play-ico" width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2l11 6-11 6z"/></svg>
+        </button>
+      </div>
+      <input type="range" class="scrub" id="scrub" min="0" value="0" step="1">
+      <div class="ticks" id="ticks"></div>
+    </section>
     <div class="head-stats">
       <div class="stat"><b id="s-day">—</b><span>jour du voyage</span></div>
       <div class="stat"><b id="s-km">—</b><span id="s-km-tot">km parcourus</span></div>
@@ -285,20 +306,6 @@ header .sec-tl .scrub{margin:2px 0 3px}
           </div>
         </div>
         <div class="legs" id="legs"></div>
-      </section>
-
-      <section class="sec-tl">
-        <div class="tl-head">
-          <div>
-            <div class="tl-date" id="tl-date">—</div>
-            <div class="tl-loc" id="tl-loc">—</div>
-          </div>
-          <button class="play" id="play" aria-label="Lecture">
-            <svg id="play-ico" width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2l11 6-11 6z"/></svg>
-          </button>
-        </div>
-        <input type="range" class="scrub" id="scrub" min="0" value="0" step="1">
-        <div class="ticks" id="ticks"></div>
       </section>
 
       <section id="cars" class="sec-cars"></section>
@@ -607,16 +614,6 @@ function updateLegChip(li){
 
 /* ---- timeline ---- */
 const scrub=document.getElementById('scrub'); scrub.max=REC.length-1;
-
-// desktop: timeline in the header (gains panel space); mobile: back in the
-// panel where the bottom-sheet CSS (sticky .sec-tl) expects it
-const tlSec=document.querySelector('.sec-tl'), mqMobile=matchMedia('(max-width:880px)');
-function placeTl(){
-  if(mqMobile.matches) document.querySelector('.panel-scroll').insertBefore(tlSec,document.getElementById('cars'));
-  else document.querySelector('header').insertBefore(tlSec,document.querySelector('.head-stats'));
-}
-mqMobile.addEventListener('change',placeTl); placeTl();
-
 const ticks=document.getElementById('ticks');
 cpName.forEach((nm,k)=>{const s=document.createElement('span');s.textContent=pretty(nm);ticks.appendChild(s);});
 
