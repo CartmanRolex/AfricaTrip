@@ -47,14 +47,18 @@ Key JS structures (all near the top of the script):
   section (columns: nom, xp, pv, compétence, lien, téléphone, note).
   `lien` (optional URL): the whole seat card renders as an
   `<a target="_blank">` with a small ↗ after the name; empty = plain div.
-- **Fiche aventurier** — clicking (tapping) any face chip opens `#fiche`, a
-  medium modal over the map (`.fiche-card`, accent = car colour): big face,
-  XP/PV/skill, embarkation/disembarkation + days aboard **derived from the
+- **Fiche aventurier** — clicking (tapping) any face chip REPLACES that
+  person's car (or Observateurs) block in the panel with an in-place detail
+  card (`ficheFor` state; `renderCar()`/`renderObs()` return `ficheHTML()`
+  when the open name is in their roster — NOT a popup): big face, XP/PV/
+  skill, embarkation/disembarkation + days aboard **derived from the
   presence grid** (`presenceOf()`, first/last present-or-tentative day;
   "route ouverte…" if still aboard at the end), plus Téléphone (`tel:` link)
-  and Note rows when the sheet columns are filled, and a lien button. The
-  chip click is captured (capture:true) so it beats the card's `<a>`;
-  hover-zoom stays desktop-only sugar, the fiche IS the mobile equivalent.
+  and Note rows when the sheet columns are filled, and a lien button.
+  ✕ button or Escape closes (`closeFiche()`); the fiche survives day
+  changes. The chip click is captured (capture:true) so it beats the
+  card's `<a>`; hover-zoom stays desktop-only sugar, the tap IS the
+  mobile gesture.
 - `OBS` — `CFG.observateurs` (sheet `## observateurs`, `nom` column): people
   following from home. Rendered ONCE into `#obs`/`.sec-obs` as a car-style
   box (🛰️, khaki accent) of seat cards with state `observer`; stats + lien
