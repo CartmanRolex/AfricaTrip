@@ -46,6 +46,10 @@ Key JS structures (all near the top of the script):
   green, ≥4 amber, else red). `lien` (optional URL, `lien` column of the
   sheet's `## rpg` section): the whole seat card renders as an
   `<a target="_blank">` with a small ↗ after the name; empty = plain div.
+- `OBS` — `CFG.observateurs` (sheet `## observateurs`, `nom` column): people
+  following from home. Rendered ONCE into `#obs`/`.sec-obs` as a car-style
+  box (🛰️, khaki accent) of seat cards with state `observer`; stats + lien
+  come from their row in the `## rpg` section (Giordano).
 - `CAR_RPG` — same for the cars + a `malus` line with their real-world
   afflictions (car 1 wheel bearings, car 2 holed exhaust −700 CHF).
 - `DANGER` — Sahel danger zones `{lat, lng, img:'terroN', s:size_px, r:radius_m,
@@ -139,9 +143,10 @@ Produces `photos.json` + the generated image folders. **The source images
 were removed from the working tree** (outputs are committed); the script
 exits with restore instructions (`git checkout f9b1156 -- photos/`) if they
 are missing — see `photos/CLAUDE.md`. Three parts:
-1. **Faces**: hand-tuned square crops of `photos/<name>.jpeg` via the
-   `CROPS` dict (cx, cy, size as fractions; tweak these to reframe someone)
-   → `photos/faces/<name>.jpg`, 128 px.
+1. **Faces**: hand-tuned square crops via the `CROPS` dict (cx, cy, size as
+   fractions; tweak these to reframe someone) → `photos/faces/<name>.jpg`,
+   128 px. Several names can share one source file: `mugshots.jpeg` carries
+   Edouard, Younous and Giordano (3 prison mugshots, left to right).
 2. **Cars**: `cut_car()` crops the two cars out of `photos/voitures.jpg`
    (boxes in `CAR_BOXES`) and removes the FAKE painted checkerboard
    background by flood-filling light unsaturated pixels from the borders.

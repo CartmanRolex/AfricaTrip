@@ -206,6 +206,7 @@ a.seat{text-decoration:none;color:inherit;cursor:pointer}
 .seat-chip.photo:hover img{transform:scale(3.2);z-index:40;
   box-shadow:0 8px 26px rgba(0,0,0,.65),0 0 0 2px var(--sand-dim)}
 .seat-chip.present{background:var(--present)}
+.seat-chip.observer{background:var(--sand-dim)}
 .seat-chip.unknown{background:var(--unknown)}
 .seat-chip.tentative{background:var(--unknown);box-shadow:inset 0 0 0 2px var(--bg)}
 .seat-chip.empty{background:transparent;border:1.5px dashed var(--muted)}
@@ -256,6 +257,7 @@ a.seat{text-decoration:none;color:inherit;cursor:pointer}
   header .sec-tl .scrub{margin:0;grid-row:1/3;align-self:center}
   header .sec-tl .ticks{display:none} /* redondant avec les badges numérotés */
   .sec-cars{order:-1}
+  .sec-obs{order:-1} /* juste après les voitures, avant les étapes */
   /* carte dézoomée : plus petit écran => stickers bien plus discrets,
      et les chameaux déco disparaissent (ils reviennent en zoomant) */
   body.danger-far .danger-img{transform:translate(-50%,-50%) scale(.38)}
@@ -311,6 +313,8 @@ a.seat{text-decoration:none;color:inherit;cursor:pointer}
       </section>
 
       <section id="cars" class="sec-cars"></section>
+
+      <section id="obs" class="sec-obs"></section>
 
       <section>
         <div class="legend">
@@ -634,7 +638,7 @@ const carsEl=document.getElementById('cars');
 // fiche RPG de chaque aventurier (section "rpg" de Config)
 const RPG=CFG.rpg||{};
 function seatHTML(name,state,isDriver,color){
-  const lbl={present:'présent',unknown:'incertain',tentative:'pressenti'}[state]||'';
+  const lbl={present:'présent',unknown:'incertain',tentative:'pressenti',observer:'observateur'}[state]||'';
   const ph=PHOTOS.faces[name];
   const face=ph?`<img src="${ph}" alt="${name}">`:name[0];
   const r=RPG[name]||{xp:0,pv:5,skill:'—'};
@@ -652,6 +656,17 @@ function seatHTML(name,state,isDriver,color){
 function emptySeat(){return `<div class="seat empty"><div class="seat-chip empty"></div>
   <div class="seat-info"><span class="seat-name" style="color:var(--muted)">libre</span>
   <span class="seat-stat">—</span></div></div>`;}
+
+// observateurs (section "observateurs" de Config) : suivent depuis la maison,
+// fiche construite une seule fois — stats/lien depuis la section rpg
+const OBS=CFG.observateurs||[];
+const obsEl=document.getElementById('obs');
+if(OBS.length){
+  obsEl.innerHTML=`<div class="car" style="--cc:#8E8066">
+    <div class="car-head"><span class="car-emoji">🛰️</span><div class="car-name">Observateurs</div>
+    <span class="car-cap">${OBS.length}</span></div>
+    <div class="seats">${OBS.map(n=>seatHTML(n,'observer',false,'#8E8066')).join('')}</div></div>`;
+}else obsEl.style.display='none';
 
 // fiche RPG des montures (section "rpg_voitures" de Config)
 const CAR_RPG=CFG.rpgVoitures||{};

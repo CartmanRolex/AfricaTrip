@@ -120,6 +120,9 @@ def read_config():
     cfg["danger"] = [{"lat": num(r["lat"]), "lng": num(r["lng"]), "img": r["img"],
                       "s": num(r["taille"], int, 47), "r": num(r["rayon"], int, 200000),
                       "t": r["label"]} for r in sections.get("danger", [])]
+    # spectators following the trip from home; stats come from the rpg section
+    cfg["observateurs"] = [r["nom"] for r in sections.get("observateurs", [])
+                           if r.get("nom")]
     # purely decorative map stickers (camels in the desert…): no circle, no label
     cfg["deco"] = [{"lat": num(r["lat"]), "lng": num(r["lng"]), "img": r["img"],
                     "s": num(r["taille"], int, 36)} for r in sections.get("deco", [])]

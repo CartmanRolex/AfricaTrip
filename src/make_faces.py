@@ -36,13 +36,15 @@ CROPS = {
     "Gal":     ("Gal.png",      0.45, 0.58, 0.52),
     "Arthur":  ("arthur.jpeg",  0.46, 0.42, 0.42),
     "Dorvan":  ("dorvan.jpeg",  0.72, 0.425, 0.22),
-    "Edouard": ("edouard.jpeg", 0.50, 0.46, 0.42),
+    # mugshots.jpeg : 3 portraits façon prison, de gauche à droite
+    "Edouard":  ("mugshots.jpeg", 0.184, 0.49, 0.22),
+    "Younous":  ("mugshots.jpeg", 0.50,  0.48, 0.24),
+    "Giordano": ("mugshots.jpeg", 0.815, 0.485, 0.24),
     "Hugo":    ("hugo.jpeg",    0.50, 0.49, 0.38),
     "Jehan":   ("jehan.png",    0.52, 0.47, 0.70),
     "Thomas":  ("thomas.png",   0.48, 0.40, 0.55),
     "Malen":   ("malen.jpeg",   0.52, 0.46, 0.42),
     "Paul":    ("paul.jpeg",    0.585, 0.44, 0.20),
-    "Younous": ("younous.jpeg", 0.57, 0.62, 0.44),
 }
 
 
