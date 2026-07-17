@@ -195,6 +195,8 @@ header .sec-tl .scrub{margin:2px 0 3px}
 .seat{display:flex;align-items:center;gap:9px;background:var(--bg);border:1px solid var(--line);border-radius:9px;
   padding:8px 10px;min-height:46px;transition:border-color .15s,transform .12s}
 .seat:not(.empty):hover{border-color:var(--cc);transform:translateY(-1px)}
+a.seat{text-decoration:none;color:inherit;cursor:pointer}
+.ext{color:var(--cc);font-size:10px;margin-left:3px;vertical-align:1px}
 .seat.empty{border-style:dashed;opacity:.5}
 .seat-chip{width:30px;height:30px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;
   font-family:var(--display);font-weight:700;font-size:12px;color:#16120c}
@@ -637,12 +639,15 @@ function seatHTML(name,state,isDriver,color){
   const face=ph?`<img src="${ph}" alt="${name}">`:name[0];
   const r=RPG[name]||{xp:0,pv:5,skill:'—'};
   const hpc=r.pv>=7?'var(--present)':r.pv>=4?'var(--unknown)':'#D95B43';
-  return `<div class="seat">
+  // lien optionnel (colonne "lien" de la section rpg) : la carte devient un <a>
+  const url=(r.lien||'').replace(/"/g,'&quot;');
+  const open=url?`<a class="seat" href="${url}" target="_blank" rel="noopener" title="Ouvrir le lien de ${name}">`:'<div class="seat">';
+  return `${open}
     <div class="seat-chip ${state}${ph?' photo':''}">${face}</div>
-    <div class="seat-info"><span class="seat-name ${isDriver?'driver':''}">${name}</span>
+    <div class="seat-info"><span class="seat-name ${isDriver?'driver':''}">${name}${url?'<span class="ext">↗</span>':''}</span>
     <span class="seat-stat">${lbl} · ${r.xp} XP</span>
     <span class="hp">PV <i class="hp-bar"><i class="hp-fill" style="width:${r.pv*10}%;background:${hpc}"></i></i> ${r.pv}/10</span>
-    <span class="seat-skill">${r.skill}</span></div></div>`;
+    <span class="seat-skill">${r.skill}</span></div>${url?'</a>':'</div>'}`;
 }
 function emptySeat(){return `<div class="seat empty"><div class="seat-chip empty"></div>
   <div class="seat-info"><span class="seat-name" style="color:var(--muted)">libre</span>

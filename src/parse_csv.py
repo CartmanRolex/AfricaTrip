@@ -110,7 +110,8 @@ def read_config():
     cfg["etapes"] = [{"emoji": r["emoji"], "diff": num(r["difficulté"], int, 3),
                       "lbl": r["label"]} for r in sections.get("etapes", [])]
     cfg["rpg"] = {r["nom"]: {"xp": num(r["xp"], int), "pv": num(r["pv"], int, 5),
-                             "skill": r["compétence"]} for r in sections.get("rpg", [])}
+                             "skill": r["compétence"],
+                             "lien": r.get("lien", "")} for r in sections.get("rpg", [])}
     cfg["rpgVoitures"] = {r["voiture"]: {"xp": num(r["xp"], int),
                                          "pv": num(r["pv"], int, 5),
                                          "skill": r["compétence"],

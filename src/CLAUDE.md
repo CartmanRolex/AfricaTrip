@@ -42,8 +42,10 @@ Key JS structures (all near the top of the script):
 - `LEG_META` — per-leg theme emoji + difficulty 1-5 + label (◆ pips,
   color-coded green/amber/red via `DIFF_COLOR`, hex on purpose: reused as
   SVG stroke on the map where `var()` doesn't work).
-- `RPG` — per-traveler `{xp, pv, skill}` (PV bar color thresholds ≥7
-  green, ≥4 amber, else red).
+- `RPG` — per-traveler `{xp, pv, skill, lien}` (PV bar color thresholds ≥7
+  green, ≥4 amber, else red). `lien` (optional URL, `lien` column of the
+  sheet's `## rpg` section): the whole seat card renders as an
+  `<a target="_blank">` with a small ↗ after the name; empty = plain div.
 - `CAR_RPG` — same for the cars + a `malus` line with their real-world
   afflictions (car 1 wheel bearings, car 2 holed exhaust −700 CHF).
 - `DANGER` — Sahel danger zones `{lat, lng, img:'terroN', s:size_px, r:radius_m,
