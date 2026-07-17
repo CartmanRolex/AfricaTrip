@@ -111,7 +111,9 @@ def read_config():
                       "lbl": r["label"]} for r in sections.get("etapes", [])]
     cfg["rpg"] = {r["nom"]: {"xp": num(r["xp"], int), "pv": num(r["pv"], int, 5),
                              "skill": r["compétence"],
-                             "lien": r.get("lien", "")} for r in sections.get("rpg", [])}
+                             "lien": r.get("lien", ""),
+                             "tel": r.get("téléphone", ""),
+                             "note": r.get("note", "")} for r in sections.get("rpg", [])}
     cfg["rpgVoitures"] = {r["voiture"]: {"xp": num(r["xp"], int),
                                          "pv": num(r["pv"], int, 5),
                                          "skill": r["compétence"],

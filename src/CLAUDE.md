@@ -42,10 +42,19 @@ Key JS structures (all near the top of the script):
 - `LEG_META` — per-leg theme emoji + difficulty 1-5 + label (◆ pips,
   color-coded green/amber/red via `DIFF_COLOR`, hex on purpose: reused as
   SVG stroke on the map where `var()` doesn't work).
-- `RPG` — per-traveler `{xp, pv, skill, lien}` (PV bar color thresholds ≥7
-  green, ≥4 amber, else red). `lien` (optional URL, `lien` column of the
-  sheet's `## rpg` section): the whole seat card renders as an
+- `RPG` — per-traveler `{xp, pv, skill, lien, tel, note}` (PV bar color
+  thresholds ≥7 green, ≥4 amber, else red), from the sheet's `## rpg`
+  section (columns: nom, xp, pv, compétence, lien, téléphone, note).
+  `lien` (optional URL): the whole seat card renders as an
   `<a target="_blank">` with a small ↗ after the name; empty = plain div.
+- **Fiche aventurier** — clicking (tapping) any face chip opens `#fiche`, a
+  medium modal over the map (`.fiche-card`, accent = car colour): big face,
+  XP/PV/skill, embarkation/disembarkation + days aboard **derived from the
+  presence grid** (`presenceOf()`, first/last present-or-tentative day;
+  "route ouverte…" if still aboard at the end), plus Téléphone (`tel:` link)
+  and Note rows when the sheet columns are filled, and a lien button. The
+  chip click is captured (capture:true) so it beats the card's `<a>`;
+  hover-zoom stays desktop-only sugar, the fiche IS the mobile equivalent.
 - `OBS` — `CFG.observateurs` (sheet `## observateurs`, `nom` column): people
   following from home. Rendered ONCE into `#obs`/`.sec-obs` as a car-style
   box (🛰️, khaki accent) of seat cards with state `observer`; stats + lien
