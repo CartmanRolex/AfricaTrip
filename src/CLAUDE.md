@@ -79,6 +79,11 @@ Key JS structures (all near the top of the script):
   stay leg with the "open route" circle).
 - The Étapes list is a horizontal scroll-snap slider (`.legs`), ‹ › buttons
   (`#legs-prev/next`), and `render()` auto-scrolls the active card into view.
+- **Clicking the route** jumps the timeline: `routeHit` is an invisible
+  22 px-wide polyline over the whole route whose click handler finds the
+  record index whose `posAt()` position is closest (equirectangular metric)
+  and calls `setIndex()`. The numbered `cp-badge` circles are clickable too
+  (jump to that checkpoint's arrival day; the name pill stays click-through).
 - `GALLERY` — shared Drive photos `[{id, name, date(iso), lat, lng,
   gps(bool), thumb(dataURI), file}]` (see `fetch_photos.py`). Rendered by
   `rebuildBubbles()` (rerun on every zoomend): photos within ~42 screen px

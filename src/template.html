@@ -47,6 +47,7 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
 
 /* convoy + checkpoint markers */
 .cp-badge{display:flex;align-items:center;gap:5px;pointer-events:none}
+.cp-badge b{pointer-events:auto;cursor:pointer}
 .cp-badge b{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto;
   font-family:var(--display);font-weight:600;font-size:10.5px;color:var(--sand-dim);
   background:var(--panel);border:1.5px solid var(--sand-dim);
@@ -424,12 +425,27 @@ const legLine = L.polyline([],{color:'#EFE7D6',weight:3,opacity:.85,lineCap:'rou
 const glow = L.polyline([],{color:'#E8924A',weight:9,opacity:.16,lineCap:'round',lineJoin:'round'}).addTo(map);
 const traveled = L.polyline([],{color:'#E8924A',weight:3.5,opacity:.95,lineCap:'round',lineJoin:'round'}).addTo(map);
 
+// couloir de clic invisible sur TOUT le tracé : cliquer un endroit du chemin
+// cale la frise (et le slider) sur le jour où le convoi y passe
+const routeHit=L.polyline(latlngs,{weight:22,opacity:.002,lineCap:'round',lineJoin:'round'}).addTo(map);
+routeHit.on('click',e=>{
+  const c=e.latlng, k=Math.cos(c.lat*Math.PI/180);
+  let best=0, bd=Infinity;
+  for(let r=0;r<REC.length;r++){
+    const p=posAt(r).pt, dx=(p.lng-c.lng)*k, dy=p.lat-c.lat, d=dx*dx+dy*dy;
+    if(d<bd){bd=d;best=r;}
+  }
+  stop(); setIndex(best);
+});
+
 // checkpoint milestones: numbered badge + name pill (names hide when zoomed out)
 const cpMarkers=[];
 ROUTE.forEach((p,i)=>{ if(!p.cp) return;
   const n=cpMarkers.length+1;
-  const m=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'',iconSize:[0,0],
+  const m=L.marker([p.lat,p.lng],{icon:L.divIcon({className:'',iconSize:[0,0],
     iconAnchor:[10,10],html:`<div class="cp-badge" data-i="${i}"><b>${n}</b><span>${pretty(p.cp)}</span></div>`})}).addTo(map);
+  // clic sur le badge = sauter au jour d'arrivée à ce checkpoint
+  m.on('click',()=>{ stop(); setIndex(cpRecIdx[n-1]); });
   cpMarkers.push({i,marker:m});
 });
 // done = déjà atteint · next = prochaine destination (pulsation ambre)
