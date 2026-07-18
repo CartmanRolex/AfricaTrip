@@ -19,6 +19,9 @@ falls back to the static photo (`oncanplay` gate → `.vid-ok`).
 | `arthur_live.mp4`  | Arthur  | 800x1088 desert portrait (beige djellaba, dunes + oasis) -> w:182% l:-43.2% t:-15.9% |
 | `dorvan_live.mp4`  | Dorvan  | 800x1088 savanna sunset (zebras + giraffe) -> w:181.8% l:-40.9% t:-5.6% |
 | `paul_live.mp4`    | Paul    | 800x773 (near-square source) rice paddy, conical hat: wide brim, framed to keep the face readable -> w:177.8% l:-38.9% t:0% |
+| `giordano_live.mp4`| Giordano| 800x1088 physics lecture hall (blackboard of equations) -> w:160% l:-25% t:-64% |
+| `jehan_live.mp4`   | Jehan   | 800x773 sailing boat at sea, captain's cap -> w:250% l:-75% t:-0.7% |
+| `thomas_live.mp4`  | Thomas  | 800x773 favela rooftop at sunset, sunglasses -> w:227.3% l:-63.6% t:-49.5% |
 | `malen_live.mp4`   | Malen   | 800×1015 soviet-square smoke break (lighter + cigarette in frame) → w:167% l:-35% t:-83% |
 
 The STATIC face crops of live-portrait people come from the video's FIRST
