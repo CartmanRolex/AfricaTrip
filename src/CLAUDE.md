@@ -30,8 +30,8 @@ Key JS structures (all near the top of the script):
   cap1, cap2, car1:{Name:state}, car2:{...}}`; states: `present | unknown |
   tentative | absent`.
 - `DATA.config` — the parsed Config sheet tab; **all editorial content
-  comes from it** (`CFG` in the JS): `textes` (tagline, foot, open-route
-  labels), `checkpoints` (display names), `etapes` → `LEG_META`, `rpg` →
+  comes from it** (`CFG` in the JS): `textes` (titre — site name in the header/tab, tagline, foot,
+  open-route labels), `checkpoints` (display names), `etapes` → `LEG_META`, `rpg` →
   `RPG`, `rpgVoitures` → `CAR_RPG`, `danger` → `DANGER`, `deco` (decorative stickers), `couleurs`.
   Fallbacks are minimal — edit the sheet, not the JS.
 - `DATA.route` — polyline points `{lat,lng, cp?}` (Config `## route`);

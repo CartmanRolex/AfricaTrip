@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>Voyage en Afrique — Carnet de route</title>
+<title>Expédition Afrique 2026 — Carnet de route</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -322,7 +322,7 @@ span.fiche-face{display:block;overflow:hidden}
 <div class="app">
   <header>
     <div>
-      <div class="brand"><span class="pin">◆</span> Voyage en Afrique</div>
+      <div class="brand"><span class="pin">◆</span> <span id="brand-txt">Expédition Afrique 2026</span></div>
       <div class="tagline" id="tagline">Carnet de route · 1er août → 30 septembre 2025</div>
     </div>
     <section class="sec-tl">
@@ -393,6 +393,7 @@ const CAR1 = DATA.car1, CAR2 = DATA.car2;
 // tout le contenu "modifiable" vient de l'onglet Config de la feuille
 const CFG = DATA.config || {}, T = CFG.textes || {};
 if (T.tagline) document.getElementById('tagline').textContent = T.tagline;
+if (T.titre){ document.getElementById('brand-txt').textContent = T.titre; document.title = T.titre + ' — Carnet de route'; }
 if (T.foot) document.getElementById('foot').textContent = T.foot;
 // libellés d'affichage des checkpoints (section "checkpoints" de Config)
 const normCp = s => (s||'').replace(/[^A-Za-zÀ-ÿ]/g,'').toUpperCase();
@@ -788,6 +789,7 @@ const LIVE={
   Edouard:{src:'photos/videos/edouard_live.mp4',w:'210%',l:'-55%',t:'-50%'},
   Younous:{src:'photos/videos/younous_live.mp4',w:'170%',l:'-36%',t:'-31%'},
   Hugo:{src:'photos/videos/hugo_live.mp4',w:'182%',l:'-44%',t:'-72%'},
+  Gal:{src:'photos/videos/gal_live.mp4',w:'103%',l:'-1%',t:'-12%'},
 };
 function liveWrap(name,ph,auto){
   const lv=LIVE[name];
