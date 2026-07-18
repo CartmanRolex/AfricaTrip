@@ -14,7 +14,7 @@ falls back to the static photo (`oncanplay` gate → `.vid-ok`).
 |--------------------|---------|----------------------------------------|
 | `edouard_live.mp4` | Edouard | 800×1088, 5 s mugshot loop; head ≈ (50%, 35%) → w:210% l:-55% t:-50% |
 | `younous_live.mp4` | Younous | 800×1088 mugshot loop; big curly hair → w:170% l:-36% t:-31% |
-| `hugo_live.mp4`    | Hugo    | 800×1418 colonial-explorer loop (jungle, pith helmet) → w:182% l:-44% t:-72% |
+| `hugo_live.mp4`    | Hugo    | 800×1418 colonial-explorer loop (jungle, pith helmet), waist-up shot so the head sits high in frame → w:170% l:-36% t:-59.4% |
 | `gal_live.mp4`     | Gal     | 800×1088 Touareg portrait (indigo chèche, camp + camels behind); tall head (turban→chin ≈ 390px) so the circle needs a LOOSE frame or its curve clips the jaw → w:151.5% l:-26.1% t:-28.6% |
 | `malen_live.mp4`   | Malen   | 800×1015 soviet-square smoke break (lighter + cigarette in frame) → w:167% l:-35% t:-83% |
 

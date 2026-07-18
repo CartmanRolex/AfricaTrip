@@ -214,8 +214,9 @@ Hard-won gotchas (do not re-learn these):
 - Dilation before labeling is MaxFilter(5) on the 2× downscale ≈ merges
   gaps <8 px; bigger kernels merged adjacent stickers on the dense sheet.
 - `CLEAN = {sticker_index: [fractional rects]}` erases sheet artifacts baked
-  next to a sticker (currently terro7 and terro9). `DEFRINGE` (halo peeling) exists but
-  is unused since the outline fix.
+  next to a sticker (currently terro7 and terro9). (A `defringe()` halo-peeler
+  used to live here; it became unreachable once the white outlines were
+  preserved, and was deleted — see git history if a sheet ever needs it.)
 
 ### `data.json` / `photos.json` / `gallery.json`
 Generated. Never edit by hand; regenerate with the scripts above. All are

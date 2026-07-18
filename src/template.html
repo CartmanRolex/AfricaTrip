@@ -247,8 +247,7 @@ a.seat{text-decoration:none;color:inherit;cursor:pointer}
 .seat-chip{width:30px;height:30px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;
   font-family:var(--display);font-weight:700;font-size:12px;color:#16120c}
 .seat-chip.photo{padding:2px}
-.seat-chip img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;
-  position:relative;transform-origin:center left;transition:transform .18s ease,box-shadow .18s ease}
+.seat-chip img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
 /* portrait vivant façon Harry Potter : photo statique, la vidéo prend le
    relais au survol (chip .live) — cadrée sur la tête via le style inline
    width/left/top du <video> (fractions du cercle, voir LIVE dans le JS) */
@@ -870,7 +869,7 @@ const RPG=CFG.rpg||{};
 const LIVE={
   Edouard:{src:'photos/videos/edouard_live.mp4',w:'210%',l:'-55%',t:'-50%'},
   Younous:{src:'photos/videos/younous_live.mp4',w:'170%',l:'-36%',t:'-31%'},
-  Hugo:{src:'photos/videos/hugo_live.mp4',w:'182%',l:'-44%',t:'-72%'},
+  Hugo:{src:'photos/videos/hugo_live.mp4',w:'170%',l:'-36%',t:'-59.4%'},
   Gal:{src:'photos/videos/gal_live.mp4',w:'151.5%',l:'-26.1%',t:'-28.6%'},
   Malen:{src:'photos/videos/malen_live.mp4',w:'167%',l:'-35%',t:'-83%'},
 };
