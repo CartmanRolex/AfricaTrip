@@ -33,3 +33,16 @@ the video width (see the values in make_faces.py).
 
 To add one: drop `<name>_live.mp4` here, add the entry to `LIVE` in
 `src/template.html` (tune w/l/t by screenshot), rebuild.
+
+## Mouvement et clignements (leçon de génération)
+
+Wan2.2 TI2V-5B ne produit presque jamais de clignement avec le prompt
+"extremely subtle motion only" : vérifié image par image, ni Arthur ni
+Dorvan ni Younous ne clignaient dans la première fournée. Ce qui marche :
+demander explicitement que **les yeux restent ouverts** avec deux ou trois
+clignements *brefs* (paupières qui se referment et se rouvrent aussitôt).
+Attention à l'excès inverse — la consigne "blinks about once every two
+seconds" a fait fermer les yeux à Younous pour tout le clip.
+Pour juger, extraire des images entières (`full.py` sur la machine
+Basement) : une planche de 12 vignettes rate un clignement, qui ne dure
+que 3 à 6 images sur 121.
