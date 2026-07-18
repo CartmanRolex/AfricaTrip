@@ -17,6 +17,8 @@ falls back to the static photo (`oncanplay` gate → `.vid-ok`).
 | `hugo_live.mp4`    | Hugo    | 800×1418 colonial-explorer loop (jungle, pith helmet), waist-up shot so the head sits high in frame → w:170% l:-36% t:-59.4% |
 | `gal_live.mp4`     | Gal     | 800×1088 Touareg portrait (indigo chèche, camp + camels behind); tall head (turban→chin ≈ 390px) so the circle needs a LOOSE frame or its curve clips the jaw → w:151.5% l:-26.1% t:-28.6% |
 | `arthur_live.mp4`  | Arthur  | 800x1088 desert portrait (beige djellaba, dunes + oasis) -> w:182% l:-43.2% t:-15.9% |
+| `dorvan_live.mp4`  | Dorvan  | 800x1088 savanna sunset (zebras + giraffe) -> w:181.8% l:-40.9% t:-5.6% |
+| `paul_live.mp4`    | Paul    | 800x773 (near-square source) rice paddy, conical hat: wide brim, framed to keep the face readable -> w:177.8% l:-38.9% t:0% |
 | `malen_live.mp4`   | Malen   | 800×1015 soviet-square smoke break (lighter + cigarette in frame) → w:167% l:-35% t:-83% |
 
 The STATIC face crops of live-portrait people come from the video's FIRST

@@ -41,7 +41,7 @@ WIDE = 1.9
 CROPS = {
     "Gal":     ("gal_frame.png", 0.5025, 0.3815, 0.66),
     "Arthur":   ("arthur_frame.png", 0.5125, 0.2665, 0.55),
-    "Dorvan":  ("dorvan.jpeg",  0.72, 0.425, 0.22),
+    "Dorvan":   ("dorvan_frame.png", 0.50, 0.225, 0.55),
     # Edouard/Younous ont un portrait vivant : le crop statique vient de la
     # PREMIÈRE FRAME de leur vidéo (extraite en screenshot headless, voir
     # photos/videos/CLAUDE.md), avec EXACTEMENT le même carré que le cadrage
@@ -54,7 +54,7 @@ CROPS = {
     "Jehan":   ("jehan.png",    0.52, 0.47, 0.70),
     "Thomas":  ("thomas.png",   0.48, 0.40, 0.55),
     "Malen":   ("malen_frame.png", 0.512, 0.63, 0.60),
-    "Paul":    ("paul.jpeg",    0.585, 0.44, 0.20),
+    "Paul":     ("paul_frame.png", 0.50, 0.291, 0.5625),
 }
 
 
