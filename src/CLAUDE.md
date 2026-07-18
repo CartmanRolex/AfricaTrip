@@ -79,6 +79,13 @@ Key JS structures (all near the top of the script):
 - `CFG.deco` — decorative stickers `{lat, lng, img:'chameauN', s}` (Config
   `## deco`): camels along the desert stretch, plain `<img>` markers reusing
   `.danger-img` (drop-shadow + danger-far scaling), no circle/label.
+- `LIVE` — living portraits (name → `{src, w, l, t}`): MP4 loops in
+  `photos/videos/` (relative paths, see that folder's CLAUDE.md). The seat
+  chip gets class `live`; delegated mouseover/mouseout toggle `.playing`
+  (video plays inside the circle, replacing the hover-zoom img effect —
+  the wrapper `.live-wrap` scales ×3.2 instead); the fiche face plays it
+  continuously (autoplay muted loop). `oncanplay` adds `.vid-ok` so a
+  missing/unloadable video falls back to the static photo.
 - `PHOTOS` — `{faces:{Name:dataURI}, cars:{1:…,2:…}, terros:{terroN:…},
   chameaux:{chameauN:…}}`.
   Faces render in seat chips (30 px circle, status-colored ring, hover zoom

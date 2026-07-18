@@ -23,6 +23,8 @@ not the images.
 - `emojis/` — car + sticker cutouts with real alpha. See `emojis/CLAUDE.md`.
 - `uploads/` — shared Drive trip photos (map bubbles), synced by
   `python src/fetch_photos.py`. See `uploads/CLAUDE.md`.
+- `videos/` — living-portrait MP4 loops (committed, served by Pages).
+  See `videos/CLAUDE.md`.
 - `gal.enc` — **encrypted local file, unknown contents. NEVER COMMIT**
   (git-ignored; `git add -A photos` once caught it — avoid).
 
