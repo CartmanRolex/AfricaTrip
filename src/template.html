@@ -568,7 +568,23 @@ let ficheFor=null;
 function presenceOf(name){
   const on=[]; REC.forEach((r,i)=>{ const st=r.car1[name]||r.car2[name];
     if(st==='present'||st==='tentative')on.push(i); });
-  return on.length?{n:on.length,from:REC[on[0]],to:REC[on.at(-1)],open:on.at(-1)===REC.length-1}:null;
+  return on.length?{n:on.length,i0:on[0],i1:on.at(-1),from:REC[on[0]],to:REC[on.at(-1)],open:on.at(-1)===REC.length-1}:null;
+}
+function colorOf(name){
+  return CAR1.includes(name)?CARS[1].color:CAR2.includes(name)?CARS[2].color:'#8E8066';
+}
+// tronçon du personnage sélectionné : large bande translucide sous le tracé
+const ficheLine=L.polyline([],{weight:11,opacity:.45,lineCap:'round',lineJoin:'round'}).addTo(map);
+ficheLine.bringToBack();
+function updateFicheLine(){
+  const pres=ficheFor&&presenceOf(ficheFor);
+  if(!pres){ ficheLine.setLatLngs([]); return; }
+  const A=posAt(pres.i0), B=posAt(pres.i1);
+  const pts=[[A.pt.lat,A.pt.lng]];
+  for(let j=A.upTo+1;j<=B.upTo;j++)pts.push([ROUTE[j].lat,ROUTE[j].lng]);
+  pts.push([B.pt.lat,B.pt.lng]);
+  ficheLine.setStyle({color:colorOf(ficheFor)});
+  ficheLine.setLatLngs(pts);
 }
 function ficheHTML(name,color){
   const r=RPG[name]||{xp:0,pv:5,skill:'—'};
@@ -596,7 +612,7 @@ function ficheHTML(name,color){
     <div class="fiche-rows">${rows.map(([k,v])=>`<div class="fiche-row"><span>${k}</span><b>${v}</b></div>`).join('')}</div>
     ${r.lien?`<a class="fiche-link" href="${r.lien.replace(/"/g,'&quot;')}" target="_blank" rel="noopener">Ouvrir le lien ↗</a>`:''}</div>`;
 }
-function closeFiche(){ ficheFor=null; render(); renderObs(); }
+function closeFiche(){ ficheFor=null; render(); renderObs(); updateFicheLine(); }
 window.addEventListener('keydown',e=>{ if(e.key==='Escape'&&ficheFor)closeFiche(); });
 // capture:true pour passer avant le <a> éventuel de la carte (colonne lien)
 document.addEventListener('click',e=>{
@@ -604,7 +620,7 @@ document.addEventListener('click',e=>{
   const chip=e.target.closest('.seat-chip[data-name]');
   if(!chip)return;
   e.preventDefault(); e.stopPropagation();
-  ficheFor=chip.dataset.name; render(); renderObs();
+  ficheFor=chip.dataset.name; render(); renderObs(); updateFicheLine();
 },true);
 
 // convoy marker

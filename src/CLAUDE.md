@@ -56,7 +56,9 @@ Key JS structures (all near the top of the script):
   "route ouverte…" if still aboard at the end), plus Téléphone (`tel:` link)
   and Note rows when the sheet columns are filled, and a lien button.
   ✕ button or Escape closes (`closeFiche()`); the fiche survives day
-  changes. The chip click is captured (capture:true) so it beats the
+  changes. While open, `ficheLine` (wide translucent polyline in the car's
+  colour, `updateFicheLine()`, sent to back) highlights the person's
+  stretch of the route between embarkation and disembarkation. The chip click is captured (capture:true) so it beats the
   card's `<a>`; hover-zoom stays desktop-only sugar, the tap IS the
   mobile gesture.
 - `OBS` — `CFG.observateurs` (sheet `## observateurs`, `nom` column): people
