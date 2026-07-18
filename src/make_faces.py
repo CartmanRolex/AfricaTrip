@@ -47,7 +47,7 @@ CROPS = {
     "Giordano": ("mugshots.jpeg", 0.815, 0.485, 0.24),
     "Jehan":   ("jehan.png",    0.52, 0.47, 0.70),
     "Thomas":  ("thomas.png",   0.48, 0.40, 0.55),
-    "Malen":   ("malen.jpeg",   0.52, 0.46, 0.42),
+    "Malen":   ("malen_frame.png", 0.512, 0.63, 0.60),
     "Paul":    ("paul.jpeg",    0.585, 0.44, 0.20),
 }
 

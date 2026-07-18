@@ -16,6 +16,7 @@ falls back to the static photo (`oncanplay` gate → `.vid-ok`).
 | `younous_live.mp4` | Younous | 800×1088 mugshot loop; big curly hair → w:170% l:-36% t:-31% |
 | `hugo_live.mp4`    | Hugo    | 800×1418 colonial-explorer loop (jungle, pith helmet) → w:182% l:-44% t:-72% |
 | `gal_live.mp4`     | Gal     | 800×1088 desert close-up (camels behind); face fills the frame → w:103% l:-1% t:-12% |
+| `malen_live.mp4`   | Malen   | 800×1015 soviet-square smoke break (lighter + cigarette in frame) → w:167% l:-35% t:-83% |
 
 The STATIC face crops of live-portrait people come from the video's FIRST
 FRAME (no visual jump on hover): extract it by loading the mp4 in headless
