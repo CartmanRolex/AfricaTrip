@@ -40,7 +40,7 @@ WIDE = 1.9
 # name-in-data -> (file, cx, cy, size_frac_of_width)
 CROPS = {
     "Gal":     ("gal_frame.png", 0.5025, 0.3815, 0.66),
-    "Arthur":  ("arthur.jpeg",  0.46, 0.42, 0.42),
+    "Arthur":   ("arthur_frame.png", 0.5125, 0.2665, 0.55),
     "Dorvan":  ("dorvan.jpeg",  0.72, 0.425, 0.22),
     # Edouard/Younous ont un portrait vivant : le crop statique vient de la
     # PREMIÈRE FRAME de leur vidéo (extraite en screenshot headless, voir
