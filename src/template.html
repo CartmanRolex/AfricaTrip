@@ -639,6 +639,11 @@ document.addEventListener('click',e=>{
   if(!chip)return;
   e.preventDefault(); e.stopPropagation();
   ficheFor=chip.dataset.name; render(); renderObs(); updateFicheLine();
+  // mobile : la fiche peut s'ouvrir hors de la zone visible du bottom-sheet
+  if(matchMedia('(max-width:880px)').matches){
+    const el=document.querySelector('.fiche-card');
+    if(el)el.scrollIntoView({behavior:'smooth',block:'center'});
+  }
 },true);
 
 // portraits vivants : lecture au survol de la pastille, pause en sortant
