@@ -928,7 +928,7 @@ function seatHTML(name,state,isDriver,color){
   const hpc=r.pv>=7?'var(--present)':r.pv>=4?'var(--unknown)':'#D95B43';
   // toute la carte ouvre la fiche (le lien éventuel y a son bouton)
   return `<div class="seat" data-name="${name}">
-    <div class="seat-chip ${state}${ph?' photo':''}${LIVE[name]?' live':''}" data-name="${name}" title="${name}">${face}</div>
+    <div class="seat-chip ${state}${ph?' photo':''}${LIVE[name]?' live':''}" data-name="${name}">${face}</div>
     <div class="seat-info"><span class="seat-name ${isDriver?'driver':''}">${name}</span>
     <span class="seat-stat">${lbl} · ${r.xp} XP</span>
     <span class="hp">PV <i class="hp-bar"><i class="hp-fill" style="width:${r.pv*10}%;background:${hpc}"></i></i> ${r.pv}/10</span>
