@@ -13,6 +13,14 @@ falls back to the static photo (`oncanplay` gate → `.vid-ok`).
 | File               | Who     | Framing notes                          |
 |--------------------|---------|----------------------------------------|
 | `edouard_live.mp4` | Edouard | 800×1088, 5 s mugshot loop; head ≈ (50%, 35%) → w:210% l:-55% t:-50% |
+| `younous_live.mp4` | Younous | 800×1088 mugshot loop; big curly hair → w:170% l:-36% t:-31% |
+
+The STATIC face crops of live-portrait people come from the video's FIRST
+FRAME (no visual jump on hover): extract it by loading the mp4 in headless
+Edge at natural width and screenshotting (no ffmpeg on this machine), save
+as `photos/<name>_frame.png`, and give `CROPS` the exact same square as the
+LIVE framing — cx=(-l+50)/w, cy stays in height fractions, size=100/w of
+the video width (see the values in make_faces.py).
 
 To add one: drop `<name>_live.mp4` here, add the entry to `LIVE` in
 `src/template.html` (tune w/l/t by screenshot), rebuild.

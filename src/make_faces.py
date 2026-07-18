@@ -36,9 +36,13 @@ CROPS = {
     "Gal":     ("Gal.png",      0.45, 0.58, 0.52),
     "Arthur":  ("arthur.jpeg",  0.46, 0.42, 0.42),
     "Dorvan":  ("dorvan.jpeg",  0.72, 0.425, 0.22),
-    # mugshots.jpeg : 3 portraits façon prison, de gauche à droite
-    "Edouard":  ("mugshots.jpeg", 0.184, 0.49, 0.22),
-    "Younous":  ("mugshots.jpeg", 0.50,  0.48, 0.24),
+    # Edouard/Younous ont un portrait vivant : le crop statique vient de la
+    # PREMIÈRE FRAME de leur vidéo (extraite en screenshot headless, voir
+    # photos/videos/CLAUDE.md), avec EXACTEMENT le même carré que le cadrage
+    # LIVE du template (w/l/t) => aucun saut visuel photo->vidéo au survol.
+    "Edouard":  ("edouard_frame.png", 0.50,  0.35, 0.476),
+    "Younous":  ("younous_frame.png", 0.506, 0.35, 0.59),
+    # mugshots.jpeg : 3 portraits façon prison, de gauche à droite (Giordano)
     "Giordano": ("mugshots.jpeg", 0.815, 0.485, 0.24),
     "Hugo":    ("hugo.jpeg",    0.50, 0.49, 0.38),
     "Jehan":   ("jehan.png",    0.52, 0.47, 0.70),
