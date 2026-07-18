@@ -35,6 +35,23 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
 .head-stats{margin-left:auto;display:flex;gap:26px;}
 .stat{display:flex;flex-direction:column;gap:2px;text-align:right}
 .stat b{font-family:var(--display);font-weight:600;font-size:18px;letter-spacing:.04em;color:var(--sand)}
+/* odomètre mécanique : chaque chiffre est une bande 0-9 qui roule dans sa
+   fenêtre (dégradé haut/bas = ombrage du tambour). Space Mono, chasse fixe */
+/* NB : les chiffres sont des <span> DANS .stat, donc `.stat span` (9.5px,
+   gris terne) les attrape — d'où les sélecteurs .odo X, plus spécifiques */
+.stat b.odo{--oh:1.34em;display:inline-flex;align-items:stretch;font-family:var(--mono);
+  font-weight:700;font-size:17px;letter-spacing:0;line-height:1}
+/* les 3 sont des <span> : il faut TOUS les sortir de `.stat span`, sinon la
+   taille repart à 9.5px au premier maillon oublié (le rouleau, ici) */
+.odo .odo-d,.odo .odo-r,.odo .odo-sep{font-size:inherit;color:var(--sand);
+  letter-spacing:0;text-transform:none}
+.odo .odo-d{display:block;width:.68em;height:var(--oh);overflow:hidden;position:relative;
+  background:linear-gradient(180deg,rgba(0,0,0,.34),rgba(0,0,0,0) 36%,
+    rgba(0,0,0,0) 64%,rgba(0,0,0,.34));border-radius:2px;margin-left:1px}
+.odo .odo-r{display:block;transition:transform .45s cubic-bezier(.24,1.25,.4,1)}
+.odo .odo-r i{display:block;height:var(--oh);line-height:var(--oh);font-style:normal;
+  text-align:center}
+.odo .odo-sep{display:block;width:.3em;text-align:center;line-height:var(--oh)}
 .stat span{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.13em;color:var(--muted)}
 
 #map{grid-area:map;height:100%;width:100%;background:#14110E;}
@@ -294,6 +311,7 @@ span.fiche-face{display:block;overflow:hidden}
   .head-stats{gap:10px}
   .head-stats .stat:last-child{display:none} /* pax déjà visible sur les voitures */
   .stat b{font-size:13px}
+  .stat b.odo{font-size:12.5px}
   .stat span{font-size:7.5px;letter-spacing:.06em}
   #map{z-index:1}
   .panel{position:relative;z-index:5;border-left:none;border-top:1px solid var(--line);
@@ -414,6 +432,26 @@ function hav(a,b){const R=6371,d=Math.PI/180;
 // cumulative distance of full route
 let totalKm=0; for(let i=1;i<ROUTE.length;i++) totalKm+=hav(ROUTE[i-1],ROUTE[i]);
 const kmFmt = n => Math.round(n).toLocaleString('fr-FR');
+
+// odomètre : réutilise les bandes tant que la "forme" du nombre ne change pas
+// (même longueur, mêmes séparateurs), sinon les reconstruit et les fait rouler
+// depuis 0 — la transition CSS fait tout le travail, y compris interrompue
+// en plein scrub
+function odoSet(el,n){
+  const str=kmFmt(n), shape=str.replace(/\d/g,'#');
+  if(el.dataset.shape!==shape){
+    el.dataset.shape=shape; el.className='odo';
+    el.innerHTML=[...str].map(c=>/\d/.test(c)
+      ? `<span class="odo-d"><span class="odo-r">${
+          [0,1,2,3,4,5,6,7,8,9].map(d=>`<i>${d}</i>`).join('')}</span></span>`
+      : `<span class="odo-sep">${c}</span>`).join('');
+    void el.offsetHeight;  // force le calcul du style initial => ça anime
+  }
+  // --oh (hauteur d'une case) reste défini une seule fois, en CSS
+  const reels=el.querySelectorAll('.odo-r'); let k=0;
+  for(const c of str) if(/\d/.test(c))
+    reels[k++].style.transform=`translateY(calc(${-c} * var(--oh)))`;
+}
 // km actually driven up to a convoy position {upTo, partial}
 function traveledKm(P){
   let km=0; for(let i=0;i<P.upTo;i++) km+=hav(ROUTE[i],ROUTE[i+1]);
@@ -817,7 +855,7 @@ const LIVE={
   Edouard:{src:'photos/videos/edouard_live.mp4',w:'210%',l:'-55%',t:'-50%'},
   Younous:{src:'photos/videos/younous_live.mp4',w:'170%',l:'-36%',t:'-31%'},
   Hugo:{src:'photos/videos/hugo_live.mp4',w:'182%',l:'-44%',t:'-72%'},
-  Gal:{src:'photos/videos/gal_live.mp4',w:'103%',l:'-1%',t:'-12%'},
+  Gal:{src:'photos/videos/gal_live.mp4',w:'174%',l:'-39%',t:'-38%'},
   Malen:{src:'photos/videos/malen_live.mp4',w:'167%',l:'-35%',t:'-83%'},
 };
 function liveWrap(name,ph,auto){
@@ -917,7 +955,7 @@ function render(){
   const pct=(idx/(REC.length-1))*100; scrub.style.setProperty('--pct',pct+'%');
   document.getElementById('s-pax').textContent=paxCount(rec);
   document.getElementById('s-day').textContent=`${idx+1} / ${REC.length}`;
-  document.getElementById('s-km').textContent=kmFmt(traveledKm(P));
+  odoSet(document.getElementById('s-km'),traveledKm(P));
   carsEl.innerHTML=renderCar(1,rec)+'<div style="height:14px"></div>'+renderCar(2,rec);
   // active leg: highlight card + keep it visible in the slider
   const li=P.legIdx;

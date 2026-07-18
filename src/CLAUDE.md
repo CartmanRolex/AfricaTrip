@@ -96,6 +96,15 @@ Key JS structures (all near the top of the script):
   Faces render in seat chips (30 px circle, status-colored ring, hover zoom
   ×3.2 via `.seat-chip.photo:hover img`); all 10 travelers have one (a
   missing face would fall back to the initial letter).
+- **Odomètre** (`odoSet()`, `.odo*` CSS): the header's km stat is a mechanical
+  counter — one 0-9 reel per digit in a `overflow:hidden` window, rolled by
+  `transform: translateY(calc(-N * var(--oh)))` with a CSS transition, so
+  scrubbing makes the digits spin. `--oh` (cell height) is the single source
+  of truth. Reels are rebuilt only when the number's *shape* changes
+  (digit count / separators), then roll in from 0. Gotcha: the digits are
+  `<span>`s inside `.stat`, so ALL THREE classes (`.odo-d`, `.odo-r`,
+  `.odo-sep`) must override `.stat span` (9.5px, muted) — forgetting the
+  reel alone silently shrinks everything it contains.
 - Map rendering in `render()`: `traveled` orange polyline (+ glow) up to the
   convoy, `legLine` highlighting the ACTIVE leg (this is what makes a clicked
   leg visible — don't remove it) with animated dashes (`.leg-flow` CSS) and

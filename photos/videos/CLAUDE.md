@@ -15,7 +15,7 @@ falls back to the static photo (`oncanplay` gate → `.vid-ok`).
 | `edouard_live.mp4` | Edouard | 800×1088, 5 s mugshot loop; head ≈ (50%, 35%) → w:210% l:-55% t:-50% |
 | `younous_live.mp4` | Younous | 800×1088 mugshot loop; big curly hair → w:170% l:-36% t:-31% |
 | `hugo_live.mp4`    | Hugo    | 800×1418 colonial-explorer loop (jungle, pith helmet) → w:182% l:-44% t:-72% |
-| `gal_live.mp4`     | Gal     | 800×1088 desert close-up (camels behind); face fills the frame → w:103% l:-1% t:-12% |
+| `gal_live.mp4`     | Gal     | 800×1088 Touareg portrait (indigo chèche, camp + camels behind) → w:174% l:-39% t:-38% |
 | `malen_live.mp4`   | Malen   | 800×1015 soviet-square smoke break (lighter + cigarette in frame) → w:167% l:-35% t:-83% |
 
 The STATIC face crops of live-portrait people come from the video's FIRST
