@@ -9,7 +9,7 @@ the generated files, so the originals were dead weight. They remain in git
 history: restore with
 
 ```
-git checkout f372c57 -- photos/
+git checkout be0d57a -- photos/
 ```
 
 then rerun `python src/make_faces.py` (which errors with these same

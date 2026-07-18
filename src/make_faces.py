@@ -191,7 +191,7 @@ The source images (photos/<name>.jpeg, voitures.jpg, terros.jpg) are no
 longer kept in the working tree — the generated crops in photos/faces/ and
 photos/emojis/ are committed, so the site never needs them. To re-crop,
 restore them from git history first:
-    git checkout f372c57 -- photos/
+    git checkout be0d57a -- photos/
 then rerun this script (and delete the restored originals again after)."""
 
 

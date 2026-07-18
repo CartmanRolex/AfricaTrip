@@ -194,7 +194,7 @@ push. Exits without committing when nothing changed.
 ### `make_faces.py`
 Produces `photos.json` + the generated image folders. **The source images
 were removed from the working tree** (outputs are committed); the script
-exits with restore instructions (`git checkout f372c57 -- photos/`) if they
+exits with restore instructions (`git checkout be0d57a -- photos/`) if they
 are missing — see `photos/CLAUDE.md`. Three parts:
 1. **Faces**: hand-tuned square crops via the `CROPS` dict (cx, cy, size as
    fractions; tweak these to reframe someone) → `photos/faces/<name>.jpg`,
