@@ -42,9 +42,9 @@ CROPS = {
     # LIVE du template (w/l/t) => aucun saut visuel photo->vidéo au survol.
     "Edouard":  ("edouard_frame.png", 0.50,  0.35, 0.476),
     "Younous":  ("younous_frame.png", 0.506, 0.35, 0.59),
+    "Hugo":     ("hugo_frame.png",    0.519, 0.379, 0.55),
     # mugshots.jpeg : 3 portraits façon prison, de gauche à droite (Giordano)
     "Giordano": ("mugshots.jpeg", 0.815, 0.485, 0.24),
-    "Hugo":    ("hugo.jpeg",    0.50, 0.49, 0.38),
     "Jehan":   ("jehan.png",    0.52, 0.47, 0.70),
     "Thomas":  ("thomas.png",   0.48, 0.40, 0.55),
     "Malen":   ("malen.jpeg",   0.52, 0.46, 0.42),
