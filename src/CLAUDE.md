@@ -45,8 +45,8 @@ Key JS structures (all near the top of the script):
 - `RPG` — per-traveler `{xp, pv, skill, lien, tel, note}` (PV bar color
   thresholds ≥7 green, ≥4 amber, else red), from the sheet's `## rpg`
   section (columns: nom, xp, pv, compétence, lien, téléphone, note).
-  `lien` (optional URL): the whole seat card renders as an
-  `<a target="_blank">` with a small ↗ after the name; empty = plain div.
+  `lien` (optional URL) is NOT on the card any more — the card opens the
+  fiche; the link lives there as the "Ouvrir le lien ↗" button.
 - **Fiche aventurier** — clicking (tapping) any face chip REPLACES that
   person's car (or Observateurs) block in the panel with an in-place detail
   card (`ficheFor` state; `renderCar()`/`renderObs()` return `ficheHTML()`
@@ -87,6 +87,13 @@ Key JS structures (all near the top of the script):
   the wrapper `.live-wrap` scales ×3.2 instead); the fiche face plays it
   continuously (autoplay muted loop). `oncanplay` adds `.vid-ok` so a
   missing/unloadable video falls back to the static photo.
+- **Seat interaction** (`setPreview()`, `openFicheFor()`): clicking ANYWHERE
+  on a seat card opens that person's fiche. On touch (`canHover` =
+  `matchMedia('(hover:hover)')` is false) the chip alone is a two-step:
+  1st tap = preview (`.preview` class: enlarged + video playing), 2nd tap =
+  fiche; tapping outside cancels the preview. Hover CSS lives in
+  `@media (hover:hover)` so touch devices never get stuck hover states,
+  and the mouseover/mouseout handlers bail out when `canHover` is false.
 - **Zoom-out on a face** (`faceMarkup()`, `liveZoom()`): hovering ANY face —
   seat chip or fiche portrait — enlarges it AND widens the framing. Live
   portraits widen their video's inline w/l/t (`liveZoom()`, head kept

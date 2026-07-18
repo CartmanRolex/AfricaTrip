@@ -241,8 +241,7 @@ header .sec-tl .scrub{margin:2px 0 3px}
 .seat{display:flex;align-items:center;gap:9px;background:var(--bg);border:1px solid var(--line);border-radius:9px;
   padding:8px 10px;min-height:46px;transition:border-color .15s,transform .12s}
 .seat:not(.empty):hover{border-color:var(--cc);transform:translateY(-1px)}
-a.seat{text-decoration:none;color:inherit;cursor:pointer}
-.ext{color:var(--cc);font-size:10px;margin-left:3px;vertical-align:1px}
+.seat[data-name]{cursor:pointer}
 .seat.empty{border-style:dashed;opacity:.5}
 .seat-chip{width:30px;height:30px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;
   font-family:var(--display);font-weight:700;font-size:12px;color:#16120c}
@@ -256,11 +255,17 @@ a.seat{text-decoration:none;color:inherit;cursor:pointer}
 .live-wrap img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
 .live-wrap .f-wide{position:absolute;inset:0;opacity:0;transition:opacity .2s ease}
 .live-wrap video{display:none;position:absolute}
-/* survol d'une pastille : on agrandit ET on élargit le cadre (fondu vers le
-   crop large ; les portraits vivants élargissent leur vidéo via liveZoom) */
-.seat-chip.photo:hover .live-wrap{transform:scale(3.2);z-index:40;
+/* Aperçu d'une pastille : agrandie ET cadre élargi (fondu vers le crop large ;
+   les portraits vivants élargissent leur vidéo via liveZoom).
+   Desktop = au survol ; tactile = 1er tap, qui pose .preview (pas de :hover). */
+.seat-chip.photo.preview .live-wrap{transform:scale(3.2);z-index:40;
   box-shadow:0 8px 26px rgba(0,0,0,.65),0 0 0 2px var(--sand-dim)}
-.seat-chip.photo:hover .f-wide{opacity:1}
+.seat-chip.photo.preview .f-wide{opacity:1}
+@media (hover:hover){
+  .seat-chip.photo:hover .live-wrap{transform:scale(3.2);z-index:40;
+    box-shadow:0 8px 26px rgba(0,0,0,.65),0 0 0 2px var(--sand-dim)}
+  .seat-chip.photo:hover .f-wide{opacity:1}
+}
 .seat-chip.live.playing .live-wrap{transform:scale(3.2);z-index:40;
   box-shadow:0 8px 26px rgba(0,0,0,.65),0 0 0 2px var(--sand-dim)}
 /* .vid-ok (posé par oncanplay) garantit le repli photo si la vidéo ne
@@ -682,18 +687,43 @@ function ficheHTML(name,color){
 }
 function closeFiche(){ ficheFor=null; render(); renderObs(); updateFicheLine(); }
 window.addEventListener('keydown',e=>{ if(e.key==='Escape'&&ficheFor)closeFiche(); });
-// capture:true pour passer avant le <a> éventuel de la carte (colonne lien)
-document.addEventListener('click',e=>{
-  if(e.target.closest('.fiche-close')){ closeFiche(); return; }
-  const chip=e.target.closest('.seat-chip[data-name]');
+/* Ouverture d'une fiche + aperçu tactile.
+   Desktop (souris) : survol = aperçu, clic n'importe où dans la carte = fiche.
+   Tactile (pas de survol) : 1er tap sur la pastille = aperçu (agrandie et
+   animée), 2e tap = fiche ; un tap ailleurs dans la carte ouvre direct. */
+const canHover=matchMedia('(hover:hover)');
+let previewChip=null;
+function setPreview(chip){
+  if(previewChip&&previewChip!==chip){
+    previewChip.classList.remove('preview','playing');
+    const pv=previewChip.querySelector('video'); if(pv)pv.pause();
+    liveZoom(previewChip,previewChip.dataset.name,false);
+  }
+  previewChip=chip;
   if(!chip)return;
-  e.preventDefault(); e.stopPropagation();
-  ficheFor=chip.dataset.name; render(); renderObs(); updateFicheLine();
+  chip.classList.add('preview','playing');
+  const v=chip.querySelector('video');
+  if(v){ v.currentTime=0; v.play().catch(()=>{}); }
+  liveZoom(chip,chip.dataset.name,true);
+}
+function openFicheFor(name){
+  setPreview(null);
+  ficheFor=name; render(); renderObs(); updateFicheLine();
   // mobile : la fiche peut s'ouvrir hors de la zone visible du bottom-sheet
   if(matchMedia('(max-width:880px)').matches){
     const el=document.querySelector('.fiche-card');
     if(el)el.scrollIntoView({behavior:'smooth',block:'center'});
   }
+}
+document.addEventListener('click',e=>{
+  if(e.target.closest('.fiche-close')){ closeFiche(); return; }
+  const chip=e.target.closest('.seat-chip[data-name]');
+  const card=e.target.closest('.seat[data-name]');
+  if(!chip&&!card){ setPreview(null); return; }   // tap ailleurs : sort de l'aperçu
+  e.preventDefault(); e.stopPropagation();
+  // tactile : le 1er tap sur la pastille ne fait qu'ouvrir l'aperçu
+  if(chip&&!canHover.matches&&previewChip!==chip){ setPreview(chip); return; }
+  openFicheFor((chip||card).dataset.name);
 },true);
 
 // dézoom d'un portrait VIVANT : on garde la tête centrée mais on élargit le
@@ -728,6 +758,7 @@ document.addEventListener('click',e=>{
 
 // portraits vivants : lecture au survol de la pastille, pause en sortant
 document.addEventListener('mouseover',e=>{
+  if(!canHover.matches)return;          // tactile : géré par setPreview au tap
   const chip=e.target.closest('.seat-chip.live');
   if(!chip||chip.classList.contains('playing'))return;
   chip.classList.add('playing');
@@ -736,6 +767,7 @@ document.addEventListener('mouseover',e=>{
   liveZoom(chip,chip.dataset.name,true);   // + élargit le cadrage
 });
 document.addEventListener('mouseout',e=>{
+  if(!canHover.matches)return;
   const chip=e.target.closest('.seat-chip.live');
   if(!chip||chip.contains(e.relatedTarget))return;
   chip.classList.remove('playing');
@@ -894,15 +926,13 @@ function seatHTML(name,state,isDriver,color){
   const face=ph?faceMarkup(name,ph):name[0];
   const r=RPG[name]||{xp:0,pv:5,skill:'—'};
   const hpc=r.pv>=7?'var(--present)':r.pv>=4?'var(--unknown)':'#D95B43';
-  // lien optionnel (colonne "lien" de la section rpg) : la carte devient un <a>
-  const url=(r.lien||'').replace(/"/g,'&quot;');
-  const open=url?`<a class="seat" href="${url}" target="_blank" rel="noopener" title="Ouvrir le lien de ${name}">`:'<div class="seat">';
-  return `${open}
+  // toute la carte ouvre la fiche (le lien éventuel y a son bouton)
+  return `<div class="seat" data-name="${name}">
     <div class="seat-chip ${state}${ph?' photo':''}${LIVE[name]?' live':''}" data-name="${name}" title="${name}">${face}</div>
-    <div class="seat-info"><span class="seat-name ${isDriver?'driver':''}">${name}${url?'<span class="ext">↗</span>':''}</span>
+    <div class="seat-info"><span class="seat-name ${isDriver?'driver':''}">${name}</span>
     <span class="seat-stat">${lbl} · ${r.xp} XP</span>
     <span class="hp">PV <i class="hp-bar"><i class="hp-fill" style="width:${r.pv*10}%;background:${hpc}"></i></i> ${r.pv}/10</span>
-    <span class="seat-skill">${r.skill}</span></div>${url?'</a>':'</div>'}`;
+    <span class="seat-skill">${r.skill}</span></div></div>`;
 }
 function emptySeat(){return `<div class="seat empty"><div class="seat-chip empty"></div>
   <div class="seat-info"><span class="seat-name" style="color:var(--muted)">libre</span>
