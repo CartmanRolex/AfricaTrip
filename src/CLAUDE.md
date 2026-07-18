@@ -86,7 +86,11 @@ Key JS structures (all near the top of the script):
   (video plays inside the circle, replacing the hover-zoom img effect —
   the wrapper `.live-wrap` scales ×3.2 instead); the fiche face plays it
   continuously (autoplay muted loop). `oncanplay` adds `.vid-ok` so a
-  missing/unloadable video falls back to the static photo.
+  missing/unloadable video falls back to the static photo. Hovering the
+  fiche's big portrait scales it ×2.15 AND widens the field of view
+  (`ficheFaceZoom()` recomputes the video's inline w/l/t toward ~2× more
+  frame, head kept centered, clamped to the frame edges; CSS transitions
+  make it glide).
 - `PHOTOS` — `{faces:{Name:dataURI}, cars:{1:…,2:…}, terros:{terroN:…},
   chameaux:{chameauN:…}}`.
   Faces render in seat chips (30 px circle, status-colored ring, hover zoom

@@ -251,6 +251,12 @@ a.seat{text-decoration:none;color:inherit;cursor:pointer}
 span.fiche-face{display:block;overflow:hidden}
 .fiche-face .live-wrap.vid-ok video{display:block}
 .fiche-face .live-wrap.vid-ok img{visibility:hidden}
+/* survol du portrait de la fiche : cercle agrandi + dézoom du cadrage
+   (le JS élargit le champ de la vidéo, voir ficheFaceZoom) */
+.fiche-face{transition:transform .25s ease;transform-origin:center left;position:relative}
+.fiche-face:hover{transform:scale(2.15);z-index:60;
+  box-shadow:0 10px 34px rgba(0,0,0,.7),0 0 0 2px var(--sand-dim)}
+.live-wrap video{transition:width .25s ease,left .25s ease,top .25s ease}
 .seat-chip.present{background:var(--present)}
 .seat-chip.observer{background:var(--sand-dim)}
 .seat-chip.unknown{background:var(--unknown)}
@@ -646,6 +652,28 @@ document.addEventListener('click',e=>{
     if(el)el.scrollIntoView({behavior:'smooth',block:'center'});
   }
 },true);
+
+// survol du portrait de la fiche : dézoom du cadrage vidéo (on garde la tête
+// centrée mais on élargit le champ pour voir le décor autour), retour en sortant
+function ficheFaceZoom(f,wide){
+  const lv=LIVE[ficheFor], v=f.querySelector('video');
+  if(!lv||!v||!v.videoWidth)return;
+  const w=parseFloat(lv.w), l=parseFloat(lv.l), t=parseFloat(lv.t);
+  const ar=v.videoHeight/v.videoWidth;
+  if(!wide){ v.style.width=lv.w; v.style.left=lv.l; v.style.top=lv.t; return; }
+  const w2=Math.max(100,w*.55);                    // ~2x plus de champ
+  const cxv=(50-l)/w, cyv=(50-t)/(w*ar);           // centre tête (fractions vidéo)
+  v.style.width=w2+'%';
+  v.style.left=Math.min(0,Math.max(100-w2,50-cxv*w2))+'%';
+  v.style.top=Math.min(0,Math.max(100-w2*ar,50-cyv*w2*ar))+'%';
+}
+document.addEventListener('mouseover',e=>{
+  const f=e.target.closest('.fiche-face'); if(f)ficheFaceZoom(f,true);
+});
+document.addEventListener('mouseout',e=>{
+  const f=e.target.closest('.fiche-face');
+  if(f&&!f.contains(e.relatedTarget))ficheFaceZoom(f,false);
+});
 
 // portraits vivants : lecture au survol de la pastille, pause en sortant
 document.addEventListener('mouseover',e=>{
