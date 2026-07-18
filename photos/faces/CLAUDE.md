@@ -8,7 +8,10 @@
 `photos/CLAUDE.md`) — **do not edit by hand**; adjust the fractional crop
 boxes in the `CROPS` dict of `src/make_faces.py` and rerun instead.
 
-They are embedded as data URIs in `src/photos.json` (`faces` key) and shown
+Each person also gets a `<name>_wide.jpg`: same center, 1.9× wider frame
+(`WIDE` in make_faces.py), used for the zoom-out on hover/tap.
+
+They are embedded as data URIs in `src/photos.json` (`faces` / `facesWide`) and shown
 in the seat chips of the car dashboards (30 px circle with a status-colored
 ring, ×3.2 zoom on hover). This folder holds ONLY people — car/sticker
 cutouts live in `photos/emojis/`.

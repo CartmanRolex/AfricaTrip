@@ -31,9 +31,15 @@ OUT_JSON = os.path.join(HERE, "photos.json")
 
 THUMB = 128  # px, plenty for a ~30px chip on retina
 
+# Variante "large" de chaque visage : même centre, cadre 1.9x plus grand. Sert
+# au dézoom au survol/tap — une pastille est un JPEG déjà recadré, il n'y a
+# donc rien "autour" à révéler sans cette seconde image. (Les portraits
+# vivants, eux, élargissent directement le cadrage de leur vidéo.)
+WIDE = 1.9
+
 # name-in-data -> (file, cx, cy, size_frac_of_width)
 CROPS = {
-    "Gal":     ("gal_frame.png", 0.5125, 0.374, 0.575),
+    "Gal":     ("gal_frame.png", 0.5025, 0.3815, 0.66),
     "Arthur":  ("arthur.jpeg",  0.46, 0.42, 0.42),
     "Dorvan":  ("dorvan.jpeg",  0.72, 0.425, 0.22),
     # Edouard/Younous ont un portrait vivant : le crop statique vient de la
@@ -231,15 +237,19 @@ def main():
                          + SOURCES_HELP)
     os.makedirs(FACES, exist_ok=True)
     os.makedirs(EMOJIS, exist_ok=True)
-    faces = {}
+    faces, faces_wide = {}, {}
     for name, (fname, cx, cy, size) in CROPS.items():
-        face = crop_face(os.path.join(PHOTOS, fname), cx, cy, size)
-        out = os.path.join(FACES, name.lower() + ".jpg")
-        face.save(out, "JPEG", quality=85)
-        buf = io.BytesIO()
-        face.save(buf, "JPEG", quality=80)
-        faces[name] = "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
-        print(f"{name:8s} -> {os.path.normpath(out)} ({buf.tell():,} B embedded)")
+        src = os.path.join(PHOTOS, fname)
+        for key, dest, frac, suffix in (
+                (faces, name, size, ""),
+                (faces_wide, name, min(size * WIDE, 1.0), "_wide")):
+            face = crop_face(src, cx, cy, frac)
+            out = os.path.join(FACES, name.lower() + suffix + ".jpg")
+            face.save(out, "JPEG", quality=85)
+            buf = io.BytesIO()
+            face.save(buf, "JPEG", quality=80)
+            key[dest] = "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+            print(f"{name+suffix:14s} -> {os.path.normpath(out)} ({buf.tell():,} B embedded)")
     cars = {}
     voitures = Image.open(os.path.join(PHOTOS, "voitures.jpg"))
     for no, box in CAR_BOXES.items():
@@ -278,8 +288,8 @@ def main():
             chameaux[f"chameau{i}"] = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
             print(f"chameau{i} -> {os.path.normpath(out)} ({buf.tell():,} B embedded)")
     with open(OUT_JSON, "w", encoding="utf-8") as f:
-        json.dump({"faces": faces, "cars": cars, "terros": terros,
-                   "chameaux": chameaux}, f)
+        json.dump({"faces": faces, "facesWide": faces_wide, "cars": cars,
+                   "terros": terros, "chameaux": chameaux}, f)
     print(f"Wrote {os.path.normpath(OUT_JSON)}")
 
 

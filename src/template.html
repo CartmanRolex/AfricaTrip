@@ -249,15 +249,19 @@ a.seat{text-decoration:none;color:inherit;cursor:pointer}
 .seat-chip.photo{padding:2px}
 .seat-chip img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;
   position:relative;transform-origin:center left;transition:transform .18s ease,box-shadow .18s ease}
-.seat-chip.photo:not(.live):hover img{transform:scale(3.2);z-index:40;
-  box-shadow:0 8px 26px rgba(0,0,0,.65),0 0 0 2px var(--sand-dim)}
 /* portrait vivant façon Harry Potter : photo statique, la vidéo prend le
    relais au survol (chip .live) — cadrée sur la tête via le style inline
    width/left/top du <video> (fractions du cercle, voir LIVE dans le JS) */
 .live-wrap{position:relative;display:block;width:100%;height:100%;border-radius:50%;overflow:hidden;
   transform-origin:center left;transition:transform .18s ease,box-shadow .18s ease}
 .live-wrap img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+.live-wrap .f-wide{position:absolute;inset:0;opacity:0;transition:opacity .2s ease}
 .live-wrap video{display:none;position:absolute}
+/* survol d'une pastille : on agrandit ET on élargit le cadre (fondu vers le
+   crop large ; les portraits vivants élargissent leur vidéo via liveZoom) */
+.seat-chip.photo:hover .live-wrap{transform:scale(3.2);z-index:40;
+  box-shadow:0 8px 26px rgba(0,0,0,.65),0 0 0 2px var(--sand-dim)}
+.seat-chip.photo:hover .f-wide{opacity:1}
 .seat-chip.live.playing .live-wrap{transform:scale(3.2);z-index:40;
   box-shadow:0 8px 26px rgba(0,0,0,.65),0 0 0 2px var(--sand-dim)}
 /* .vid-ok (posé par oncanplay) garantit le repli photo si la vidéo ne
@@ -268,11 +272,14 @@ a.seat{text-decoration:none;color:inherit;cursor:pointer}
 span.fiche-face{display:block;overflow:hidden}
 .fiche-face .live-wrap.vid-ok video{display:block}
 .fiche-face .live-wrap.vid-ok img{visibility:hidden}
-/* survol du portrait de la fiche : cercle agrandi + dézoom du cadrage
-   (le JS élargit le champ de la vidéo, voir ficheFaceZoom) */
-.fiche-face{transition:transform .25s ease;transform-origin:center left;position:relative}
-.fiche-face:hover{transform:scale(2.15);z-index:60;
+/* portrait de la fiche : agrandi + élargi au survol (desktop) ou au tap
+   (.wide, seul moyen sur mobile — cf. le clic dans le JS) */
+.fiche-face{transition:transform .25s ease;transform-origin:center left;position:relative;
+  cursor:zoom-in}
+.fiche-face:hover,.fiche-face.wide{transform:scale(2.15);z-index:60;
   box-shadow:0 10px 34px rgba(0,0,0,.7),0 0 0 2px var(--sand-dim)}
+.fiche-face.wide{cursor:zoom-out}
+.fiche-face:hover .f-wide,.fiche-face.wide .f-wide{opacity:1}
 .live-wrap video{transition:width .25s ease,left .25s ease,top .25s ease}
 .seat-chip.present{background:var(--present)}
 .seat-chip.observer{background:var(--sand-dim)}
@@ -665,8 +672,7 @@ function ficheHTML(name,color){
   return `<div class="car fiche-card" style="--cc:${color}">
     <button class="fiche-close" aria-label="Fermer la fiche">✕</button>
     <div class="fiche-head">
-      ${ph?(LIVE[name]?`<span class="fiche-face">${liveWrap(name,ph,true)}</span>`
-                      :`<img class="fiche-face" src="${ph}" alt="${name}">`):''}
+      ${ph?`<span class="fiche-face">${faceMarkup(name,ph,true)}</span>`:''}
       <div><div class="fiche-name">${name}</div>
         <div class="fiche-role">${isObs?'🛰️ observateur':'aventurier'} · ${r.xp} XP</div>
         <span class="hp">PV <i class="hp-bar"><i class="hp-fill" style="width:${r.pv*10}%;background:${hpc}"></i></i> ${r.pv}/10</span>
@@ -691,10 +697,10 @@ document.addEventListener('click',e=>{
   }
 },true);
 
-// survol du portrait de la fiche : dézoom du cadrage vidéo (on garde la tête
-// centrée mais on élargit le champ pour voir le décor autour), retour en sortant
-function ficheFaceZoom(f,wide){
-  const lv=LIVE[ficheFor], v=f.querySelector('video');
+// dézoom d'un portrait VIVANT : on garde la tête centrée mais on élargit le
+// champ pour voir le décor autour. Sert aux pastilles ET à la fiche.
+function liveZoom(el,name,wide){
+  const lv=LIVE[name], v=el.querySelector('video');
   if(!lv||!v||!v.videoWidth)return;
   const w=parseFloat(lv.w), l=parseFloat(lv.l), t=parseFloat(lv.t);
   const ar=v.videoHeight/v.videoWidth;
@@ -706,12 +712,20 @@ function ficheFaceZoom(f,wide){
   v.style.top=Math.min(0,Math.max(100-w2*ar,50-cyv*w2*ar))+'%';
 }
 document.addEventListener('mouseover',e=>{
-  const f=e.target.closest('.fiche-face'); if(f)ficheFaceZoom(f,true);
+  const f=e.target.closest('.fiche-face');
+  if(f&&!f.classList.contains('wide'))liveZoom(f,ficheFor,true);
 });
 document.addEventListener('mouseout',e=>{
   const f=e.target.closest('.fiche-face');
-  if(f&&!f.contains(e.relatedTarget))ficheFaceZoom(f,false);
+  if(f&&!f.contains(e.relatedTarget)&&!f.classList.contains('wide'))liveZoom(f,ficheFor,false);
 });
+// tap sur le portrait de la fiche : bascule l'état large (équivalent tactile
+// du survol, seul moyen de "voir autour" sans souris)
+document.addEventListener('click',e=>{
+  const f=e.target.closest('.fiche-face'); if(!f)return;
+  e.stopPropagation();
+  liveZoom(f,ficheFor,f.classList.toggle('wide'));
+},true);
 
 // portraits vivants : lecture au survol de la pastille, pause en sortant
 document.addEventListener('mouseover',e=>{
@@ -720,6 +734,7 @@ document.addEventListener('mouseover',e=>{
   chip.classList.add('playing');
   const v=chip.querySelector('video');
   if(v){ v.currentTime=0; v.play().catch(()=>{}); }
+  liveZoom(chip,chip.dataset.name,true);   // + élargit le cadrage
 });
 document.addEventListener('mouseout',e=>{
   const chip=e.target.closest('.seat-chip.live');
@@ -727,6 +742,7 @@ document.addEventListener('mouseout',e=>{
   chip.classList.remove('playing');
   const v=chip.querySelector('video');
   if(v)v.pause();
+  liveZoom(chip,chip.dataset.name,false);
 });
 
 // convoy marker
@@ -855,28 +871,35 @@ const LIVE={
   Edouard:{src:'photos/videos/edouard_live.mp4',w:'210%',l:'-55%',t:'-50%'},
   Younous:{src:'photos/videos/younous_live.mp4',w:'170%',l:'-36%',t:'-31%'},
   Hugo:{src:'photos/videos/hugo_live.mp4',w:'182%',l:'-44%',t:'-72%'},
-  Gal:{src:'photos/videos/gal_live.mp4',w:'174%',l:'-39%',t:'-38%'},
+  Gal:{src:'photos/videos/gal_live.mp4',w:'151.5%',l:'-26.1%',t:'-28.6%'},
   Malen:{src:'photos/videos/malen_live.mp4',w:'167%',l:'-35%',t:'-83%'},
 };
-function liveWrap(name,ph,auto){
+// Markup d'un visage. Deux cas, même boîte ronde :
+//  - portrait vivant : photo + vidéo, le dézoom élargit le cadrage vidéo ;
+//  - photo seule : le crop serré + le crop large superposés, le dézoom est
+//    un fondu de l'un vers l'autre (un JPEG recadré n'a pas de "autour").
+function faceMarkup(name,ph,auto){
   const lv=LIVE[name];
-  return `<span class="live-wrap"${auto?' style="pointer-events:none"':''}>
+  if(lv) return `<span class="live-wrap"${auto?' style="pointer-events:none"':''}>
     <img src="${ph}" alt="${name}">
     <video src="${lv.src}" muted loop playsinline preload="metadata"${auto?' autoplay':''}
       oncanplay="this.parentNode.classList.add('vid-ok')"
       style="width:${lv.w};left:${lv.l};top:${lv.t}"></video></span>`;
+  const wide=(PHOTOS.facesWide||{})[name];
+  return `<span class="live-wrap"><img src="${ph}" alt="${name}">${
+    wide?`<img class="f-wide" src="${wide}" alt="">`:''}</span>`;
 }
 function seatHTML(name,state,isDriver,color){
   const lbl={present:'présent',unknown:'incertain',tentative:'pressenti',observer:'observateur'}[state]||'';
   const ph=PHOTOS.faces[name];
-  const face=ph?(LIVE[name]?liveWrap(name,ph):`<img src="${ph}" alt="${name}">`):name[0];
+  const face=ph?faceMarkup(name,ph):name[0];
   const r=RPG[name]||{xp:0,pv:5,skill:'—'};
   const hpc=r.pv>=7?'var(--present)':r.pv>=4?'var(--unknown)':'#D95B43';
   // lien optionnel (colonne "lien" de la section rpg) : la carte devient un <a>
   const url=(r.lien||'').replace(/"/g,'&quot;');
   const open=url?`<a class="seat" href="${url}" target="_blank" rel="noopener" title="Ouvrir le lien de ${name}">`:'<div class="seat">';
   return `${open}
-    <div class="seat-chip ${state}${ph?' photo':''}${LIVE[name]?' live':''}" data-name="${name}">${face}</div>
+    <div class="seat-chip ${state}${ph?' photo':''}${LIVE[name]?' live':''}" data-name="${name}" title="${name}">${face}</div>
     <div class="seat-info"><span class="seat-name ${isDriver?'driver':''}">${name}${url?'<span class="ext">↗</span>':''}</span>
     <span class="seat-stat">${lbl} · ${r.xp} XP</span>
     <span class="hp">PV <i class="hp-bar"><i class="hp-fill" style="width:${r.pv*10}%;background:${hpc}"></i></i> ${r.pv}/10</span>
