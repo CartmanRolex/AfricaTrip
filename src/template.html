@@ -353,20 +353,17 @@ span.fiche-face{display:block;overflow:hidden}
   .seat-skill{font-size:9px}
 }
 
-/* marqueurs carte : têtes des gens = épingle qui FLOTTE au-dessus de son point
-   (tige + point coloré qui le désigne) — ne recouvre pas les photos, qui
-   restent centrées sur le point, en dessous. */
-.map-pin{position:relative;width:40px;height:62px}
-.map-pin .map-face{position:absolute;top:0;left:2px}
-.map-pin::before{content:"";position:absolute;left:50%;top:33px;transform:translateX(-50%);
-  width:3px;height:21px;background:var(--fc,var(--c1))}
-.map-pin::after{content:"";position:absolute;left:50%;bottom:2px;transform:translateX(-50%);
-  width:9px;height:9px;border-radius:50%;background:var(--fc,var(--c1));box-shadow:0 0 0 2px var(--bg)}
-.map-face{width:36px;height:36px;border-radius:50%;overflow:hidden;background:var(--panel2);
+/* marqueurs carte. Deux regroupements INDÉPENDANTS (têtes / photos), décalés
+   verticalement au même point pour ne pas se chevaucher : têtes ancrées un peu
+   AU-DESSUS du point, photos un peu EN DESSOUS (voir iconAnchor dans le JS). */
+.map-face{width:34px;height:34px;border-radius:50%;overflow:hidden;background:var(--panel2);
   border:2.5px solid var(--fc,var(--c1));box-shadow:0 2px 8px rgba(0,0,0,.55);
   display:grid;place-items:center;font-family:var(--display);font-weight:700;
   font-size:14px;color:var(--sand)}
 .map-face img{width:100%;height:100%;object-fit:cover}
+.face-cluster{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+  font-family:var(--display);font-weight:700;font-size:14px;color:var(--sand);
+  background:var(--panel2);border:2.5px solid var(--sand-dim);box-shadow:0 2px 8px rgba(0,0,0,.55)}
 .map-photo{width:30px;height:30px;border-radius:50%;overflow:hidden;border:2px solid var(--sand-dim);
   box-shadow:0 2px 8px rgba(0,0,0,.5);background:var(--panel2)}
 .map-photo img{width:100%;height:100%;object-fit:cover;display:block}
@@ -612,50 +609,49 @@ DANGER.forEach(z=>{
 function dangerZoom(){document.body.classList.toggle('danger-far',map.getZoom()<5);}
 map.on('zoomend',dangerZoom); dangerZoom();
 
-// DEUX systèmes séparés :
-//  - les PHOTOS sont regroupées entre elles (Leaflet.markercluster) pour gérer
-//    le chevauchement et monter en charge ;
-//  - les TÊTES des gens (dernière position) vivent dans un pane dédié AU-DESSUS,
-//    jamais regroupées avec les photos ni masquées par elles.
-map.createPane('facesPane');
-map.getPane('facesPane').style.zIndex = 680;   // au-dessus des marqueurs (600)
-const faceLayer = L.layerGroup().addTo(map);
-const clusterGroup = L.markerClusterGroup({
-  maxClusterRadius: 46, showCoverageOnHover: false,
-  spiderfyOnMaxZoom: true, chunkedLoading: true,
-  iconCreateFunction: cl => L.divIcon({ className: '', iconSize: [36, 36], iconAnchor: [18, 18],
-    html: `<div class="cluster-badge">${cl.getChildCount()}</div>` }),
-}).addTo(map);
+// DEUX regroupements INDÉPENDANTS (Leaflet.markercluster) : les têtes se
+// stackent entre elles, les photos entre elles ; chacun se dé-stacke au zoom
+// quand les points sont assez espacés (maxClusterRadius = pixels). Pour que
+// deux amas au même endroit ne se chevauchent pas, on les DÉCALE juste :
+// têtes ancrées un peu au-dessus du point, photos un peu en dessous.
+const CLUST = { maxClusterRadius: 42, showCoverageOnHover: false, spiderfyOnMaxZoom: true };
+// photos (badge orange), décalées légèrement SOUS le point
+const photoCluster = L.markerClusterGroup({ ...CLUST, chunkedLoading: true,
+  iconCreateFunction: cl => L.divIcon({ className: '', iconSize: [30, 30], iconAnchor: [15, -3],
+    html: `<div class="cluster-badge">${cl.getChildCount()}</div>` }) }).addTo(map);
+// têtes (badge sombre), décalées légèrement AU-DESSUS du point ; ajouté après
+// -> rendu par-dessus les photos
+const faceCluster = L.markerClusterGroup({ ...CLUST,
+  iconCreateFunction: cl => L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 37],
+    html: `<div class="face-cluster">${cl.getChildCount()}</div>` }) }).addTo(map);
 
-// photos uniquement (clic -> diaporama de toutes les photos)
 function refreshPhotos(){
-  clusterGroup.clearLayers();
+  photoCluster.clearLayers();
   const markers = [];
   GALLERY.forEach((g, i) => {
     if (g.lat == null) return;
     const m = L.marker([g.lat, g.lng], { icon: L.divIcon({ className: '', iconSize: [30, 30],
-      iconAnchor: [15, 15], html: `<div class="map-photo"><img src="${g.thumb}" alt=""></div>` }) });
+      iconAnchor: [15, -3], html: `<div class="map-photo"><img src="${g.thumb}" alt=""></div>` }) });
     m.on('click', () => {
       const list = GALLERY.map((_, k) => k).filter(k => GALLERY[k].lat != null);
       openLightbox(list, list.indexOf(i));
     });
     markers.push(m);
   });
-  clusterGroup.addLayers(markers);
+  photoCluster.addLayers(markers);
 }
-// têtes des gens uniquement (jamais regroupées, toujours visibles, clic -> fiche)
 function refreshFaces(){
-  faceLayer.clearLayers();
+  faceCluster.clearLayers();
+  const markers = [];
   Object.entries(livePositions).forEach(([name, p]) => {
     const face = (PHOTOS.faces || {})[name];
     const inner = face ? `<img src="${face}" alt="${name}">` : (name[0] || '?');
-    // épingle : la tête FLOTTE au-dessus du point (pointe qui le désigne) —
-    // ainsi elle ne recouvre pas les photos, qui restent centrées sur le point
-    L.marker([p.lat, p.lng], { pane: 'facesPane', zIndexOffset: 1000,
-      icon: L.divIcon({ className: '', iconSize: [40, 62], iconAnchor: [20, 62],
-        html: `<div class="map-pin" style="--fc:${colorOf(name)}"><div class="map-face">${inner}</div></div>` }) })
-     .on('click', () => openFicheFor(name)).addTo(faceLayer);
+    const m = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: '', iconSize: [34, 34],
+      iconAnchor: [17, 37], html: `<div class="map-face" style="--fc:${colorOf(name)}">${inner}</div>` }) });
+    m.on('click', () => openFicheFor(name));
+    markers.push(m);
   });
+  faceCluster.addLayers(markers);
 }
 refreshPhotos(); refreshFaces();
 
