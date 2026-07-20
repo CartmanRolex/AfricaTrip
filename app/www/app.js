@@ -17,6 +17,13 @@ let me = localStorage.getItem("crew-me");
 // (test/PWA), on retombe sur les API web (navigator.geolocation, <input file>)
 const CAP = window.Capacitor;
 const native = !!(CAP && CAP.isNativePlatform && CAP.isNativePlatform());
+// accès à un plugin natif — selon la version de Capacitor c'est
+// Capacitor.registerPlugin(...) OU Capacitor.Plugins.X ; on gère les deux
+function plugin(name) {
+  if (CAP && typeof CAP.registerPlugin === "function") return CAP.registerPlugin(name);
+  if (CAP && CAP.Plugins && CAP.Plugins[name]) return CAP.Plugins[name];
+  return null;
+}
 function b64toBlob(b64, type = "image/jpeg") {
   const bin = atob(b64), arr = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
@@ -94,7 +101,7 @@ function initPosition() {
     if (watchId != null) return;
     $("pos-status").textContent = "en attente du GPS…";
     if (native) {                        // APK : plugin natif Geolocation
-      const Geo = CAP.registerPlugin("Geolocation");
+      const Geo = plugin("Geolocation");
       try { await Geo.requestPermissions(); } catch (_) {}
       watchId = await Geo.watchPosition({ enableHighAccuracy: true }, (pos, err) => {
         if (err || !pos) { $("pos-status").innerHTML = `<span class="err">GPS: ${(err && err.message) || "?"}</span>`; return; }
@@ -109,7 +116,7 @@ function initPosition() {
   };
   const stopWatch = () => {
     if (watchId != null) {
-      if (native) CAP.registerPlugin("Geolocation").clearWatch({ id: watchId });
+      if (native) plugin("Geolocation").clearWatch({ id: watchId });
       else navigator.geolocation.clearWatch(watchId);
     }
     watchId = null; $("pos-status").textContent = "partage en pause";
@@ -150,7 +157,7 @@ function initPhotos() {
     // ACCESS_MEDIA_LOCATION. sinon (navigateur) : <input file> + EXIF en JS.
     if (native) {
       try {
-        const { items } = await CAP.registerPlugin("AfricaMedia").pickWithLocation();
+        const { items } = await plugin("AfricaMedia").pickWithLocation();
         for (const it of (items || []))
           await uploadPhoto(b64toBlob(it.base64), it.lat ?? null, it.lng ?? null, it.date || null);
       } catch (e) { $("up-status").innerHTML = `<span class="err">erreur: ${e.message || e}</span>`; }
