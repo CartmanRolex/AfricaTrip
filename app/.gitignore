@@ -1,0 +1,10 @@
+# Capacitor / Android build artifacts — never committed
+node_modules/
+android/
+ios/
+*.apk
+*.aab
+*.keystore
+.gradle/
+# www/firebase-config.js is committed with PLACEHOLDER values; Gal fills in the
+# real Firebase keys there (they are not secret — security is via the rules).

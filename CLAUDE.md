@@ -63,6 +63,7 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
 | `index.html`, `voyage-afrique.html` | Generated site (do not edit)            |
 | `sync.bat`  | Double-click updater for the user (runs `src/sync.py`)         |
 | `COMMENT-UPLOADER.md` | Friend-facing note: how to upload photos keeping GPS (zip method) |
+| `app/`      | Crew Android app (Capacitor + Firebase): live position, PV/XP, photo upload keeping GPS. See `app/CLAUDE.md` |
 | `.sheet-url`| Local only, git-ignored: link to the live Google Sheet          |
 | `.drive-folder` | Local only, git-ignored: link to the shared Drive photo folder |
 
