@@ -175,15 +175,26 @@ like `refresh.py`. After sheet writes, run `refresh.py` to sync the site.
 Syncs the shared Drive photo folder onto the map (`--dry-run` to preview).
 Folder URL/ID in the git-ignored `.drive-folder` (same pattern as
 `.sheet-url`); auth reuses `sheet_edit.load_key()`/`access_token()` with the
-`drive.readonly` scope. For each NEW image (incremental via ids already in
-`gallery.json`): downloads it, dates it (EXIF `DateTimeOriginal` → Drive
-`imageMediaMetadata.time` → `createdTime`), locates it (EXIF GPS → Drive
-location → **convoy position on that date**: `convoy_position()` is a Python
-port of the template's `posAt()`/`legOf()` interpolation, plus a
-deterministic ±0.12° `jitter()` seeded by the Drive id), then writes
-`photos/uploads/<id>.jpg` (max 1600 px) + a 96 px square thumb as data URI
-into `src/gallery.json`, and reruns `build.py`. Setup steps in the
-docstring (share the folder with the service account as Viewer).
+`drive.readonly` scope. The core is `process_image(im, entry_id, name, …)`:
+dates it (EXIF `DateTimeOriginal` → Drive `imageMediaMetadata.time` →
+`createdTime`), locates it (EXIF GPS → Drive location → **convoy position on
+that date**: `convoy_position()` is a Python port of the template's
+`posAt()`/`legOf()` interpolation, plus a deterministic ±0.12° `jitter()`
+seeded by `entry_id`), then writes `photos/uploads/<safe>.jpg` (max 1600 px)
++ a 96 px square thumb as data URI into `src/gallery.json`, and reruns
+`build.py`. Two input kinds (`list_files` returns both):
+- **direct images** — `entry_id` = the Drive file id (incremental via ids
+  already in `gallery.json`);
+- **`.zip` files** — `process_zip` extracts each member and processes it
+  with `entry_id = '<zip id>__<inner name>'`. Why zips at all: **since April
+  2026 Android strips EXIF GPS on almost every share/upload path, but a
+  photo inside a zip is shielded** (the OS filter is image-extension based).
+  So the friend-facing instruction (see root `COMMENT-UPLOADER.md`) is
+  "select photos → Compress → drop the .zip in Drive", and this keeps the
+  real GPS. A zip is downloaded once then never again (its members' ids
+  carry its `<zipid>__` prefix, so `done_zips` skips it). HEIC (iPhone
+  default) works if `pillow-heif` is installed; else HEIC members are
+  skipped. Setup: share the folder with the service account as Viewer.
 
 ### `sync.py`
 The user-facing one-shot updater (`python src/sync.py`, or `sync.bat` at the

@@ -8,7 +8,15 @@ Usage:
 Everyone uploads photos to one shared Drive folder; this script downloads
 the new ones, geolocates each photo (EXIF GPS, else Drive metadata, else the
 convoy's interpolated position on the photo's date + a small deterministic
-jitter), and writes:
+jitter), and writes them onto the map.
+
+**Zip files are also read.** Since April 2026 Android strips EXIF GPS from
+photos that go through most share/upload paths, but a photo *inside a zip*
+passes through untouched (the filter is image-extension based). So the
+easy, location-preserving way to contribute from a phone is: select the
+photos, "Compress" to a .zip, drop the zip in the Drive folder. This script
+extracts each image and reads its intact EXIF. Every entry, direct image or
+zip member, writes:
     photos/uploads/<id>.jpg   resized copy (max 1600 px, served by Pages)
     src/gallery.json          manifest injected into the site as __GALLERY__
 then rebuilds the site (build.py) so the photos appear as round bubbles on
@@ -33,6 +41,7 @@ import os
 import re
 import runpy
 import sys
+import zipfile
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -40,6 +49,14 @@ from datetime import date, datetime
 from math import asin, cos, radians, sin, sqrt
 
 from PIL import Image, ImageOps
+
+# iPhones shoot HEIC by default; register the opener if the lib is installed
+# (pip install pillow-heif). Without it, HEIC files inside a zip are skipped.
+try:
+    import pillow_heif
+    pillow_heif.register_heif_opener()
+except ImportError:
+    pass
 
 from sheet_edit import access_token, load_key
 
@@ -97,12 +114,25 @@ def api_get(token, path, raw=False):
         raise RuntimeError(f"Drive API {e.code}: {msg}{hint}")
 
 
-def list_images(token, fid):
+ZIP_MIMES = ("application/zip", "application/x-zip-compressed",
+             "application/x-zip", "multipart/x-zip")
+INNER_EXT = (".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp")
+
+
+def is_zip(f):
+    return (f.get("mimeType") in ZIP_MIMES
+            or f.get("name", "").lower().endswith(".zip"))
+
+
+def list_files(token, fid):
+    """All images AND zips in the folder (zips carry EXIF-intact photos)."""
     files, page = [], None
-    q = urllib.parse.quote(f"'{fid}' in parents and mimeType contains 'image/'"
-                           " and trashed = false")
+    q = urllib.parse.quote(
+        f"'{fid}' in parents and trashed = false and ("
+        "mimeType contains 'image/' or mimeType contains 'zip' "
+        "or name contains '.zip')")
     fields = urllib.parse.quote(
-        "nextPageToken,files(id,name,createdTime,"
+        "nextPageToken,files(id,name,mimeType,createdTime,"
         "imageMediaMetadata(time,location))")
     while True:
         path = f"/files?q={q}&fields={fields}&pageSize=200"
@@ -201,14 +231,17 @@ def jitter(file_id):
 
 # ---- main -----------------------------------------------------------------
 
-def process(token, meta):
-    raw = api_get(token, f"/files/{meta['id']}?alt=media", raw=True)
-    im = ImageOps.exif_transpose(Image.open(io.BytesIO(raw)))
+def process_image(im, entry_id, name, meta_time=None, created=None,
+                  meta_location=None):
+    """Turn a PIL image + its metadata into a gallery entry (dates it, locates
+    it, writes the resized copy + thumb). `entry_id` is the stable key: the
+    Drive file id for a direct image, or '<zip id>__<inner name>' for a zip
+    member. Shared by the direct-image and zip paths."""
+    im = ImageOps.exif_transpose(im)
 
     day = exif_date(im)
     if not day:
-        for src in ((meta.get("imageMediaMetadata") or {}).get("time"),
-                    meta.get("createdTime")):
+        for src in (meta_time, created):
             if src:
                 try:
                     day = datetime.strptime(str(src)[:10].replace(":", "-"),
@@ -219,20 +252,23 @@ def process(token, meta):
     day = day or date.today()
 
     pos, gps = exif_gps(im), True
-    if not pos:
-        loc = (meta.get("imageMediaMetadata") or {}).get("location")
-        if loc and (loc.get("latitude") or loc.get("longitude")):
-            pos = (loc["latitude"], loc["longitude"])
+    if not pos and meta_location and (meta_location.get("latitude")
+                                      or meta_location.get("longitude")):
+        pos = (meta_location["latitude"], meta_location["longitude"])
     if not pos:
         gps = False
         lat, lng = convoy_position(day.isoformat())
-        dj = jitter(meta["id"])
+        dj = jitter(entry_id)
         pos = (lat + dj[0], lng + dj[1])
 
     im = im.convert("RGB")
     if max(im.size) > MAX_SIDE:
         im.thumbnail((MAX_SIDE, MAX_SIDE), Image.LANCZOS)
-    im.save(os.path.join(UPLOADS, f"{meta['id']}.jpg"), "JPEG", quality=80)
+    # filename == id for direct images (Drive ids have no extension); for zip
+    # members strip the inner extension so we don't get "name.jpg.jpg"
+    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", entry_id)
+    safe = re.sub(r"\.(jpe?g|png|heic|heif|webp)$", "", safe, flags=re.I)
+    im.save(os.path.join(UPLOADS, f"{safe}.jpg"), "JPEG", quality=80)
 
     side = min(im.size)
     box = ((im.width - side) // 2, (im.height - side) // 2)
@@ -241,11 +277,51 @@ def process(token, meta):
     buf = io.BytesIO()
     thumb.save(buf, "JPEG", quality=78)
 
-    return {"id": meta["id"], "name": meta.get("name", ""),
+    return {"id": entry_id, "name": name,
             "date": day.isoformat(), "lat": round(pos[0], 5),
             "lng": round(pos[1], 5), "gps": gps,
             "thumb": "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode(),
-            "file": f"photos/uploads/{meta['id']}.jpg"}
+            "file": f"photos/uploads/{safe}.jpg"}
+
+
+def process(token, meta):
+    """One direct Drive image -> a one-element list of gallery entries."""
+    raw = api_get(token, f"/files/{meta['id']}?alt=media", raw=True)
+    mm = meta.get("imageMediaMetadata") or {}
+    return [process_image(Image.open(io.BytesIO(raw)), meta["id"],
+                          meta.get("name", ""), mm.get("time"),
+                          meta.get("createdTime"), mm.get("location"))]
+
+
+def process_zip(token, meta, known):
+    """A zip of photos -> a gallery entry per NEW image inside it. EXIF is
+    intact (the zip shielded it from Android's on-share GPS stripping)."""
+    raw = api_get(token, f"/files/{meta['id']}?alt=media", raw=True)
+    out = []
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(raw))
+    except zipfile.BadZipFile:
+        print(f"    ! {meta.get('name')} is not a real zip, skipped",
+              file=sys.stderr)
+        return out
+    with zf:
+        for info in sorted(zf.infolist(), key=lambda i: i.filename):
+            if info.is_dir() or "__MACOSX" in info.filename:
+                continue
+            base = info.filename.rsplit("/", 1)[-1]
+            if base.startswith(".") or not base.lower().endswith(INNER_EXT):
+                continue
+            entry_id = f"{meta['id']}__{base}"
+            if entry_id in known:
+                continue
+            try:
+                im = Image.open(io.BytesIO(zf.read(info)))
+                out.append(process_image(im, entry_id, base, None,
+                                         meta.get("createdTime"), None))
+            except Exception as e:               # noqa: BLE001 (skip bad member)
+                print(f"    ! skipped {base} in {meta.get('name')}: {e}",
+                      file=sys.stderr)
+    return out
 
 
 def main():
@@ -256,20 +332,36 @@ def main():
             gallery = json.load(f)
     known = {g["id"] for g in gallery}
 
+    # a zip is downloaded once, then never again: once its photos are in the
+    # gallery their ids carry its Drive id as a '<zipid>__' prefix
+    done_zips = {g["id"].split("__", 1)[0] for g in gallery if "__" in g["id"]}
+
     token = access_token(load_key(), scope=SCOPE)
-    files = list_images(token, folder_id())
-    new = [m for m in files if m["id"] not in known]
-    print(f"{len(files)} image(s) in the Drive folder, {len(new)} new.")
+    files = list_files(token, folder_id())
+    zips = [f for f in files if is_zip(f)]
+    images = [f for f in files if not is_zip(f)]
+    new_images = [m for m in images if m["id"] not in known]
+    new_zips = [z for z in zips if z["id"] not in done_zips]
+    print(f"{len(images)} image(s) + {len(zips)} zip(s) in the Drive folder; "
+          f"{len(new_images)} new image(s), {len(new_zips)} new zip(s).")
     if dry:
-        for m in new:
+        for m in new_images:
             print(f"  would fetch: {m.get('name', m['id'])}")
+        for z in new_zips:
+            print(f"  would unzip: {z.get('name', z['id'])}")
         return
-    if not new:
+    if not new_images and not new_zips:
         return
 
     os.makedirs(UPLOADS, exist_ok=True)
-    for m in new:
-        entry = process(token, m)
+    fresh = []
+    for m in new_images:
+        fresh += process(token, m)
+    for z in new_zips:
+        got = process_zip(token, z, known)
+        print(f"  unzip {z.get('name', z['id'])}: {len(got)} photo(s)")
+        fresh += got
+    for entry in fresh:
         gallery.append(entry)
         how = "GPS" if entry["gps"] else "convoy@" + entry["date"]
         print(f"  + {entry['name'] or entry['id']}  ({entry['lat']}, {entry['lng']}, {how})")

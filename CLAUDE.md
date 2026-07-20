@@ -40,7 +40,11 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
   produced by `python src/fetch_photos.py`, which pulls new images from the
   shared Google Drive folder (`.drive-folder`, git-ignored), geolocates them
   (EXIF GPS, else convoy position on the photo's date), saves resized copies
-  in `photos/uploads/`, and rebuilds. Injected as `__GALLERY__`.
+  in `photos/uploads/`, and rebuilds. Injected as `__GALLERY__`. It also
+  reads **`.zip` files** dropped in the folder and processes the photos
+  inside — this is the supported way for friends to upload with GPS intact,
+  because Android (since April 2026) strips EXIF location on normal uploads
+  but not from photos inside a zip (see `COMMENT-UPLOADER.md`).
 - The site is **fully self-contained**: all images are embedded as data URIs
   so `voyage-afrique.html` opens from disk; only map tiles/fonts/Leaflet come
   from CDNs.
@@ -58,6 +62,7 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
 | `photos/`   | Source images (traveler photos, sticker sheets) + generated subfolders |
 | `index.html`, `voyage-afrique.html` | Generated site (do not edit)            |
 | `sync.bat`  | Double-click updater for the user (runs `src/sync.py`)         |
+| `COMMENT-UPLOADER.md` | Friend-facing note: how to upload photos keeping GPS (zip method) |
 | `.sheet-url`| Local only, git-ignored: link to the live Google Sheet          |
 | `.drive-folder` | Local only, git-ignored: link to the shared Drive photo folder |
 
