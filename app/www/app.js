@@ -13,6 +13,16 @@ const CAR_COLOR = { 1: "#E8924A", 2: "#4FB7B3", obs: "#8E8066" };
 const V = "10.12.2", CDN = n => `https://www.gstatic.com/firebasejs/${V}/firebase-${n}.js`;
 let me = localStorage.getItem("crew-me");
 
+// dans l'APK (Capacitor), on utilise les plugins natifs ; dans un navigateur
+// (test/PWA), on retombe sur les API web (navigator.geolocation, <input file>)
+const CAP = window.Capacitor;
+const native = !!(CAP && CAP.isNativePlatform && CAP.isNativePlatform());
+function b64toBlob(b64, type = "image/jpeg") {
+  const bin = atob(b64), arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type });
+}
+
 // ---- Firebase à la demande -----------------------------------------------
 let _fb = null;
 async function fb() {
@@ -72,8 +82,7 @@ function initPosition() {
     } catch (e) { $("pos-status").innerHTML = `<span class="err">erreur: ${e.code || e}</span>`; }
   };
 
-  const onPos = p => {
-    const { latitude: lat, longitude: lng } = p.coords;
+  const onPos = (lat, lng) => {
     const now = Date.now();
     const moved = !lastPt || dist(lastPt, [lat, lng]) > 25; // ~25 m
     if (now - lastAt < 20000 && !moved) return;             // ou 20 s
@@ -81,15 +90,28 @@ function initPosition() {
     send(lat, lng);
   };
 
-  const startWatch = () => {
-    if (watchId != null || !navigator.geolocation) return;
+  const startWatch = async () => {
+    if (watchId != null) return;
     $("pos-status").textContent = "en attente du GPS…";
-    watchId = navigator.geolocation.watchPosition(onPos,
-      e => { $("pos-status").innerHTML = `<span class="err">GPS refusé (${e.code})</span>`; },
-      { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 });
+    if (native) {                        // APK : plugin natif Geolocation
+      const Geo = CAP.registerPlugin("Geolocation");
+      try { await Geo.requestPermissions(); } catch (_) {}
+      watchId = await Geo.watchPosition({ enableHighAccuracy: true }, (pos, err) => {
+        if (err || !pos) { $("pos-status").innerHTML = `<span class="err">GPS: ${(err && err.message) || "?"}</span>`; return; }
+        onPos(pos.coords.latitude, pos.coords.longitude);
+      });
+    } else if (navigator.geolocation) {  // navigateur / PWA
+      watchId = navigator.geolocation.watchPosition(
+        p => onPos(p.coords.latitude, p.coords.longitude),
+        e => { $("pos-status").innerHTML = `<span class="err">GPS refusé (${e.code})</span>`; },
+        { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 });
+    }
   };
   const stopWatch = () => {
-    if (watchId != null) navigator.geolocation.clearWatch(watchId);
+    if (watchId != null) {
+      if (native) CAP.registerPlugin("Geolocation").clearWatch({ id: watchId });
+      else navigator.geolocation.clearWatch(watchId);
+    }
     watchId = null; $("pos-status").textContent = "partage en pause";
   };
 
@@ -124,11 +146,14 @@ function initStats() {
 // ---- photos (localisation gardée) -----------------------------------------
 function initPhotos() {
   $("add-photos").onclick = async () => {
-    // natif (APK) : le plugin lit le GPS EXIF grâce à ACCESS_MEDIA_LOCATION.
-    // sinon (test navigateur) : <input file> + lecture EXIF côté JS.
-    if (window.AfricaMedia && window.AfricaMedia.pickWithLocation) {
-      const items = await window.AfricaMedia.pickWithLocation();
-      for (const it of items) await uploadPhoto(it.blob, it.lat, it.lng, it.date);
+    // natif (APK) : le plugin AfricaMedia lit le GPS EXIF grâce à
+    // ACCESS_MEDIA_LOCATION. sinon (navigateur) : <input file> + EXIF en JS.
+    if (native) {
+      try {
+        const { items } = await CAP.registerPlugin("AfricaMedia").pickWithLocation();
+        for (const it of (items || []))
+          await uploadPhoto(b64toBlob(it.base64), it.lat ?? null, it.lng ?? null, it.date || null);
+      } catch (e) { $("up-status").innerHTML = `<span class="err">erreur: ${e.message || e}</span>`; }
     } else {
       $("fallback-input").click();
     }
