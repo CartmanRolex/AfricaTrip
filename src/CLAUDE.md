@@ -150,7 +150,11 @@ Key JS structures (all near the top of the script):
   `onSnapshot("positions")` → un marqueur `.live-dot` par personne (couleur
   voiture) + remplit `livePositions[nom]={lat,lng,at}` (la fiche aventurier
   affiche « Dernière position » + `ago()` « vu il y a X »),
-  `onSnapshot("photos")` → bulles ajoutées à `GALLERY` (thumb =
+  `onSnapshot("photos")` → entrées `GALLERY`. **Rendu carte** via
+  `Leaflet.markercluster` (`clusterGroup`, CDN) : `refreshMap()` reconstruit
+  photos (`.map-photo`, clic→lightbox) + têtes des gens à leur dernière
+  position (`.map-face`, ring couleur voiture, clic→fiche) ; l'amas gère le
+  chevauchement têtes/photos et monte en charge. (thumb =
   URL Cloudinary transformée `w_96,h_96,c_fill`, file = URL pleine). Lecture
   seule, échoue en silence hors-ligne (voyage-afrique.html autonome). Config
   Firebase publique en dur (projet `africatrip-eea1a`). Ne marche qu'en

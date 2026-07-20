@@ -25,13 +25,13 @@
       <button id="switch" class="ghost" title="Changer de personne">⇄</button>
     </header>
 
-    <!-- position -->
-    <div class="card">
-      <div class="row">
-        <span class="label">📍 Partage de position</span>
-        <label class="switch"><input type="checkbox" id="share" checked><span></span></label>
+    <!-- position (toujours active tant que l'app est ouverte) -->
+    <div class="card live-card waiting" id="live-card">
+      <span class="live-orb"><i></i></span>
+      <div class="live-txt">
+        <div class="live-title" id="pos-title">Activation du GPS…</div>
+        <div class="live-sub" id="pos-sub">ta position est partagée pendant que l'app est ouverte</div>
       </div>
-      <div class="hint" id="pos-status">en attente du GPS…</div>
     </div>
 
     <!-- PV / XP (sauvegarde automatique) -->

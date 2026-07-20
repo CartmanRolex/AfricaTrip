@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Expédition Afrique 2026 — Carnet de route</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -352,15 +353,18 @@ span.fiche-face{display:block;overflow:hidden}
   .seat-skill{font-size:9px}
 }
 
-/* marqueur de position en temps réel (appli équipage) */
-.live-dot{position:relative;width:14px;height:14px;border-radius:50%;background:var(--lc);
-  border:2px solid var(--bg);box-shadow:0 0 0 2px var(--lc),0 0 12px var(--lc);
-  animation:livepulse 1.8s ease-in-out infinite}
-.live-dot b{position:absolute;left:15px;top:-3px;font-family:var(--mono);font-weight:700;
-  font-size:9px;white-space:nowrap;color:var(--sand);background:rgba(20,17,14,.78);
-  border:1px solid var(--line);padding:1px 6px;border-radius:5px}
-@keyframes livepulse{0%,100%{box-shadow:0 0 0 2px var(--lc),0 0 4px var(--lc)}
-  50%{box-shadow:0 0 0 2px var(--lc),0 0 14px var(--lc)}}
+/* marqueurs carte : têtes des gens (dernière position), photos, amas */
+.map-face{width:32px;height:32px;border-radius:50%;overflow:hidden;background:var(--panel2);
+  border:2.5px solid var(--fc,var(--c1));box-shadow:0 2px 8px rgba(0,0,0,.55);
+  display:grid;place-items:center;font-family:var(--display);font-weight:700;
+  font-size:13px;color:var(--sand)}
+.map-face img{width:100%;height:100%;object-fit:cover}
+.map-photo{width:34px;height:34px;border-radius:50%;overflow:hidden;border:2px solid var(--sand-dim);
+  box-shadow:0 2px 8px rgba(0,0,0,.5);background:var(--panel2)}
+.map-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.cluster-badge{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;
+  font-family:var(--display);font-weight:700;font-size:14px;color:#1a120a;background:var(--c1);
+  border:2px solid var(--bg);box-shadow:0 0 0 2px var(--c1),0 2px 10px rgba(0,0,0,.5)}
 </style>
 </head>
 <body>
@@ -429,6 +433,7 @@ span.fiche-face{display:block;overflow:hidden}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
 <script>
 const DATA = __DATA__;
 const PHOTOS = __PHOTOS__;
@@ -599,29 +604,43 @@ DANGER.forEach(z=>{
 function dangerZoom(){document.body.classList.toggle('danger-far',map.getZoom()<5);}
 map.on('zoomend',dangerZoom); dangerZoom();
 
-// bulles photos partagées : les photos qui se chevauchent à l'écran
-// fusionnent en une pile (compteur + clic = diaporama), recalcul à chaque zoom
-const bubbleLayer=L.layerGroup().addTo(map);
-function rebuildBubbles(){
-  bubbleLayer.clearLayers();
-  const z=map.getZoom(), R=document.body.classList.contains('danger-far')?30:42;
-  const pts=GALLERY.map(g=>map.project([g.lat,g.lng],z));
-  const used=new Array(pts.length).fill(false);
-  for(let a=0;a<pts.length;a++){
-    if(used[a])continue;
-    const c=[a]; used[a]=true;
-    for(let b=a+1;b<pts.length;b++){
-      if(!used[b]&&pts[a].distanceTo(pts[b])<R){c.push(b);used[b]=true;}
-    }
-    const g=GALLERY[c[0]], n=c.length;
-    const html=`<div class="bubble-wrap${n>1?' stacked':''}">
-      <img class="photo-bubble" src="${g.thumb}" alt="">
-      ${n>1?`<span class="bubble-count">${n}</span>`:''}</div>`;
-    L.marker([g.lat,g.lng],{icon:L.divIcon({className:'',iconSize:[0,0],iconAnchor:[0,0],html})})
-     .addTo(bubbleLayer).on('click',()=>openLightbox(c,0));
-  }
+// Carte : têtes des gens (dernière position) + photos, regroupées par
+// Leaflet.markercluster pour gérer proprement les chevauchements et monter en
+// charge (beaucoup de photos). Un amas se déplie au zoom / clic.
+const clusterGroup = L.markerClusterGroup({
+  maxClusterRadius: 46, showCoverageOnHover: false,
+  spiderfyOnMaxZoom: true, chunkedLoading: true,
+  iconCreateFunction: cl => L.divIcon({ className: '', iconSize: [36, 36], iconAnchor: [18, 18],
+    html: `<div class="cluster-badge">${cl.getChildCount()}</div>` }),
+}).addTo(map);
+
+function refreshMap(){
+  clusterGroup.clearLayers();
+  const markers = [];
+  // photos (clic -> diaporama de TOUTES les photos, positionné sur celle-ci)
+  GALLERY.forEach((g, i) => {
+    if (g.lat == null) return;
+    const m = L.marker([g.lat, g.lng], { icon: L.divIcon({ className: '', iconSize: [34, 34],
+      iconAnchor: [17, 17], html: `<div class="map-photo"><img src="${g.thumb}" alt=""></div>` }) });
+    m.on('click', () => {
+      const list = GALLERY.map((_, k) => k).filter(k => GALLERY[k].lat != null);
+      openLightbox(list, list.indexOf(i));
+    });
+    markers.push(m);
+  });
+  // têtes des gens à leur dernière position mesurée (clic -> fiche)
+  Object.entries(livePositions).forEach(([name, p]) => {
+    const face = (PHOTOS.faces || {})[name];
+    const inner = face ? `<img src="${face}" alt="${name}">` : (name[0] || '?');
+    const m = L.marker([p.lat, p.lng], { zIndexOffset: 1000, icon: L.divIcon({ className: '',
+      iconSize: [32, 32], iconAnchor: [16, 16],
+      html: `<div class="map-face" style="--fc:${colorOf(name)}">${inner}</div>` }) });
+    m.on('click', () => openFicheFor(name));
+    markers.push(m);
+  });
+  clusterGroup.addLayers(markers);
 }
-map.on('zoomend',rebuildBubbles); rebuildBubbles();
+refreshMap();
 
 // ---- données LIVE de l'appli équipage (Firebase, lecture seule) ----------
 // import dynamique dans ce script classique -> accès direct à map/GALLERY/etc.
@@ -635,34 +654,27 @@ map.on('zoomend',rebuildBubbles); rebuildBubbles();
       projectId: "africatrip-eea1a",
       appId: "1:301314590575:web:3b89efb7bbc8a4a95aca9a",
     }));
-    const carColor = c => (CARS[c] && CARS[c].color) || 'var(--c1)';
-
-    // marqueurs de position en temps réel (un par personne)
-    const liveLayer = L.layerGroup().addTo(map);
-    const marks = {};
+    // positions -> livePositions (têtes sur la carte + "dernière position" fiche)
     fs.onSnapshot(fs.collection(db, "positions"), snap => {
       snap.forEach(doc => {
         const d = doc.data(); if (d.lat == null) return;
         let at = 0; try { at = d.at ? d.at.toMillis() : 0; } catch (_) {}
-        livePositions[d.name] = { lat: d.lat, lng: d.lng, at };  // pour la fiche
-        const html = `<div class="live-dot" style="--lc:${carColor(d.car)}"><b>${d.name}</b></div>`;
-        const icon = L.divIcon({ className:'', html, iconSize:[0,0], iconAnchor:[7,7] });
-        if (marks[doc.id]) marks[doc.id].setLatLng([d.lat, d.lng]).setIcon(icon);
-        else marks[doc.id] = L.marker([d.lat, d.lng], { icon }).addTo(liveLayer);
+        livePositions[d.name] = { lat: d.lat, lng: d.lng, at };
       });
+      refreshMap();
     });
 
-    // photos envoyées depuis l'appli -> bulles (en plus des photos build-time)
+    // photos envoyées depuis l'appli -> entrées GALLERY (build-time gardées)
     const buildN = GALLERY.length;
     fs.onSnapshot(fs.collection(db, "photos"), snap => {
-      GALLERY.length = buildN;   // conserve les photos historiques, rafraîchit les live
+      GALLERY.length = buildN;
       snap.forEach(doc => {
         const d = doc.data(); if (d.lat == null) return;
         const thumb = (d.url || '').replace('/upload/', '/upload/w_96,h_96,c_fill/');
         GALLERY.push({ id: doc.id, name: d.name, date: d.date, lat: d.lat, lng: d.lng,
                        gps: !!d.gps, thumb, file: d.url });
       });
-      rebuildBubbles();
+      refreshMap();
     });
   } catch (e) { console.warn("live:", e); }
 })();

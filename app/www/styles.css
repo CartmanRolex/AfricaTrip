@@ -43,14 +43,18 @@ h1{font-family:var(--display);font-weight:700;letter-spacing:.05em;
 .muted{color:var(--muted)}
 .hint{font-size:12px;color:var(--sand-dim);margin-top:8px;line-height:1.4}
 
-/* interrupteur */
-.switch{margin-left:auto;position:relative;display:inline-block;width:48px;height:28px}
-.switch input{display:none}
-.switch span{position:absolute;inset:0;background:var(--line);border-radius:999px;transition:.2s}
-.switch span::before{content:"";position:absolute;width:22px;height:22px;left:3px;top:3px;
-  background:var(--sand);border-radius:50%;transition:.2s}
-.switch input:checked+span{background:var(--present)}
-.switch input:checked+span::before{transform:translateX(20px)}
+/* indicateur de position — toujours actif, sans bouton */
+.live-card{display:flex;align-items:center;gap:14px}
+.live-orb{position:relative;flex:0 0 auto;width:16px;height:16px;border-radius:50%;background:var(--oc,var(--unknown))}
+.live-orb i{position:absolute;inset:0;border-radius:50%;background:var(--oc,var(--unknown));
+  animation:orb 1.8s ease-out infinite}
+@keyframes orb{0%{transform:scale(1);opacity:.7}100%{transform:scale(3.2);opacity:0}}
+.live-title{font-weight:700;font-size:15px}
+.live-sub{font-size:11px;color:var(--sand-dim);margin-top:2px;line-height:1.35}
+.live-card.waiting{--oc:var(--unknown)}
+.live-card.live{--oc:var(--present)}
+.live-card.err{--oc:var(--danger)}
+.live-card.err .live-orb i{animation:none}
 
 .slider{width:100%;margin:12px 0 2px;accent-color:var(--c1)}
 .num,.text{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--sand);

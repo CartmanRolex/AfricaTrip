@@ -79,57 +79,61 @@ function start() {
   watchMyPhotos();
 }
 
-// ---- position (uniquement quand l'appli est ouverte) ----------------------
+// ---- position : TOUJOURS active tant que l'app est ouverte (pas de bouton) --
 function initPosition() {
-  let watchId = null, lastAt = 0, lastPt = null;
+  let lastAt = 0, lastPt = null, sentAt = 0;
+  const card = $("live-card");
+  const setState = (cls, title, sub) => {
+    card.className = "card live-card " + cls;
+    $("pos-title").textContent = title;
+    if (sub != null) $("pos-sub").innerHTML = sub;
+  };
+  // rafraîchit le "envoyée il y a X" toutes les 10 s
+  setInterval(() => {
+    if (!sentAt) return;
+    const s = Math.round((Date.now() - sentAt) / 1000);
+    const t = s < 60 ? `${s}s` : `${Math.round(s / 60)} min`;
+    $("pos-sub").innerHTML = `envoyée il y a ${t} · ${lastPt[0].toFixed(4)}, ${lastPt[1].toFixed(4)}`;
+  }, 10000);
 
   const send = async (lat, lng) => {
     try {
       const { db, doc, setDoc, addDoc, collection, ts } = await fb();
       await setDoc(doc(db, "positions", me),
         { name: me, car: CREW[me], lat, lng, at: ts() });
-      await addDoc(collection(db, "tracks", me, "points"),
-        { lat, lng, at: ts() });
-      $("pos-status").innerHTML =
-        `<span class="ok">position partagée</span> · ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    } catch (e) { $("pos-status").innerHTML = `<span class="err">erreur: ${e.code || e}</span>`; }
+      await addDoc(collection(db, "tracks", me, "points"), { lat, lng, at: ts() });
+      sentAt = Date.now();
+      setState("live", "Position à jour ✓",
+        `envoyée à l'instant · ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    } catch (e) { setState("err", "Envoi impossible", `${e.code || e}`); }
   };
 
   const onPos = (lat, lng) => {
     const now = Date.now();
     const moved = !lastPt || dist(lastPt, [lat, lng]) > 25; // ~25 m
+    lastPt = [lat, lng];
     if (now - lastAt < 20000 && !moved) return;             // ou 20 s
-    lastAt = now; lastPt = [lat, lng];
+    lastAt = now;
     send(lat, lng);
   };
 
-  const startWatch = async () => {
-    if (watchId != null) return;
-    $("pos-status").textContent = "en attente du GPS…";
-    if (native) {                        // APK : plugin natif Geolocation
+  (async () => {
+    setState("waiting", "Activation du GPS…",
+      "ta position est partagée pendant que l'app est ouverte");
+    if (native) {
       const Geo = plugin("Geolocation");
       try { await Geo.requestPermissions(); } catch (_) {}
-      watchId = await Geo.watchPosition({ enableHighAccuracy: true }, (pos, err) => {
-        if (err || !pos) { $("pos-status").innerHTML = `<span class="err">GPS: ${(err && err.message) || "?"}</span>`; return; }
+      await Geo.watchPosition({ enableHighAccuracy: true }, (pos, err) => {
+        if (err || !pos) return setState("err", "GPS indisponible", (err && err.message) || "autorise la localisation");
         onPos(pos.coords.latitude, pos.coords.longitude);
       });
-    } else if (navigator.geolocation) {  // navigateur / PWA
-      watchId = navigator.geolocation.watchPosition(
+    } else if (navigator.geolocation) {
+      navigator.geolocation.watchPosition(
         p => onPos(p.coords.latitude, p.coords.longitude),
-        e => { $("pos-status").innerHTML = `<span class="err">GPS refusé (${e.code})</span>`; },
+        e => setState("err", "GPS refusé", `autorise la localisation (${e.code})`),
         { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 });
-    }
-  };
-  const stopWatch = () => {
-    if (watchId != null) {
-      if (native) plugin("Geolocation").clearWatch({ id: watchId });
-      else navigator.geolocation.clearWatch(watchId);
-    }
-    watchId = null; $("pos-status").textContent = "partage en pause";
-  };
-
-  $("share").onchange = e => e.target.checked ? startWatch() : stopWatch();
-  if ($("share").checked) startWatch();
+    } else setState("err", "GPS non disponible", "");
+  })();
 }
 
 function dist(a, b) { // mètres, approx équirectangulaire
@@ -241,8 +245,8 @@ async function watchMyPhotos() {
     docs.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
     const g = $("myphotos");
     g.innerHTML = docs.map(d => {
-      const thumb = (d.url || "").replace("/upload/", "/upload/w_160,h_160,c_fill/");
-      return `<div class="mytile"><img src="${thumb}" alt="">
+      const thumb = (d.url || "").replace("/upload/", "/upload/w_160,h_160,c_fill,q_auto,f_auto/");
+      return `<div class="mytile"><img src="${thumb}" alt="" loading="lazy">
         <button class="del" data-id="${d.id}" aria-label="Supprimer">✕</button>
         ${d.gps ? "" : '<span class="nogps">sans GPS</span>'}</div>`;
     }).join("");

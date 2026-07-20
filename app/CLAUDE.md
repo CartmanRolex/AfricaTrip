@@ -35,6 +35,8 @@ localisation** — impossible via un navigateur sur Android depuis avril 2026
   changent : voir la commande dans le commit d'origine (extrait de photos.json).
 - `www/app.js` — Firebase (modular v10 via CDN gstatic), anon auth, `CREW`,
   `watchPosition` throttlé (écrit `positions/{nom}` + `tracks/{nom}/points`).
+  **Position TOUJOURS active** tant que l'app est ouverte (pas de bouton) :
+  indicateur `.live-card` (orbe pulsante) waiting/live/err + "envoyée il y a X".
   **PV/XP auto-sauvegardés** dès qu'on les modifie (débounce 500ms → `crew/{nom}`
   merge) — pas de bouton, pas de compétence (retirée pour l'instant). **Mes
   photos** : `onSnapshot(photos where name==moi)` → grille live avec ✕ =
