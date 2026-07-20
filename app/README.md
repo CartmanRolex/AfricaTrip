@@ -85,7 +85,7 @@ parcouru, PV live, et photos qui apparaissent instantanément (plus besoin de
 - [x] UI de l'app (`www/`) + logique Firebase + fallback navigateur pour test
 - [x] Règles de sécurité Firestore
 - [x] Photos via Cloudinary (pas de Firebase Storage → pas de carte)
-- [~] Projet Firebase créé (Gal) : Firestore + Auth Anonyme à finir ; clés OK
-- [ ] Compte Cloudinary + preset unsigned (Gal) → clés dans firebase-config.js
+- [x] Projet Firebase : Firestore + Auth Anonyme + clés (africatrip-eea1a)
+- [x] Cloudinary : cloudName `xlnsbhju` + preset unsigned `expedition`
 - [ ] Plugin natif `AfricaMedia` (GPS des photos) + build APK (Basement)
 - [ ] Lecture live côté site
