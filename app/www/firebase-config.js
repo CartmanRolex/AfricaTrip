@@ -16,8 +16,8 @@ export const FIREBASE_CONFIG = {
 // - preset    = le nom d'un "upload preset" en mode Unsigned
 // Rien de secret ici : le preset non signé est fait pour l'envoi côté client.
 export const CLOUDINARY = {
-  cloudName: "REMPLACER",
-  preset: "REMPLACER",
+  cloudName: "xlnsbhju",
+  preset: "REMPLACER",   // <- nom d'un upload preset "Unsigned" (voir README)
 };
 
 // Liste de l'équipage : prénom -> voiture (1 = Hugodouard, 2 = Paul Pot,
