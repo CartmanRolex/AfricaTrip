@@ -7,6 +7,7 @@
 // tarde. Seul l'import LOCAL ci-dessous est au niveau module.
 
 import { FIREBASE_CONFIG, CLOUDINARY, CREW } from "./firebase-config.js";
+import { FACES } from "./faces.js";
 
 const $ = id => document.getElementById(id);
 const CAR_COLOR = { 1: "#E8924A", 2: "#4FB7B3", obs: "#8E8066" };
@@ -39,8 +40,10 @@ async function fb() {
   const app = a.initializeApp(FIREBASE_CONFIG);
   au.signInAnonymously(au.getAuth(app)).catch(e => console.warn("auth:", e));
   _fb = { db: fs.getFirestore(app),
-          doc: fs.doc, setDoc: fs.setDoc, addDoc: fs.addDoc,
-          collection: fs.collection, ts: fs.serverTimestamp };
+          doc: fs.doc, getDoc: fs.getDoc, setDoc: fs.setDoc,
+          addDoc: fs.addDoc, deleteDoc: fs.deleteDoc,
+          collection: fs.collection, query: fs.query, where: fs.where,
+          onSnapshot: fs.onSnapshot, ts: fs.serverTimestamp };
   return _fb;
 }
 
@@ -61,6 +64,8 @@ function start() {
   $("pick").classList.add("hidden");
   $("dash").classList.remove("hidden");
   $("me-name").textContent = me;
+  const face = FACES[me];
+  if (face) $("me-face").src = face; else $("me-face").removeAttribute("src");
   const car = CREW[me];
   $("me-car").textContent = car === 1 ? "🚗 Hugodouard"
     : car === 2 ? "🚙 Paul Pot" : "🛰️ Observateur";
@@ -71,6 +76,7 @@ function start() {
   initPosition();
   initStats();
   initPhotos();
+  watchMyPhotos();
 }
 
 // ---- position (uniquement quand l'appli est ouverte) ----------------------
@@ -132,22 +138,39 @@ function dist(a, b) { // mètres, approx équirectangulaire
   return Math.sqrt(dx * dx + dy * dy) * R;
 }
 
-// ---- PV / XP / compétence -------------------------------------------------
+// ---- PV / XP (sauvegarde automatique à chaque modification) ----------------
 function initStats() {
-  const pv = $("pv"), pvVal = $("pv-val");
-  pv.oninput = () => pvVal.textContent = pv.value;
-  $("save-stats").onclick = async () => {
-    $("stats-status").textContent = "enregistrement…";
-    try {
-      const { db, doc, setDoc, ts } = await fb();
-      await setDoc(doc(db, "crew", me), {
-        name: me, car: CREW[me],
-        pv: +pv.value, xp: +$("xp").value || 0,
-        skill: $("skill").value.trim(), at: ts(),
-      }, { merge: true });
-      $("stats-status").innerHTML = `<span class="ok">enregistré ✓</span>`;
-    } catch (e) { $("stats-status").innerHTML = `<span class="err">erreur: ${e.code || e}</span>`; }
+  const pv = $("pv"), pvVal = $("pv-val"), xp = $("xp");
+  let t = null;
+  const save = () => {
+    clearTimeout(t);
+    $("stats-status").textContent = "…";
+    t = setTimeout(async () => {
+      try {
+        const { db, doc, setDoc, ts } = await fb();
+        await setDoc(doc(db, "crew", me), {
+          name: me, car: CREW[me], pv: +pv.value, xp: +xp.value || 0, at: ts(),
+        }, { merge: true });
+        $("stats-status").innerHTML = `<span class="ok">enregistré ✓</span>`;
+      } catch (e) { $("stats-status").innerHTML = `<span class="err">${e.code || e}</span>`; }
+    }, 500);   // léger délai pour ne pas écrire à chaque cran du curseur
   };
+  pv.oninput = () => { pvVal.textContent = pv.value; save(); };
+  xp.oninput = save;
+
+  // charge mes valeurs déjà enregistrées
+  (async () => {
+    try {
+      const { db, doc, getDoc } = await fb();
+      const snap = await getDoc(doc(db, "crew", me));
+      if (snap.exists()) {
+        const d = snap.data();
+        if (d.pv != null) { pv.value = d.pv; pvVal.textContent = d.pv; }
+        if (d.xp != null) xp.value = d.xp;
+        $("stats-status").textContent = "enregistré automatiquement";
+      }
+    } catch (_) {}
+  })();
 }
 
 // ---- photos (localisation gardée) -----------------------------------------
@@ -202,12 +225,38 @@ async function uploadPhoto(blob, lat, lng, date) {
       lat: lat ?? null, lng: lng ?? null, gps: lat != null,
       date: date || new Date().toISOString().slice(0, 10), at: ts(),
     });
-    const img = document.createElement("img");
-    img.src = link; $("recent").prepend(img);
+    // la grille "mes photos" se met à jour toute seule (onSnapshot)
     st.innerHTML = lat != null
       ? `<span class="ok">photo ajoutée avec sa position ✓</span>`
       : `<span class="ok">photo ajoutée</span> (sans GPS → placée à la date)`;
   } catch (e) { st.innerHTML = `<span class="err">erreur: ${e.code || e}</span>`; }
+}
+
+// ---- mes photos : grille live + suppression -------------------------------
+async function watchMyPhotos() {
+  const { db, collection, query, where, onSnapshot } = await fb();
+  onSnapshot(query(collection(db, "photos"), where("name", "==", me)), snap => {
+    const docs = [];
+    snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+    docs.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    const g = $("myphotos");
+    g.innerHTML = docs.map(d => {
+      const thumb = (d.url || "").replace("/upload/", "/upload/w_160,h_160,c_fill/");
+      return `<div class="mytile"><img src="${thumb}" alt="">
+        <button class="del" data-id="${d.id}" aria-label="Supprimer">✕</button>
+        ${d.gps ? "" : '<span class="nogps">sans GPS</span>'}</div>`;
+    }).join("");
+    g.querySelectorAll(".del").forEach(b => b.onclick = () => delPhoto(b.dataset.id));
+  }, e => { $("up-status").innerHTML = `<span class="err">${e.code || e}</span>`; });
+}
+async function delPhoto(id) {
+  // retire la fiche Firestore -> disparaît de la carte et de la grille.
+  // (le fichier reste sur Cloudinary : le supprimer exigerait la clé secrète,
+  //  qu'on n'embarque pas ; sans conséquence, on est loin des quotas gratuits.)
+  try {
+    const { db, doc, deleteDoc } = await fb();
+    await deleteDoc(doc(db, "photos", id));
+  } catch (e) { $("up-status").innerHTML = `<span class="err">suppr.: ${e.code || e}</span>`; }
 }
 
 // ---- go -------------------------------------------------------------------

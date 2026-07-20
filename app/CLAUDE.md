@@ -29,12 +29,20 @@ localisation** — impossible via un navigateur sur Android depuis avril 2026
 ## Fichiers
 
 - `www/index.html` / `styles.css` — 2 écrans : choix du prénom, puis dashboard
-  (position, PV/XP, photos).
+  (visage en haut, position, PV/XP, mes photos).
+- `www/faces.js` — `FACES` = photos de visage (data URIs) générées depuis
+  `src/photos.json` ; affichées en haut du dashboard. Régénérer si les visages
+  changent : voir la commande dans le commit d'origine (extrait de photos.json).
 - `www/app.js` — Firebase (modular v10 via CDN gstatic), anon auth, `CREW`,
-  `watchPosition` throttlé (écrit `positions/{nom}` + `tracks/{nom}/points`),
-  save `crew/{nom}`, upload photos. **Deux voies photo** : `window.AfricaMedia
-  .pickWithLocation()` (plugin natif, GPS fiable) sinon `<input file>` + `exifr`
-  (fallback navigateur pour tester ; sur Android réel le GPS y serait expurgé).
+  `watchPosition` throttlé (écrit `positions/{nom}` + `tracks/{nom}/points`).
+  **PV/XP auto-sauvegardés** dès qu'on les modifie (débounce 500ms → `crew/{nom}`
+  merge) — pas de bouton, pas de compétence (retirée pour l'instant). **Mes
+  photos** : `onSnapshot(photos where name==moi)` → grille live avec ✕ =
+  `deleteDoc` (le fichier reste sur Cloudinary, la suppression Cloudinary
+  exigerait la clé secrète non embarquée). **Deux voies d'ajout** : plugin natif
+  `AfricaMedia.pickWithLocation()` (GPS fiable) sinon `<input file>` + `exifr`
+  (fallback navigateur ; sur Android réel le GPS y serait expurgé). Accès
+  plugins via helper `plugin()` (registerPlugin OU Capacitor.Plugins.X).
 - `www/firebase-config.js` — clés Firebase + `CLOUDINARY` (cloudName, preset)
   + `CREW` (prénom → voiture). Clés non secrètes.
 - `firestore.rules` — à coller dans la console Firebase (pas de storage.rules :

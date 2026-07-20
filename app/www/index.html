@@ -17,7 +17,8 @@
   <!-- écran 2 : dashboard -->
   <section id="dash" class="screen hidden">
     <header class="dash-head">
-      <div>
+      <img id="me-face" class="me-face" alt="">
+      <div class="me-id">
         <div class="me-name" id="me-name">—</div>
         <div class="me-car" id="me-car">—</div>
       </div>
@@ -33,25 +34,23 @@
       <div class="hint" id="pos-status">en attente du GPS…</div>
     </div>
 
-    <!-- PV / XP -->
+    <!-- PV / XP (sauvegarde automatique) -->
     <div class="card">
       <div class="row"><span class="label">❤️ Mes PV</span><b id="pv-val">5</b><span class="muted">/10</span></div>
       <input type="range" id="pv" min="0" max="10" value="5" class="slider">
-      <div class="row" style="margin-top:10px"><span class="label">⭐ Mes XP</span>
+      <div class="row" style="margin-top:12px"><span class="label">⭐ Mes XP</span>
         <input type="number" id="xp" class="num" min="0" step="1" value="0"></div>
-      <input type="text" id="skill" class="text" placeholder="Ma compétence (ex: Sieste tactique +3)">
-      <button id="save-stats" class="primary">Enregistrer mes stats</button>
-      <div class="hint" id="stats-status"></div>
+      <div class="hint" id="stats-status">enregistré automatiquement</div>
     </div>
 
     <!-- photos -->
     <div class="card">
-      <span class="label">📷 Ajouter des photos</span>
+      <span class="label">📷 Mes photos</span>
       <p class="hint">Elles s'affichent sur la carte du site, au bon endroit
-        (localisation gardée).</p>
-      <button id="add-photos" class="primary">Choisir des photos</button>
+        (localisation gardée). Appuie sur ✕ pour en retirer une.</p>
+      <button id="add-photos" class="primary">Ajouter des photos</button>
       <div class="hint" id="up-status"></div>
-      <div id="recent" class="recent"></div>
+      <div id="myphotos" class="mygrid"></div>
     </div>
 
     <p class="foot">Expédition Afrique 2026 · les données vont sur la carte du site</p>

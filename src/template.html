@@ -433,6 +433,13 @@ span.fiche-face{display:block;overflow:hidden}
 const DATA = __DATA__;
 const PHOTOS = __PHOTOS__;
 const GALLERY = __GALLERY__;
+// dernière position live par personne (remplie par Firebase, lue par la fiche)
+const livePositions = {};
+const ago = ms => { const s=(Date.now()-ms)/1000;
+  if(s<90) return "à l'instant";
+  if(s<5400) return `il y a ${Math.round(s/60)} min`;
+  if(s<172800) return `il y a ${Math.round(s/3600)} h`;
+  return `il y a ${Math.round(s/86400)} j`; };
 const REC = DATA.records, ROUTE = DATA.route, CARS = DATA.cars;
 const CAR1 = DATA.car1, CAR2 = DATA.car2;
 // tout le contenu "modifiable" vient de l'onglet Config de la feuille
@@ -636,6 +643,8 @@ map.on('zoomend',rebuildBubbles); rebuildBubbles();
     fs.onSnapshot(fs.collection(db, "positions"), snap => {
       snap.forEach(doc => {
         const d = doc.data(); if (d.lat == null) return;
+        let at = 0; try { at = d.at ? d.at.toMillis() : 0; } catch (_) {}
+        livePositions[d.name] = { lat: d.lat, lng: d.lng, at };  // pour la fiche
         const html = `<div class="live-dot" style="--lc:${carColor(d.car)}"><b>${d.name}</b></div>`;
         const icon = L.divIcon({ className:'', html, iconSize:[0,0], iconAnchor:[7,7] });
         if (marks[doc.id]) marks[doc.id].setLatLng([d.lat, d.lng]).setIcon(icon);
@@ -725,6 +734,9 @@ function ficheHTML(name,color){
   }else rows.push(['Statut',isObs?'suit depuis la maison':'jamais à bord (pour l’instant)']);
   if(r.tel)rows.push(['Téléphone',`<a href="tel:${r.tel.replace(/[^+0-9]/g,'')}">${r.tel}</a>`]);
   if(r.note)rows.push(['Note',r.note]);
+  const lp=livePositions[name];   // dernière position envoyée par l'appli
+  if(lp)rows.push(['Dernière position',
+    `${lp.lat.toFixed(4)}, ${lp.lng.toFixed(4)}${lp.at?` · <span class="live-ago">${ago(lp.at)}</span>`:''}`]);
   return `<div class="car fiche-card" style="--cc:${color}">
     <button class="fiche-close" aria-label="Fermer la fiche">✕</button>
     <div class="fiche-head">

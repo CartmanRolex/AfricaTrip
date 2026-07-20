@@ -27,7 +27,8 @@ service cloud.firestore {
     match /photos/{id} {
       allow read: if true;
       allow create: if signed() && request.resource.data.url is string;
-      allow update, delete: if false;
+      allow delete: if signed();   // l'app permet de retirer ses photos
+      allow update: if false;
     }
   }
 }

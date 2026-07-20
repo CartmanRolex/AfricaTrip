@@ -148,7 +148,9 @@ Key JS structures (all near the top of the script):
   classique, donc accès direct à `map`/`GALLERY`/`rebuildBubbles`) lit en
   temps réel les données envoyées par l'appli équipage (`app/`) :
   `onSnapshot("positions")` → un marqueur `.live-dot` par personne (couleur
-  voiture), `onSnapshot("photos")` → bulles ajoutées à `GALLERY` (thumb =
+  voiture) + remplit `livePositions[nom]={lat,lng,at}` (la fiche aventurier
+  affiche « Dernière position » + `ago()` « vu il y a X »),
+  `onSnapshot("photos")` → bulles ajoutées à `GALLERY` (thumb =
   URL Cloudinary transformée `w_96,h_96,c_fill`, file = URL pleine). Lecture
   seule, échoue en silence hors-ligne (voyage-afrique.html autonome). Config
   Firebase publique en dur (projet `africatrip-eea1a`). Ne marche qu'en
