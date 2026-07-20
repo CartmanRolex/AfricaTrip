@@ -144,6 +144,16 @@ Key JS structures (all near the top of the script):
   `onerror` falls back to the embedded thumb so the standalone file
   works). Esc/click closes.
 
+- **Live Firebase** (fin du script) : un `import()` dynamique (dans le script
+  classique, donc accès direct à `map`/`GALLERY`/`rebuildBubbles`) lit en
+  temps réel les données envoyées par l'appli équipage (`app/`) :
+  `onSnapshot("positions")` → un marqueur `.live-dot` par personne (couleur
+  voiture), `onSnapshot("photos")` → bulles ajoutées à `GALLERY` (thumb =
+  URL Cloudinary transformée `w_96,h_96,c_fill`, file = URL pleine). Lecture
+  seule, échoue en silence hors-ligne (voyage-afrique.html autonome). Config
+  Firebase publique en dur (projet `africatrip-eea1a`). Ne marche qu'en
+  https (GitHub Pages) ou dans l'app : `file://` bloque l'import de module.
+
 ### `build.py`
 Reads `template.html` + `data.json` + `photos.json` + `gallery.json`,
 writes the two root HTML files. Trivial; run after ANY change to template

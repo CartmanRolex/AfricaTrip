@@ -351,6 +351,16 @@ span.fiche-face{display:block;overflow:hidden}
   .hp-bar{width:42px}
   .seat-skill{font-size:9px}
 }
+
+/* marqueur de position en temps réel (appli équipage) */
+.live-dot{position:relative;width:14px;height:14px;border-radius:50%;background:var(--lc);
+  border:2px solid var(--bg);box-shadow:0 0 0 2px var(--lc),0 0 12px var(--lc);
+  animation:livepulse 1.8s ease-in-out infinite}
+.live-dot b{position:absolute;left:15px;top:-3px;font-family:var(--mono);font-weight:700;
+  font-size:9px;white-space:nowrap;color:var(--sand);background:rgba(20,17,14,.78);
+  border:1px solid var(--line);padding:1px 6px;border-radius:5px}
+@keyframes livepulse{0%,100%{box-shadow:0 0 0 2px var(--lc),0 0 4px var(--lc)}
+  50%{box-shadow:0 0 0 2px var(--lc),0 0 14px var(--lc)}}
 </style>
 </head>
 <body>
@@ -605,6 +615,48 @@ function rebuildBubbles(){
   }
 }
 map.on('zoomend',rebuildBubbles); rebuildBubbles();
+
+// ---- données LIVE de l'appli équipage (Firebase, lecture seule) ----------
+// import dynamique dans ce script classique -> accès direct à map/GALLERY/etc.
+(async () => {
+  try {
+    const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
+    const fs = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+    const db = fs.getFirestore(initializeApp({
+      apiKey: "AIzaSyDnQwEDgC6SI9FlsifI4Tjbq_jY5DI2KYE",
+      authDomain: "africatrip-eea1a.firebaseapp.com",
+      projectId: "africatrip-eea1a",
+      appId: "1:301314590575:web:3b89efb7bbc8a4a95aca9a",
+    }));
+    const carColor = c => (CARS[c] && CARS[c].color) || 'var(--c1)';
+
+    // marqueurs de position en temps réel (un par personne)
+    const liveLayer = L.layerGroup().addTo(map);
+    const marks = {};
+    fs.onSnapshot(fs.collection(db, "positions"), snap => {
+      snap.forEach(doc => {
+        const d = doc.data(); if (d.lat == null) return;
+        const html = `<div class="live-dot" style="--lc:${carColor(d.car)}"><b>${d.name}</b></div>`;
+        const icon = L.divIcon({ className:'', html, iconSize:[0,0], iconAnchor:[7,7] });
+        if (marks[doc.id]) marks[doc.id].setLatLng([d.lat, d.lng]).setIcon(icon);
+        else marks[doc.id] = L.marker([d.lat, d.lng], { icon }).addTo(liveLayer);
+      });
+    });
+
+    // photos envoyées depuis l'appli -> bulles (en plus des photos build-time)
+    const buildN = GALLERY.length;
+    fs.onSnapshot(fs.collection(db, "photos"), snap => {
+      GALLERY.length = buildN;   // conserve les photos historiques, rafraîchit les live
+      snap.forEach(doc => {
+        const d = doc.data(); if (d.lat == null) return;
+        const thumb = (d.url || '').replace('/upload/', '/upload/w_96,h_96,c_fill/');
+        GALLERY.push({ id: doc.id, name: d.name, date: d.date, lat: d.lat, lng: d.lng,
+                       gps: !!d.gps, thumb, file: d.url });
+      });
+      rebuildBubbles();
+    });
+  } catch (e) { console.warn("live:", e); }
+})();
 
 const lb=document.getElementById('lightbox');
 let lbList=[],lbIdx=0;

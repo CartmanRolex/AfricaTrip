@@ -88,5 +88,5 @@ parcouru, PV live, et photos qui apparaissent instantanément (plus besoin de
 - [x] Projet Firebase : Firestore + Auth Anonyme + clés (africatrip-eea1a)
 - [x] Cloudinary : cloudName `xlnsbhju` + preset unsigned `expedition`
 - [x] Plugin natif `AfricaMedia` (GPS des photos) + build APK (Basement) ✅
-- [ ] Test de l'APK sur téléphone (Gal) — surtout : le GPS des photos passe-t-il ?
-- [ ] Lecture live côté site (`src/template.html`)
+- [x] Test APK (Gal) : position OK, **photo avec GPS conservé** ✅ (validé Firestore)
+- [x] Lecture live côté site (`src/template.html`) : positions + photos en direct
