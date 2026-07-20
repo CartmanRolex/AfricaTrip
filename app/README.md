@@ -11,28 +11,40 @@ la carte.
   `ACCESS_MEDIA_LOCATION`).
 - **Login** : aucun. On choisit son prénom une fois ; Firebase **Anonymous**
   (invisible) connecte l'appli pour que les règles acceptent l'écriture.
-- **Backend** : Firebase Firestore (positions, PV, méta-photos) + Storage
-  (fichiers photos). Aucun serveur à gérer.
+- **Backend** : Firebase Firestore (positions, PV, méta-photos) +
+  **Cloudinary** (fichiers photos, gratuit sans carte). Aucun serveur à gérer.
 
 ## Étape 1 — Firebase (À FAIRE PAR GAL, une seule fois, ~5 min)
 
 1. Va sur <https://console.firebase.google.com> → **Ajouter un projet** →
    nomme-le `expedition-afrique` → désactive Google Analytics (inutile) →
    crée.
-2. **Firestore** : menu *Build → Firestore Database* → *Créer une base* →
-   mode **production** → région `europe-west`. Puis onglet *Règles* → colle
-   le contenu de `firestore.rules` → *Publier*.
-3. **Storage** : *Build → Storage* → *Commencer* → région `europe-west` →
-   onglet *Règles* → colle `storage.rules` → *Publier*.
-4. **Authentification** : *Build → Authentication* → *Commencer* → active
-   **Anonyme** (Sign-in method → Anonyme → Activer).
-5. **Clés** : ⚙️ *Paramètres du projet* → section *Vos applications* →
-   icône **Web** `</>` → enregistre l'app (nom au choix) → copie l'objet
-   `firebaseConfig`. Colle ses valeurs dans **`www/firebase-config.js`**
-   (apiKey, authDomain, projectId, storageBucket, appId).
+2. **Firestore** : cherche *Firestore* → *Créer une base* → mode
+   **production** → région `europe-west`. Puis onglet *Règles* → colle le
+   contenu de `firestore.rules` → *Publier*.
+3. **Authentification** : cherche *Authentication* → *Commencer* →
+   *Sign-in method* → active **Anonyme**.
+4. **Clés** : ⚙️ *Paramètres du projet* → *Vos applications* → icône **Web**
+   `</>` → copie l'objet `firebaseConfig` dans **`www/firebase-config.js`**.
 
-C'est tout côté Firebase. Ces clés ne sont pas secrètes (le SDK web les
-expose) ; la sécurité vient des règles ci-dessus.
+> **Pas de Firebase Storage** : sur les projets récents il exige une carte
+> bancaire (plan Blaze). On ne l'utilise donc PAS. Les fichiers photo vont
+> sur Cloudinary (gratuit, sans carte) — voir l'étape suivante. Firebase ne
+> garde que les positions, PV et méta-photos (tout ça reste gratuit).
+
+## Étape 1bis — Cloudinary pour les fichiers photo (gratuit, SANS carte)
+
+1. Crée un compte sur <https://cloudinary.com> (juste un e-mail, aucune carte).
+2. Sur le tableau de bord, note ton **Cloud name**.
+3. *Settings ⚙️ → Upload → Upload presets → Add upload preset* → mets
+   **Signing Mode: Unsigned** → Save. Note le **nom du preset**.
+4. Colle `cloudName` et `preset` dans **`www/firebase-config.js`** (objet
+   `CLOUDINARY`).
+
+Rien de secret : un preset non signé est conçu pour l'envoi depuis le client.
+
+Ces clés Firebase/Cloudinary ne sont pas secrètes ; la sécurité vient des
+règles Firestore et du preset restreint.
 
 ## Étape 2 — Construire l'APK (fait par Claude sur le serveur Basement)
 
@@ -71,7 +83,9 @@ parcouru, PV live, et photos qui apparaissent instantanément (plus besoin de
 ## État
 
 - [x] UI de l'app (`www/`) + logique Firebase + fallback navigateur pour test
-- [x] Règles de sécurité Firestore/Storage
-- [ ] Projet Firebase créé + clés collées (étape 1 — **Gal**)
+- [x] Règles de sécurité Firestore
+- [x] Photos via Cloudinary (pas de Firebase Storage → pas de carte)
+- [~] Projet Firebase créé (Gal) : Firestore + Auth Anonyme à finir ; clés OK
+- [ ] Compte Cloudinary + preset unsigned (Gal) → clés dans firebase-config.js
 - [ ] Plugin natif `AfricaMedia` (GPS des photos) + build APK (Basement)
 - [ ] Lecture live côté site

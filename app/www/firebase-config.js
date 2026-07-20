@@ -10,6 +10,16 @@ export const FIREBASE_CONFIG = {
   appId: "1:301314590575:web:3b89efb7bbc8a4a95aca9a",
 };
 
+// Stockage des fichiers photo : Cloudinary (gratuit, SANS carte bancaire,
+// contrairement à Firebase Storage). À REMPLIR une fois (voir README étape 3) :
+// - cloudName = le "Cloud name" affiché sur ton tableau de bord Cloudinary
+// - preset    = le nom d'un "upload preset" en mode Unsigned
+// Rien de secret ici : le preset non signé est fait pour l'envoi côté client.
+export const CLOUDINARY = {
+  cloudName: "REMPLACER",
+  preset: "REMPLACER",
+};
+
 // Liste de l'équipage : prénom -> voiture (1 = Hugodouard, 2 = Paul Pot,
 // "obs" = observateur). Sert au choix du prénom et à colorer les marqueurs.
 export const CREW = {

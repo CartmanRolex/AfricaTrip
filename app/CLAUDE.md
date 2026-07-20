@@ -13,8 +13,12 @@ localisation** — impossible via un navigateur sur Android depuis avril 2026
 - **Capacitor** : UI web (`www/`, vanilla, thème désert) + couche native
   minimale. Le natif ne sert qu'à une chose : lire le GPS EXIF des photos
   (permission `ACCESS_MEDIA_LOCATION` + `setRequireOriginal()` + `ExifInterface`).
-- **Firebase** : Firestore (positions, PV, méta-photos) + Storage (fichiers).
-  Serverless → rien à héberger. Le site lira ces données en direct.
+- **Firebase** : Firestore (positions, PV, méta-photos). Serverless → rien à
+  héberger. Le site lira ces données en direct.
+- **Cloudinary** (fichiers photo) : Firebase Storage exige une carte (Blaze)
+  sur les projets récents, refusé. On envoie donc les images sur Cloudinary
+  via un **upload preset non signé** (gratuit, sans carte) ; seule l'URL
+  `secure_url` retournée est stockée dans `photos/{id}` de Firestore.
 - **Login = néant** : on choisit son prénom (stocké en `localStorage`), et
   Firebase **Anonymous** connecte l'app en silence pour que les règles
   acceptent l'écriture. Pas de mot de passe, pas d'inscription.
@@ -31,9 +35,10 @@ localisation** — impossible via un navigateur sur Android depuis avril 2026
   save `crew/{nom}`, upload photos. **Deux voies photo** : `window.AfricaMedia
   .pickWithLocation()` (plugin natif, GPS fiable) sinon `<input file>` + `exifr`
   (fallback navigateur pour tester ; sur Android réel le GPS y serait expurgé).
-- `www/firebase-config.js` — clés Firebase (non secrètes) + `CREW` (prénom →
-  voiture). **À remplir** (README étape 1).
-- `firestore.rules` / `storage.rules` — à coller dans la console Firebase.
+- `www/firebase-config.js` — clés Firebase + `CLOUDINARY` (cloudName, preset)
+  + `CREW` (prénom → voiture). Clés non secrètes.
+- `firestore.rules` — à coller dans la console Firebase (pas de storage.rules :
+  on n'utilise pas Firebase Storage).
 - `README.md` — setup Firebase (Gal, 5 min) + build APK (sur Basement) + distrib.
 
 ## Modèle de données Firestore
@@ -41,8 +46,8 @@ localisation** — impossible via un navigateur sur Android depuis avril 2026
 - `positions/{nom}` : `{name, car, lat, lng, at}` — dernière position (marqueurs live).
 - `tracks/{nom}/points/{id}` : `{lat, lng, at}` — trace réelle parcourue.
 - `crew/{nom}` : `{name, car, pv, xp, skill, at}` — stats live.
-- `photos/{id}` : `{name, car, url, lat, lng, gps, date, at}` — bulles carte.
-- Storage `photos/{nom}/{fichier}.jpg`.
+- `photos/{id}` : `{name, car, url, lat, lng, gps, date, at}` — bulles carte
+  (`url` = lien Cloudinary `secure_url` ; le fichier n'est pas dans Firebase).
 
 ## À faire (voir README « État »)
 

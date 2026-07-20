@@ -6,7 +6,7 @@
 // l'écran de choix du prénom s'affiche toujours, même hors-ligne ou si le CDN
 // tarde. Seul l'import LOCAL ci-dessous est au niveau module.
 
-import { FIREBASE_CONFIG, CREW } from "./firebase-config.js";
+import { FIREBASE_CONFIG, CLOUDINARY, CREW } from "./firebase-config.js";
 
 const $ = id => document.getElementById(id);
 const CAR_COLOR = { 1: "#E8924A", 2: "#4FB7B3", obs: "#8E8066" };
@@ -17,15 +17,13 @@ let me = localStorage.getItem("crew-me");
 let _fb = null;
 async function fb() {
   if (_fb) return _fb;
-  const [a, au, fs, st] = await Promise.all([
-    import(CDN("app")), import(CDN("auth")),
-    import(CDN("firestore")), import(CDN("storage"))]);
+  const [a, au, fs] = await Promise.all([
+    import(CDN("app")), import(CDN("auth")), import(CDN("firestore"))]);
   const app = a.initializeApp(FIREBASE_CONFIG);
   au.signInAnonymously(au.getAuth(app)).catch(e => console.warn("auth:", e));
-  _fb = { db: fs.getFirestore(app), store: st.getStorage(app),
+  _fb = { db: fs.getFirestore(app),
           doc: fs.doc, setDoc: fs.setDoc, addDoc: fs.addDoc,
-          collection: fs.collection, ts: fs.serverTimestamp,
-          ref: st.ref, upload: st.uploadBytes, url: st.getDownloadURL };
+          collection: fs.collection, ts: fs.serverTimestamp };
   return _fb;
 }
 
@@ -155,11 +153,18 @@ async function uploadPhoto(blob, lat, lng, date) {
   const st = $("up-status");
   st.textContent = "envoi…";
   try {
-    const { db, store, addDoc, collection, ts, ref, upload, url } = await fb();
-    const key = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}.jpg`;
-    const r = ref(store, `photos/${me}/${key}`);
-    await upload(r, blob, { contentType: "image/jpeg" });
-    const link = await url(r);
+    // le FICHIER va sur Cloudinary (gratuit, sans carte) ; seules les
+    // MÉTADONNÉES (nom, position, date, url) vont dans Firestore.
+    const form = new FormData();
+    form.append("file", blob);
+    form.append("upload_preset", CLOUDINARY.preset);
+    const res = await fetch(
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY.cloudName}/image/upload`,
+      { method: "POST", body: form });
+    if (!res.ok) throw new Error("upload " + res.status);
+    const link = (await res.json()).secure_url;
+
+    const { db, addDoc, collection, ts } = await fb();
     await addDoc(collection(db, "photos"), {
       name: me, car: CREW[me], url: link,
       lat: lat ?? null, lng: lng ?? null, gps: lat != null,
