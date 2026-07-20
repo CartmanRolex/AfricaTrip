@@ -605,9 +605,14 @@ DANGER.forEach(z=>{
 function dangerZoom(){document.body.classList.toggle('danger-far',map.getZoom()<5);}
 map.on('zoomend',dangerZoom); dangerZoom();
 
-// Carte : têtes des gens (dernière position) + photos, regroupées par
-// Leaflet.markercluster pour gérer proprement les chevauchements et monter en
-// charge (beaucoup de photos). Un amas se déplie au zoom / clic.
+// DEUX systèmes séparés :
+//  - les PHOTOS sont regroupées entre elles (Leaflet.markercluster) pour gérer
+//    le chevauchement et monter en charge ;
+//  - les TÊTES des gens (dernière position) vivent dans un pane dédié AU-DESSUS,
+//    jamais regroupées avec les photos ni masquées par elles.
+map.createPane('facesPane');
+map.getPane('facesPane').style.zIndex = 680;   // au-dessus des marqueurs (600)
+const faceLayer = L.layerGroup().addTo(map);
 const clusterGroup = L.markerClusterGroup({
   maxClusterRadius: 46, showCoverageOnHover: false,
   spiderfyOnMaxZoom: true, chunkedLoading: true,
@@ -615,10 +620,10 @@ const clusterGroup = L.markerClusterGroup({
     html: `<div class="cluster-badge">${cl.getChildCount()}</div>` }),
 }).addTo(map);
 
-function refreshMap(){
+// photos uniquement (clic -> diaporama de toutes les photos)
+function refreshPhotos(){
   clusterGroup.clearLayers();
   const markers = [];
-  // photos (clic -> diaporama de TOUTES les photos, positionné sur celle-ci)
   GALLERY.forEach((g, i) => {
     if (g.lat == null) return;
     const m = L.marker([g.lat, g.lng], { icon: L.divIcon({ className: '', iconSize: [34, 34],
@@ -629,19 +634,21 @@ function refreshMap(){
     });
     markers.push(m);
   });
-  // têtes des gens à leur dernière position mesurée (clic -> fiche)
+  clusterGroup.addLayers(markers);
+}
+// têtes des gens uniquement (jamais regroupées, toujours visibles, clic -> fiche)
+function refreshFaces(){
+  faceLayer.clearLayers();
   Object.entries(livePositions).forEach(([name, p]) => {
     const face = (PHOTOS.faces || {})[name];
     const inner = face ? `<img src="${face}" alt="${name}">` : (name[0] || '?');
-    const m = L.marker([p.lat, p.lng], { zIndexOffset: 1000, icon: L.divIcon({ className: '',
-      iconSize: [32, 32], iconAnchor: [16, 16],
-      html: `<div class="map-face" style="--fc:${colorOf(name)}">${inner}</div>` }) });
-    m.on('click', () => openFicheFor(name));
-    markers.push(m);
+    L.marker([p.lat, p.lng], { pane: 'facesPane', zIndexOffset: 1000,
+      icon: L.divIcon({ className: '', iconSize: [36, 36], iconAnchor: [18, 18],
+        html: `<div class="map-face" style="--fc:${colorOf(name)}">${inner}</div>` }) })
+     .on('click', () => openFicheFor(name)).addTo(faceLayer);
   });
-  clusterGroup.addLayers(markers);
 }
-refreshMap();
+refreshPhotos(); refreshFaces();
 
 // ---- données LIVE de l'appli équipage (Firebase, lecture seule) ----------
 // import dynamique dans ce script classique -> accès direct à map/GALLERY/etc.
@@ -662,7 +669,7 @@ refreshMap();
         let at = 0; try { at = d.at ? d.at.toMillis() : 0; } catch (_) {}
         livePositions[d.name] = { lat: d.lat, lng: d.lng, at };
       });
-      refreshMap();
+      refreshFaces();
     });
 
     // photos envoyées depuis l'appli -> entrées GALLERY (build-time gardées)
@@ -675,7 +682,7 @@ refreshMap();
         GALLERY.push({ id: doc.id, name: d.name, date: d.date, lat: d.lat, lng: d.lng,
                        gps: !!d.gps, thumb, file: d.url });
       });
-      refreshMap();
+      refreshPhotos();
     });
   } catch (e) { console.warn("live:", e); }
 })();
