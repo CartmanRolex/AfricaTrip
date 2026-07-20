@@ -2,11 +2,12 @@
 // Ces valeurs ne sont pas secrètes (le SDK web les expose de toute façon) ;
 // la sécurité vient des règles Firestore/Storage, pas de ces clés.
 export const FIREBASE_CONFIG = {
-  apiKey: "REMPLACER",
-  authDomain: "REMPLACER.firebaseapp.com",
-  projectId: "REMPLACER",
-  storageBucket: "REMPLACER.appspot.com",
-  appId: "REMPLACER",
+  apiKey: "AIzaSyDnQwEDgC6SI9FlsifI4Tjbq_jY5DI2KYE",
+  authDomain: "africatrip-eea1a.firebaseapp.com",
+  projectId: "africatrip-eea1a",
+  storageBucket: "africatrip-eea1a.firebasestorage.app",
+  messagingSenderId: "301314590575",
+  appId: "1:301314590575:web:3b89efb7bbc8a4a95aca9a",
 };
 
 // Liste de l'équipage : prénom -> voiture (1 = Hugodouard, 2 = Paul Pot,
