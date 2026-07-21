@@ -15,6 +15,17 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <!-- écran 0 : mot de passe partagé de l'équipage (demandé une seule fois ;
+       Firebase garde la session ensuite). Le site public n'en a pas besoin. -->
+  <section id="login" class="screen hidden">
+    <h1><span class="pin">◆</span> Expédition Afrique</h1>
+    <p class="sub">Mot de passe de l'équipage</p>
+    <input type="password" id="pw-input" class="text" placeholder="mot de passe"
+           autocomplete="current-password" autocapitalize="off">
+    <button id="pw-go" class="primary">Entrer</button>
+    <p class="hint" id="pw-err">un seul mot de passe pour toute l'équipe</p>
+  </section>
+
   <!-- écran 1 : choisir son prénom (une seule fois) -->
   <section id="pick" class="screen">
     <h1><span class="pin">◆</span> Expédition Afrique</h1>

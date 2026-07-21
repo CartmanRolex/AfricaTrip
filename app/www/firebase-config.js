@@ -20,6 +20,14 @@ export const CLOUDINARY = {
   preset: "expedition",   // upload preset "Unsigned"
 };
 
+// Compte UNIQUE partagé par tout l'équipage (Firebase Email/Password). L'app
+// demande le mot de passe une fois ; Firebase garde la session ensuite. Cet
+// email n'est PAS secret (seul le mot de passe l'est, et il n'est jamais dans
+// le code — tapé par l'utilisateur, géré/haché par Firebase). Les règles
+// Firestore n'autorisent l'écriture qu'à ce compte. Doit correspondre EXACTEMENT
+// à l'utilisateur créé dans la console Firebase (Authentication → Users).
+export const AUTH_EMAIL = "equipage@expedition-afrique.app";
+
 // Liste de l'équipage : prénom -> voiture (1 = Hugodouard, 2 = Paul Pot,
 // "obs" = observateur). Sert au choix du prénom et à colorer les marqueurs.
 export const CREW = {

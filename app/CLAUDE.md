@@ -36,11 +36,18 @@ sur iOS). Le plugin natif `AfricaMedia` n'existe que côté Android (APK).
   cookie en priorité (`saveMe`/`loadMe`/`clearMe` dans `app.js`). Le cookie est
   là pour l'iPhone en PWA (« écran d'accueil »), où le localStorage peut être
   vidé. Le bouton **⇄** du header appelle `clearMe()` pour changer de perso.
-  Firebase **Anonymous** connecte l'app en silence pour que les règles
-  acceptent l'écriture. Pas de mot de passe, pas d'inscription.
-- **Sécurité** volontairement légère (« délire entre potes ») : règles
-  Firestore/Storage = lecture publique, écriture si `request.auth != null` +
-  garde-fous de forme. Un APK décompilé pourrait écrire des bêtises ; assumé.
+- **Auth = UN mot de passe partagé** (Firebase Email/Password, un seul compte
+  `AUTH_EMAIL` pour toute l'équipe). Demandé une fois (écran `#login`,
+  `requireAuth()`/`showLogin()` dans `app.js`) ; Firebase garde la session, donc
+  jamais reretapé sauf nouveau tel / cache vidé. Le mot de passe n'est **jamais**
+  dans le code (tapé par l'user, haché par Firebase). Changer de perso (⇄) ne
+  déconnecte pas. Pas d'inscription (à désactiver côté console).
+- **Sécurité** : le site lit tout en public (aucune connexion), mais l'écriture
+  est réservée à ce compte via `signed()` dans `firestore.rules`
+  (`request.auth.token.email == AUTH_EMAIL`). Config Firebase publique = normal ;
+  ce qui protège la carte, c'est le mot de passe. Résiduel assumé : Cloudinary
+  reste en upload non signé, mais une image sans sa fiche Firestore
+  (écriture protégée) n'apparaît nulle part → sans impact sur le site.
 
 ## Fichiers
 

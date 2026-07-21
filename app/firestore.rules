@@ -1,12 +1,20 @@
 rules_version = '2';
-// Règles simples et "délire entre potes" : le site lit tout (carte publique),
-// et on n'accepte l'écriture que si l'appli est connectée (Firebase Anonymous,
-// invisible pour l'utilisateur). Ça bloque les bots random sans mot de passe.
+// Le site lit TOUT (carte publique, aucune connexion), mais l'écriture est
+// réservée au COMPTE UNIQUE de l'équipage : un seul email + un mot de passe
+// partagé (Firebase Email/Password). Personne d'autre ne peut donc polluer la
+// carte, même si la config Firebase est publique. Le mot de passe n'est jamais
+// dans le code : Firebase le gère (haché) côté serveur.
+// -> `signed()` = connecté AVEC ce compte précis (email exact). Doit
+//    correspondre à AUTH_EMAIL de app/www/firebase-config.js et à l'utilisateur
+//    créé dans la console (Authentication → Users).
 // Quelques garde-fous de forme pour éviter d'écrire n'importe quoi.
 service cloud.firestore {
   match /databases/{db}/documents {
 
-    function signed() { return request.auth != null; }
+    function signed() {
+      return request.auth != null
+        && request.auth.token.email == 'equipage@expedition-afrique.app';
+    }
     function num(x) { return x is number; }
 
     match /positions/{name} {

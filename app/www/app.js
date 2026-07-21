@@ -6,7 +6,7 @@
 // l'écran de choix du prénom s'affiche toujours, même hors-ligne ou si le CDN
 // tarde. Seul l'import LOCAL ci-dessous est au niveau module.
 
-import { FIREBASE_CONFIG, CLOUDINARY, CREW } from "./firebase-config.js";
+import { FIREBASE_CONFIG, CLOUDINARY, CREW, AUTH_EMAIL } from "./firebase-config.js";
 import { FACES } from "./faces.js";
 
 const $ = id => document.getElementById(id);
@@ -57,13 +57,52 @@ async function fb() {
   const [a, au, fs] = await Promise.all([
     import(CDN("app")), import(CDN("auth")), import(CDN("firestore"))]);
   const app = a.initializeApp(FIREBASE_CONFIG);
-  au.signInAnonymously(au.getAuth(app)).catch(e => console.warn("auth:", e));
-  _fb = { db: fs.getFirestore(app),
+  const auth = au.getAuth(app);
+  _fb = { auth,
+          signIn: pw => au.signInWithEmailAndPassword(auth, AUTH_EMAIL, pw),
+          onAuth: cb => au.onAuthStateChanged(auth, cb),
+          db: fs.getFirestore(app),
           doc: fs.doc, getDoc: fs.getDoc, setDoc: fs.setDoc,
           addDoc: fs.addDoc, deleteDoc: fs.deleteDoc,
           collection: fs.collection, query: fs.query, where: fs.where,
           onSnapshot: fs.onSnapshot, ts: fs.serverTimestamp };
   return _fb;
+}
+
+// ---- porte d'entrée : mot de passe partagé (une seule fois) ----------------
+// L'équipage partage UN mot de passe (compte Firebase unique). Firebase garde
+// la session, donc on ne le retape qu'au 1er lancement (ou nouveau tel). Le
+// site, lui, lit tout en public : aucune de ces vérifs ne le concerne.
+function requireAuth() {
+  return new Promise(async resolve => {
+    const { onAuth } = await fb();
+    let shown = false;
+    onAuth(user => {
+      if (user) resolve();                       // session déjà là -> on entre
+      else if (!shown) { shown = true; showLogin(); }  // sinon -> mot de passe
+    });
+  });
+}
+function showLogin() {
+  $("pick").classList.add("hidden");
+  $("dash").classList.add("hidden");
+  $("login").classList.remove("hidden");
+  const input = $("pw-input"), err = $("pw-err"), go = $("pw-go");
+  input.focus();
+  const submit = async () => {
+    if (!input.value.trim()) return;
+    go.disabled = true; err.textContent = "connexion…";
+    try {
+      const { signIn } = await fb();
+      await signIn(input.value.trim());
+      // succès -> onAuth(user) déclenche resolve() de requireAuth -> start()
+    } catch (e) {
+      err.innerHTML = `<span class="err">mot de passe incorrect</span>`;
+      go.disabled = false; input.select();
+    }
+  };
+  go.onclick = submit;
+  input.onkeydown = e => { if (e.key === "Enter") submit(); };
 }
 
 // ---- écran 1 : choix du prénom -------------------------------------------
@@ -79,8 +118,10 @@ function renderPick() {
 }
 
 // ---- dashboard ------------------------------------------------------------
-function start() {
-  $("pick").classList.add("hidden");
+async function start() {
+  $("pick").classList.add("hidden");   // pas de flash de l'écran des prénoms
+  await requireAuth();                 // mot de passe équipage (une fois)
+  $("login").classList.add("hidden");
   $("dash").classList.remove("hidden");
   $("me-name").textContent = me;
   const face = FACES[me];
