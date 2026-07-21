@@ -78,8 +78,11 @@ function requireAuth() {
     const { onAuth } = await fb();
     let shown = false;
     onAuth(user => {
-      if (user) resolve();                       // session déjà là -> on entre
-      else if (!shown) { shown = true; showLogin(); }  // sinon -> mot de passe
+      // on n'accepte QUE le compte équipage : une session laissée par une
+      // ancienne version (anonyme, email nul) ne doit PAS ouvrir sans mot de
+      // passe -> sinon on tombe sur le dashboard sans jamais le demander
+      if (user && user.email === AUTH_EMAIL) resolve();
+      else if (!shown) { shown = true; showLogin(); }
     });
   });
 }
