@@ -364,15 +364,26 @@ span.fiche-face{display:block;overflow:hidden}
   background-repeat:no-repeat;border:2.5px solid var(--fc,var(--c1));
   box-shadow:0 2px 8px rgba(0,0,0,.55);display:grid;place-items:center;
   font-family:var(--display);font-weight:700;font-size:14px;color:var(--sand)}
-.face-cluster{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
-  font-family:var(--display);font-weight:700;font-size:14px;color:var(--sand);
-  background:var(--panel2);border:2.5px solid var(--sand-dim);box-shadow:0 2px 8px rgba(0,0,0,.55)}
 .map-photo{width:30px;height:30px;border-radius:50%;overflow:hidden;border:2px solid var(--sand-dim);
   box-shadow:0 2px 8px rgba(0,0,0,.5);background:var(--panel2)}
 .map-photo img{width:100%;height:100%;object-fit:cover;display:block}
-.cluster-badge{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
-  font-family:var(--display);font-weight:700;font-size:13px;color:#1a120a;background:var(--c1);
-  border:2px solid var(--bg);box-shadow:0 0 0 2px var(--c1),0 2px 10px rgba(0,0,0,.5)}
+/* amas (cluster) : au lieu d'un simple chiffre, un petit EMPILEMENT des vraies
+   vignettes / têtes présentes ici (jusqu'à 3, en éventail) + compteur discret */
+.pile{position:relative;width:44px;height:46px}
+.pile-item{position:absolute;left:50%;top:50%;width:30px;height:30px;border-radius:50%;
+  background-color:var(--panel2);background-position:center;background-repeat:no-repeat;
+  box-shadow:0 2px 7px rgba(0,0,0,.6);display:grid;place-items:center;
+  font-family:var(--display);font-weight:700;font-size:12px;color:var(--sand)}
+.pile-photos .pile-item{border:2px solid var(--sand-dim);background-size:cover}
+.pile-faces .pile-item{border:2.5px solid var(--fc,var(--c1));background-size:140%}
+.pile-top{transform:translate(-50%,-50%);z-index:3}
+.pile-b1{transform:translate(-50%,-50%) translate(7px,-4px) scale(.9);z-index:2}
+.pile-b2{transform:translate(-50%,-50%) translate(-7px,-6px) scale(.82);z-index:1}
+.pile-n{position:absolute;right:0;bottom:0;min-width:17px;height:17px;padding:0 3px;
+  border-radius:9px;display:grid;place-items:center;font-family:var(--mono);font-weight:700;
+  font-size:10px;line-height:1;color:#1a120a;background:var(--c1);border:1.5px solid var(--bg);
+  box-shadow:0 1px 5px rgba(0,0,0,.5);z-index:5}
+.pile-faces .pile-n{color:var(--sand);background:var(--panel2);border-color:var(--sand-dim)}
 </style>
 </head>
 <body>
@@ -619,22 +630,36 @@ map.on('zoomend',dangerZoom); dangerZoom();
 // deux amas au même endroit ne se chevauchent pas, on les DÉCALE juste :
 // têtes ancrées un peu au-dessus du point, photos un peu en dessous.
 const CLUST = { maxClusterRadius: 42, showCoverageOnHover: false, spiderfyOnMaxZoom: true };
-// photos (badge orange), décalées légèrement SOUS le point
+// empilement (jusqu'à 3 items en éventail) + compteur, à partir des enfants
+// d'un amas. kind='photo' (vignettes) ou 'face' (têtes, avec anneau couleur).
+function pileHTML(kids, kind, total){
+  const cls = ['pile-top', 'pile-b1', 'pile-b2'];
+  const items = kids.slice(0, 3).map((m, i) => {
+    const bg = m.options.pileImg;
+    const st = kind === 'face'
+      ? `--fc:${m.options.pileFc || 'var(--c1)'}${bg ? `;background-image:url('${bg}')` : ''}`
+      : (bg ? `background-image:url('${bg}')` : '');
+    const inner = (kind === 'face' && !bg) ? (m.options.pileInit || '?') : '';
+    return `<span class="pile-item ${cls[i]}" style="${st}">${inner}</span>`;
+  }).reverse().join('');   // arrière -> avant
+  return `<div class="pile pile-${kind === 'face' ? 'faces' : 'photos'}">${items}<span class="pile-n">${total}</span></div>`;
+}
+// photos : empilement de vignettes, ancré légèrement SOUS le point
 const photoCluster = L.markerClusterGroup({ ...CLUST, chunkedLoading: true,
-  iconCreateFunction: cl => L.divIcon({ className: '', iconSize: [30, 30], iconAnchor: [15, -3],
-    html: `<div class="cluster-badge">${cl.getChildCount()}</div>` }) }).addTo(map);
-// têtes (badge sombre), décalées légèrement AU-DESSUS du point ; ajouté après
-// -> rendu par-dessus les photos
+  iconCreateFunction: cl => L.divIcon({ className: '', iconSize: [44, 46], iconAnchor: [22, 4],
+    html: pileHTML(cl.getAllChildMarkers(), 'photo', cl.getChildCount()) }) }).addTo(map);
+// têtes : empilement de visages, ancré légèrement AU-DESSUS du point ; ajouté
+// après -> rendu par-dessus les photos
 const faceCluster = L.markerClusterGroup({ ...CLUST,
-  iconCreateFunction: cl => L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 37],
-    html: `<div class="face-cluster">${cl.getChildCount()}</div>` }) }).addTo(map);
+  iconCreateFunction: cl => L.divIcon({ className: '', iconSize: [44, 46], iconAnchor: [22, 44],
+    html: pileHTML(cl.getAllChildMarkers(), 'face', cl.getChildCount()) }) }).addTo(map);
 
 function refreshPhotos(){
   photoCluster.clearLayers();
   const markers = [];
   GALLERY.forEach((g, i) => {
     if (g.lat == null) return;
-    const m = L.marker([g.lat, g.lng], { icon: L.divIcon({ className: '', iconSize: [30, 30],
+    const m = L.marker([g.lat, g.lng], { pileImg: g.thumb, icon: L.divIcon({ className: '', iconSize: [30, 30],
       iconAnchor: [15, -3], html: `<div class="map-photo"><img src="${g.thumb}" alt=""></div>` }) });
     m.on('click', () => {
       const list = GALLERY.map((_, k) => k).filter(k => GALLERY[k].lat != null);
@@ -652,8 +677,8 @@ function refreshFaces(){
     const html = face
       ? `<div class="map-face" style="--fc:${colorOf(name)};background-image:url('${face}')"></div>`
       : `<div class="map-face" style="--fc:${colorOf(name)}">${name[0] || '?'}</div>`;
-    const m = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: '', iconSize: [34, 34],
-      iconAnchor: [17, 37], html }) });
+    const m = L.marker([p.lat, p.lng], { pileImg: face, pileFc: colorOf(name), pileInit: name[0],
+      icon: L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 37], html }) });
     m.on('click', () => openFicheFor(name));
     markers.push(m);
   });

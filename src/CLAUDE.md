@@ -153,13 +153,19 @@ Key JS structures (all near the top of the script):
   `onSnapshot("photos")` → entrées `GALLERY`,
   `onSnapshot("crew")` → **PV live** : écrase `RPG[nom].pv` (les PV du Sheet)
   puis `render()`/`renderObs()` — la barre de PV des sièges ET de la fiche
-  reflètent ce que l'équipier règle dans l'appli. **Rendu carte, 2 systèmes
-  SÉPARÉS** : les PHOTOS (`refreshPhotos`, `.map-photo`, clic→lightbox) sont
-  regroupées entre elles via `Leaflet.markercluster` (`clusterGroup`, CDN,
-  monte en charge) ; les TÊTES des gens à leur dernière position
-  (`refreshFaces`, `.map-face` = crop visage `PHOTOS.faces[nom]` + ring couleur
-  voiture, clic→fiche) vivent dans un pane dédié `facesPane` (z-index 680) —
-  jamais regroupées avec les photos ni masquées par elles. (thumb =
+  reflètent ce que l'équipier règle dans l'appli. **Rendu carte, 2 amas
+  INDÉPENDANTS** (`Leaflet.markercluster`, CDN, monte en charge) : `photoCluster`
+  = les PHOTOS (`refreshPhotos`, `.map-photo`, clic→lightbox), `faceCluster` =
+  les TÊTES à leur dernière position (`refreshFaces`, `.map-face` = crop visage
+  `PHOTOS.faces[nom]` background-size 140% + ring couleur voiture, clic→fiche).
+  Les têtes se stackent entre elles, les photos entre elles, jamais mélangées ;
+  chaque marqueur porte ses données de pile en options (`pileImg`/`pileFc`/
+  `pileInit`). **Amas = un EMPILEMENT, pas un chiffre** : `pileHTML()` dessine
+  jusqu'à 3 vraies vignettes/têtes en éventail (`.pile` / `.pile-item` /
+  `.pile-top|b1|b2`) + un petit compteur `.pile-n` (orange pour les photos,
+  sombre pour les têtes). Pour ne pas se chevaucher au même point, les amas sont
+  juste DÉCALÉS : photos ancrées sous le point (`iconAnchor [22,4]`), têtes
+  au-dessus (`[22,44]`, ajoutées après → par-dessus). (thumb =
   URL Cloudinary transformée `w_96,h_96,c_fill`, file = URL pleine). Lecture
   seule, échoue en silence hors-ligne (voyage-afrique.html autonome). Config
   Firebase publique en dur (projet `africatrip-eea1a`). Ne marche qu'en
