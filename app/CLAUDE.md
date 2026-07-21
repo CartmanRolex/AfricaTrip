@@ -3,10 +3,21 @@
 > Rule: update this file in the same commit as any feature change here.
 
 Petite app Android pour que l'équipage alimente la carte du site : partage de
-position (appli ouverte), édition PV/XP, et **upload de photos EN GARDANT leur
+position (appli ouverte), édition PV, et **upload de photos EN GARDANT leur
 localisation** — impossible via un navigateur sur Android depuis avril 2026
 (le sélecteur de photos expurge le GPS pour tout ce qui n'a pas la permission
 `ACCESS_MEDIA_LOCATION`, réservée aux apps installées). D'où une vraie app.
+
+## iPhone = PWA (pas d'app native iOS)
+
+Compiler une app iOS native exige un Mac + Xcode + compte Apple : hors budget.
+Mais **iOS n'a pas le bug Android** (le sélecteur de photos garde le GPS EXIF),
+donc la même UI web `www/` suffit sur iPhone en **PWA** : `manifest.json` +
+balises `apple-mobile-web-app-*` + `apple-touch-icon` (icônes dans `icons/`).
+Les utilisateurs iPhone ouvrent l'URL Pages de `www/` dans Safari →
+« Partager » → « Sur l'écran d'accueil ». L'app s'ouvre alors plein écran, et
+l'ajout de photos passe par le fallback `<input file>` + `exifr` (GPS conservé
+sur iOS). Le plugin natif `AfricaMedia` n'existe que côté Android (APK).
 
 ## Pourquoi ces choix
 
@@ -29,7 +40,11 @@ localisation** — impossible via un navigateur sur Android depuis avril 2026
 ## Fichiers
 
 - `www/index.html` / `styles.css` — 2 écrans : choix du prénom, puis dashboard
-  (visage en haut, position, PV/XP, mes photos).
+  (visage en haut, position, PV, mes photos). `<head>` porte le `manifest.json`
+  + les balises `apple-mobile-web-app-*` (installable en PWA sur iPhone).
+- `www/manifest.json` + `www/icons/` — manifeste PWA + icônes (192/512 +
+  `icon-180.png` pour l'apple-touch-icon). Icônes générées par un petit script
+  Pillow (diamant orange sur fond désert), voir le commit d'origine.
 - `www/faces.js` — `FACES` = photos de visage (data URIs) générées depuis
   `src/photos.json` ; affichées en haut du dashboard. Régénérer si les visages
   changent : voir la commande dans le commit d'origine (extrait de photos.json).
@@ -37,8 +52,9 @@ localisation** — impossible via un navigateur sur Android depuis avril 2026
   `watchPosition` throttlé (écrit `positions/{nom}` + `tracks/{nom}/points`).
   **Position TOUJOURS active** tant que l'app est ouverte (pas de bouton) :
   indicateur `.live-card` (orbe pulsante) waiting/live/err + "envoyée il y a X".
-  **PV/XP auto-sauvegardés** dès qu'on les modifie (débounce 500ms → `crew/{nom}`
-  merge) — pas de bouton, pas de compétence (retirée pour l'instant). **Mes
+  **PV auto-sauvegardés** dès qu'on les modifie (débounce 500ms → `crew/{nom}`
+  merge) — pas de bouton, pas de XP ni compétence dans l'app (retirés). Le site
+  lit `crew/{nom}.pv` en direct et **écrase** les PV du Sheet. **Mes
   photos** : `onSnapshot(photos where name==moi)` → grille live avec ✕ =
   `deleteDoc` (le fichier reste sur Cloudinary, la suppression Cloudinary
   exigerait la clé secrète non embarquée). **Deux voies d'ajout** : plugin natif
@@ -55,7 +71,8 @@ localisation** — impossible via un navigateur sur Android depuis avril 2026
 
 - `positions/{nom}` : `{name, car, lat, lng, at}` — dernière position (marqueurs live).
 - `tracks/{nom}/points/{id}` : `{lat, lng, at}` — trace réelle parcourue.
-- `crew/{nom}` : `{name, car, pv, xp, skill, at}` — stats live.
+- `crew/{nom}` : `{name, car, pv, at}` — PV live (le site les lit et écrase le
+  Sheet). L'app n'écrit plus xp/skill.
 - `photos/{id}` : `{name, car, url, lat, lng, gps, date, at}` — bulles carte
   (`url` = lien Cloudinary `secure_url` ; le fichier n'est pas dans Firebase).
 

@@ -144,33 +144,29 @@ function dist(a, b) { // mètres, approx équirectangulaire
 
 // ---- PV / XP (sauvegarde automatique à chaque modification) ----------------
 function initStats() {
-  const pv = $("pv"), pvVal = $("pv-val"), xp = $("xp");
+  const pv = $("pv"), pvVal = $("pv-val");
   let t = null;
-  const save = () => {
+  pv.oninput = () => {
+    pvVal.textContent = pv.value;
     clearTimeout(t);
     $("stats-status").textContent = "…";
     t = setTimeout(async () => {
       try {
         const { db, doc, setDoc, ts } = await fb();
-        await setDoc(doc(db, "crew", me), {
-          name: me, car: CREW[me], pv: +pv.value, xp: +xp.value || 0, at: ts(),
-        }, { merge: true });
+        await setDoc(doc(db, "crew", me),
+          { name: me, car: CREW[me], pv: +pv.value, at: ts() }, { merge: true });
         $("stats-status").innerHTML = `<span class="ok">enregistré ✓</span>`;
       } catch (e) { $("stats-status").innerHTML = `<span class="err">${e.code || e}</span>`; }
     }, 500);   // léger délai pour ne pas écrire à chaque cran du curseur
   };
-  pv.oninput = () => { pvVal.textContent = pv.value; save(); };
-  xp.oninput = save;
 
-  // charge mes valeurs déjà enregistrées
+  // charge mes PV déjà enregistrés
   (async () => {
     try {
       const { db, doc, getDoc } = await fb();
       const snap = await getDoc(doc(db, "crew", me));
-      if (snap.exists()) {
-        const d = snap.data();
-        if (d.pv != null) { pv.value = d.pv; pvVal.textContent = d.pv; }
-        if (d.xp != null) xp.value = d.xp;
+      if (snap.exists() && snap.data().pv != null) {
+        pv.value = snap.data().pv; pvVal.textContent = snap.data().pv;
         $("stats-status").textContent = "enregistré automatiquement";
       }
     } catch (_) {}

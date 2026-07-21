@@ -694,6 +694,15 @@ refreshPhotos(); refreshFaces();
       });
       refreshPhotos();
     });
+
+    // PV live envoyés par l'appli -> écrasent les PV du Sheet (source unique)
+    fs.onSnapshot(fs.collection(db, "crew"), snap => {
+      snap.forEach(doc => {
+        const d = doc.data();
+        if (RPG[d.name] && typeof d.pv === "number") RPG[d.name].pv = d.pv;
+      });
+      render(); renderObs();   // rafraîchit les barres de PV
+    });
   } catch (e) { console.warn("live:", e); }
 })();
 

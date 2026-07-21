@@ -4,6 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Expédition Afrique — App</title>
+  <!-- installable (iPhone : « Ajouter à l'écran d'accueil » ; Android : PWA) -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#14110E">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Expédition">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -34,12 +42,10 @@
       </div>
     </div>
 
-    <!-- PV / XP (sauvegarde automatique) -->
+    <!-- PV (sauvegarde automatique) -->
     <div class="card">
       <div class="row"><span class="label">❤️ Mes PV</span><b id="pv-val">5</b><span class="muted">/10</span></div>
       <input type="range" id="pv" min="0" max="10" value="5" class="slider">
-      <div class="row" style="margin-top:12px"><span class="label">⭐ Mes XP</span>
-        <input type="number" id="xp" class="num" min="0" step="1" value="0"></div>
       <div class="hint" id="stats-status">enregistré automatiquement</div>
     </div>
 

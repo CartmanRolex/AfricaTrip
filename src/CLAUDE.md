@@ -150,7 +150,10 @@ Key JS structures (all near the top of the script):
   `onSnapshot("positions")` → un marqueur `.live-dot` par personne (couleur
   voiture) + remplit `livePositions[nom]={lat,lng,at}` (la fiche aventurier
   affiche « Dernière position » + `ago()` « vu il y a X »),
-  `onSnapshot("photos")` → entrées `GALLERY`. **Rendu carte, 2 systèmes
+  `onSnapshot("photos")` → entrées `GALLERY`,
+  `onSnapshot("crew")` → **PV live** : écrase `RPG[nom].pv` (les PV du Sheet)
+  puis `render()`/`renderObs()` — la barre de PV des sièges ET de la fiche
+  reflètent ce que l'équipier règle dans l'appli. **Rendu carte, 2 systèmes
   SÉPARÉS** : les PHOTOS (`refreshPhotos`, `.map-photo`, clic→lightbox) sont
   regroupées entre elles via `Leaflet.markercluster` (`clusterGroup`, CDN,
   monte en charge) ; les TÊTES des gens à leur dernière position
