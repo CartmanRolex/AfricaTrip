@@ -30,7 +30,12 @@ sur iOS). Le plugin natif `AfricaMedia` n'existe que côté Android (APK).
   sur les projets récents, refusé. On envoie donc les images sur Cloudinary
   via un **upload preset non signé** (gratuit, sans carte) ; seule l'URL
   `secure_url` retournée est stockée dans `photos/{id}` de Firestore.
-- **Login = néant** : on choisit son prénom (stocké en `localStorage`), et
+- **Login = néant** : on choisit son prénom une fois, puis on retombe toujours
+  dessus. Persistance = **cookie `crew-me`** (Max-Age 400 j, ré-écrit à chaque
+  ouverture = fenêtre glissante) **+ miroir `localStorage`** ; on relit le
+  cookie en priorité (`saveMe`/`loadMe`/`clearMe` dans `app.js`). Le cookie est
+  là pour l'iPhone en PWA (« écran d'accueil »), où le localStorage peut être
+  vidé. Le bouton **⇄** du header appelle `clearMe()` pour changer de perso.
   Firebase **Anonymous** connecte l'app en silence pour que les règles
   acceptent l'écriture. Pas de mot de passe, pas d'inscription.
 - **Sécurité** volontairement légère (« délire entre potes ») : règles
@@ -41,7 +46,10 @@ sur iOS). Le plugin natif `AfricaMedia` n'existe que côté Android (APK).
 
 - `www/index.html` / `styles.css` — 2 écrans : choix du prénom, puis dashboard
   (visage en haut, position, PV, mes photos). `<head>` porte le `manifest.json`
-  + les balises `apple-mobile-web-app-*` (installable en PWA sur iPhone).
+  + les balises `apple-mobile-web-app-*` (installable en PWA sur iPhone). Lien
+  **retour au site** (`https://cartmanrolex.github.io/AfricaTrip/`, `target=_blank`)
+  à deux endroits : bouton 🗺️ dans le header du dashboard + lien en pied des
+  deux écrans (`.foot-link`).
 - `www/manifest.json` + `www/icons/` — manifeste PWA + icônes (192/512 +
   `icon-180.png` pour l'apple-touch-icon). Icônes générées par un petit script
   Pillow (diamant orange sur fond désert), voir le commit d'origine.

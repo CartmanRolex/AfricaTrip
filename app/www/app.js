@@ -12,7 +12,26 @@ import { FACES } from "./faces.js";
 const $ = id => document.getElementById(id);
 const CAR_COLOR = { 1: "#E8924A", 2: "#4FB7B3", obs: "#8E8066" };
 const V = "10.12.2", CDN = n => `https://www.gstatic.com/firebasejs/${V}/firebase-${n}.js`;
-let me = localStorage.getItem("crew-me");
+
+// ---- perso mémorisé : COOKIE (fiable sur iPhone « écran d'accueil », où le
+// localStorage d'une PWA peut être vidé) + miroir localStorage. On relit le
+// cookie en priorité, localStorage en secours ; on ré-écrit à chaque ouverture
+// pour repousser l'expiration (fenêtre glissante). --------------------------
+const ME_KEY = "crew-me";
+function saveMe(name) {
+  try { localStorage.setItem(ME_KEY, name); } catch (_) {}
+  document.cookie = `${ME_KEY}=${encodeURIComponent(name)}; Max-Age=${60 * 60 * 24 * 400}; Path=/; SameSite=Lax`;
+}
+function clearMe() {
+  try { localStorage.removeItem(ME_KEY); } catch (_) {}
+  document.cookie = `${ME_KEY}=; Max-Age=0; Path=/; SameSite=Lax`;
+}
+function loadMe() {
+  const m = document.cookie.match(/(?:^|;\s*)crew-me=([^;]*)/);
+  if (m) { try { return decodeURIComponent(m[1]); } catch (_) { return m[1]; } }
+  try { return localStorage.getItem(ME_KEY); } catch (_) { return null; }
+}
+let me = loadMe();
 
 // dans l'APK (Capacitor), on utilise les plugins natifs ; dans un navigateur
 // (test/PWA), on retombe sur les API web (navigator.geolocation, <input file>)
@@ -54,7 +73,7 @@ function renderPick() {
   for (const [name, car] of Object.entries(CREW)) {
     const b = document.createElement("button");
     b.innerHTML = `<span class="car-dot" style="background:${CAR_COLOR[car]}"></span>${name}`;
-    b.onclick = () => { me = name; localStorage.setItem("crew-me", name); start(); };
+    b.onclick = () => { me = name; saveMe(name); start(); };
     grid.appendChild(b);
   }
 }
@@ -70,7 +89,7 @@ function start() {
   $("me-car").textContent = car === 1 ? "🚗 Hugodouard"
     : car === 2 ? "🚙 Paul Pot" : "🛰️ Observateur";
   $("switch").onclick = () => {
-    localStorage.removeItem("crew-me"); me = null;
+    clearMe(); me = null;
     $("dash").classList.add("hidden"); $("pick").classList.remove("hidden");
   };
   initPosition();
@@ -260,4 +279,6 @@ async function delPhoto(id) {
 }
 
 // ---- go -------------------------------------------------------------------
-if (me && CREW[me]) start(); else renderPick();
+// on relance sur le même perso (cookie), tout en gardant le bouton ⇄ pour
+// changer ; ré-écriture = on repousse l'expiration du cookie à chaque ouverture
+if (me && CREW[me]) { saveMe(me); start(); } else renderPick();
