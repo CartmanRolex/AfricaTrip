@@ -73,6 +73,18 @@ button.primary:disabled{opacity:.5}
 .mytile img{width:100%;height:100%;object-fit:cover;display:block}
 .mytile.is-video{border-color:var(--c1)}
 
+/* ---- galerie perso : filtre + sections par jour ---- */
+.count{font-family:var(--body);font-size:12px;color:var(--sand-dim);font-weight:400}
+.mediafilter{display:flex;gap:6px;margin:12px 0 4px}
+.mediafilter button{flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--sand-dim);
+  padding:8px 6px;border-radius:9px;cursor:pointer;font-size:13px;transition:background .12s,color .12s}
+.mediafilter button.on{background:var(--c1);border-color:var(--c1);color:#1a120a;font-weight:600}
+.dayhead{display:flex;align-items:baseline;gap:8px;margin:16px 2px 8px;
+  border-bottom:1px solid var(--line);padding-bottom:4px}
+.dayhead span{font-family:var(--display);font-size:15px;letter-spacing:.02em;text-transform:capitalize}
+.dayhead em{font-style:normal;font-size:11px;color:var(--muted)}
+.empty{text-align:center;padding:18px 0;color:var(--muted)}
+
 /* ---- choix manuel de la localisation (modal + mini-carte) ---- */
 .loc-modal{position:fixed;inset:0;z-index:3000;background:rgba(10,8,6,.78);
   display:flex;align-items:center;justify-content:center;padding:16px}

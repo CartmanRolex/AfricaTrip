@@ -67,12 +67,17 @@
 
     <!-- photos -->
     <div class="card">
-      <span class="label">📷 Mes photos & vidéos</span>
+      <span class="label">📷 Mes photos & vidéos <span id="media-count" class="count"></span></span>
       <p class="hint">Elles s'affichent sur la carte du site, au bon endroit
         (localisation gardée). Vidéos ≤ 1 min conseillées. Appuie sur ✕ pour en retirer une.</p>
       <button id="add-photos" class="primary">Ajouter photos / vidéos</button>
       <div class="hint" id="up-status"></div>
-      <div id="myphotos" class="mygrid"></div>
+      <div class="mediafilter" id="mediafilter">
+        <button type="button" data-f="all" class="on">Tous</button>
+        <button type="button" data-f="image">📷 Photos</button>
+        <button type="button" data-f="video">🎬 Vidéos</button>
+      </div>
+      <div id="myphotos"></div>
     </div>
 
     <p class="foot">Expédition Afrique 2026 ·

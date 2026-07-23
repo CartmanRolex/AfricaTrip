@@ -389,22 +389,78 @@ async function uploadPhoto(blob, lat, lng, date, video = isVideoBlob(blob)) {
 }
 
 // ---- mes photos : grille live + suppression -------------------------------
+// --- galerie perso : groupée par JOUR (récent d'abord) + filtre photos/vidéos.
+// Purement client (aucun changement de schéma) -> fiable même avec beaucoup de
+// médias. Les données arrivent en live (onSnapshot) et on re-rend à chaque
+// snapshot ou changement de filtre. ---
+let myDocs = [];
+let mediaFilter = "all";   // "all" | "image" | "video"
+const isVid = d => d.type === "video" || /\/video\/upload\//.test(d.url || "");
+const atMs = d => { try { return d.at ? d.at.toMillis() : 0; } catch (_) { return 0; } };
+
+function dayLabel(dateStr) {
+  if (!dateStr) return "Sans date";
+  const today = new Date().toISOString().slice(0, 10);
+  const yest = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  if (dateStr === today) return "Aujourd'hui";
+  if (dateStr === yest) return "Hier";
+  return new Date(dateStr + "T12:00:00")
+    .toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "long" });
+}
+
+function renderMyPhotos() {
+  const g = $("myphotos");
+  const docs = myDocs.filter(d =>
+    mediaFilter === "all" ? true : mediaFilter === "video" ? isVid(d) : !isVid(d));
+
+  const count = $("media-count");
+  if (count) count.textContent = myDocs.length ? `· ${myDocs.length}` : "";
+
+  if (!docs.length) {
+    g.innerHTML = `<p class="hint empty">${myDocs.length
+      ? "Aucun média de ce type." : "Pas encore de média — ajoute-en un ci-dessus."}</p>`;
+    return;
+  }
+
+  // regroupe par jour en conservant l'ordre (déjà trié récent -> ancien)
+  const groups = [], byDay = new Map();
+  for (const d of docs) {
+    const day = d.date || "";
+    let grp = byDay.get(day);
+    if (!grp) { grp = { day, items: [] }; byDay.set(day, grp); groups.push(grp); }
+    grp.items.push(d);
+  }
+
+  const tile = d => {
+    const video = isVid(d);
+    const thumb = mediaThumb(d.url, video, 160);
+    return `<div class="mytile${video ? " is-video" : ""}"><img src="${thumb}" alt="" loading="lazy">
+      ${video ? '<span class="playbadge">▶</span>' : ""}
+      <button class="del" data-id="${d.id}" aria-label="Supprimer">✕</button>
+      ${d.gps || d.manual ? "" : '<span class="nogps">sans lieu</span>'}</div>`;
+  };
+
+  g.innerHTML = groups.map(grp =>
+    `<div class="dayhead"><span>${dayLabel(grp.day)}</span><em>${grp.items.length}</em></div>
+     <div class="mygrid">${grp.items.map(tile).join("")}</div>`).join("");
+  g.querySelectorAll(".del").forEach(b => b.onclick = () => delPhoto(b.dataset.id));
+}
+
 async function watchMyPhotos() {
   const { db, collection, query, where, onSnapshot } = await fb();
+  document.querySelectorAll("#mediafilter button").forEach(b => {
+    b.onclick = () => {
+      mediaFilter = b.dataset.f;
+      document.querySelectorAll("#mediafilter button").forEach(x => x.classList.toggle("on", x === b));
+      renderMyPhotos();
+    };
+  });
   onSnapshot(query(collection(db, "photos"), where("name", "==", me)), snap => {
-    const docs = [];
-    snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
-    docs.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-    const g = $("myphotos");
-    g.innerHTML = docs.map(d => {
-      const video = d.type === "video" || /\/video\/upload\//.test(d.url || "");
-      const thumb = mediaThumb(d.url, video, 160);
-      return `<div class="mytile${video ? " is-video" : ""}"><img src="${thumb}" alt="" loading="lazy">
-        ${video ? '<span class="playbadge">▶</span>' : ""}
-        <button class="del" data-id="${d.id}" aria-label="Supprimer">✕</button>
-        ${d.gps ? "" : '<span class="nogps">sans GPS</span>'}</div>`;
-    }).join("");
-    g.querySelectorAll(".del").forEach(b => b.onclick = () => delPhoto(b.dataset.id));
+    myDocs = [];
+    snap.forEach(d => myDocs.push({ id: d.id, ...d.data() }));
+    // récent d'abord : par date puis par horodatage d'envoi
+    myDocs.sort((a, b) => (b.date || "").localeCompare(a.date || "") || atMs(b) - atMs(a));
+    renderMyPhotos();
   }, e => { $("up-status").innerHTML = `<span class="err">${e.code || e}</span>`; });
 }
 async function delPhoto(id) {

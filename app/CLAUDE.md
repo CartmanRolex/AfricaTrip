@@ -75,9 +75,14 @@ sur iOS). Le plugin natif `AfricaMedia` n'existe que côté Android (APK).
   **PV auto-sauvegardés** dès qu'on les modifie (débounce 500ms → `crew/{nom}`
   merge) — pas de bouton, pas de XP ni compétence dans l'app (retirés). Le site
   lit `crew/{nom}.pv` en direct et **écrase** les PV du Sheet. **Mes
-  photos** : `onSnapshot(photos where name==moi)` → grille live avec ✕ =
-  `deleteDoc` (le fichier reste sur Cloudinary, la suppression Cloudinary
-  exigerait la clé secrète non embarquée). **Deux voies d'ajout** : plugin natif
+  photos** : `onSnapshot(photos where name==moi)` → `myDocs` (trié récent
+  d'abord : date puis `at`), rendu par `renderMyPhotos()` : **sections par
+  jour** (`dayLabel` : « Aujourd'hui » / « Hier » / date) + **filtre**
+  `#mediafilter` (Tous / Photos / Vidéos, état `mediaFilter`) + compteur
+  `#media-count`. ✕ = `deleteDoc` (le fichier reste sur Cloudinary, la
+  suppression Cloudinary exigerait la clé secrète non embarquée). Tout est
+  client, aucun changement de schéma → tient la charge quand il y a beaucoup
+  de médias. **Deux voies d'ajout** : plugin natif
   `AfricaMedia.pickWithLocation()` (GPS fiable) sinon `<input file>` + `exifr`
   (fallback navigateur ; sur Android réel le GPS y serait expurgé). Accès
   plugins via helper `plugin()` (registerPlugin OU Capacitor.Plugins.X).
