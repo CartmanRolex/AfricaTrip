@@ -49,6 +49,17 @@ function b64toBlob(b64, type = "image/jpeg") {
   for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
   return new Blob([arr], { type });
 }
+// Plafond côté client (Cloudinary gratuit = 100 Mo/fichier en upload non signé).
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+const isVideoBlob = b => (b && b.type || "").startsWith("video/");
+// Vignette : photo -> crop carré ; vidéo -> poster (1re frame) en .jpg.
+function mediaThumb(url, video, px) {
+  if (!url) return "";
+  return video
+    ? url.replace("/video/upload/", `/video/upload/w_${px},h_${px},c_fill,so_0/`)
+         .replace(/\.[a-z0-9]+($|\?)/i, ".jpg$1")
+    : url.replace("/upload/", `/upload/w_${px},h_${px},c_fill,q_auto,f_auto/`);
+}
 
 // ---- Firebase à la demande -----------------------------------------------
 let _fb = null;
@@ -252,46 +263,59 @@ function initPhotos() {
     }
   };
   $("fallback-input").onchange = async e => {
-    const exifr = await import("https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.esm.mjs");
     for (const f of e.target.files) {
       let lat = null, lng = null, date = null;
-      try {
-        const g = await exifr.gps(f);
-        if (g) { lat = g.latitude; lng = g.longitude; }
-        const d = await exifr.parse(f, ["DateTimeOriginal"]);
-        if (d && d.DateTimeOriginal) date = d.DateTimeOriginal.toISOString().slice(0, 10);
-      } catch (_) {}
-      await uploadPhoto(f, lat, lng, date);
+      const video = (f.type || "").startsWith("video/");
+      if (video) {
+        // Les vidéos n'ont pas d'EXIF ; leur GPS (atome QuickTime) n'est pas
+        // lisible en navigateur -> sans position, placée par date (lastModified).
+        if (f.lastModified) date = new Date(f.lastModified).toISOString().slice(0, 10);
+      } else {
+        const exifr = await import("https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.esm.mjs");
+        try {
+          const g = await exifr.gps(f);
+          if (g) { lat = g.latitude; lng = g.longitude; }
+          const d = await exifr.parse(f, ["DateTimeOriginal"]);
+          if (d && d.DateTimeOriginal) date = d.DateTimeOriginal.toISOString().slice(0, 10);
+        } catch (_) {}
+      }
+      await uploadPhoto(f, lat, lng, date, video);
     }
     e.target.value = "";
   };
 }
 
-async function uploadPhoto(blob, lat, lng, date) {
+async function uploadPhoto(blob, lat, lng, date, video = isVideoBlob(blob)) {
   const st = $("up-status");
+  const noun = video ? "vidéo" : "photo";
+  if (video && blob.size > MAX_VIDEO_BYTES) {
+    st.innerHTML = `<span class="err">vidéo trop lourde (${Math.round(blob.size / 1048576)} Mo, max 100) — filme plus court</span>`;
+    return;
+  }
   st.textContent = "envoi…";
   try {
     // le FICHIER va sur Cloudinary (gratuit, sans carte) ; seules les
-    // MÉTADONNÉES (nom, position, date, url) vont dans Firestore.
+    // MÉTADONNÉES (nom, position, date, url, type) vont dans Firestore.
+    // Endpoint distinct pour la vidéo (/video/upload) vs l'image (/image/upload).
     const form = new FormData();
     form.append("file", blob);
     form.append("upload_preset", CLOUDINARY.preset);
     const res = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUDINARY.cloudName}/image/upload`,
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY.cloudName}/${video ? "video" : "image"}/upload`,
       { method: "POST", body: form });
     if (!res.ok) throw new Error("upload " + res.status);
     const link = (await res.json()).secure_url;
 
     const { db, addDoc, collection, ts } = await fb();
     await addDoc(collection(db, "photos"), {
-      name: me, car: CREW[me], url: link,
+      name: me, car: CREW[me], url: link, type: video ? "video" : "image",
       lat: lat ?? null, lng: lng ?? null, gps: lat != null,
       date: date || new Date().toISOString().slice(0, 10), at: ts(),
     });
     // la grille "mes photos" se met à jour toute seule (onSnapshot)
     st.innerHTML = lat != null
-      ? `<span class="ok">photo ajoutée avec sa position ✓</span>`
-      : `<span class="ok">photo ajoutée</span> (sans GPS → placée à la date)`;
+      ? `<span class="ok">${noun} ajoutée avec sa position ✓</span>`
+      : `<span class="ok">${noun} ajoutée</span> (sans GPS → placée à la date)`;
   } catch (e) { st.innerHTML = `<span class="err">erreur: ${e.code || e}</span>`; }
 }
 
@@ -304,8 +328,10 @@ async function watchMyPhotos() {
     docs.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
     const g = $("myphotos");
     g.innerHTML = docs.map(d => {
-      const thumb = (d.url || "").replace("/upload/", "/upload/w_160,h_160,c_fill,q_auto,f_auto/");
-      return `<div class="mytile"><img src="${thumb}" alt="" loading="lazy">
+      const video = d.type === "video" || /\/video\/upload\//.test(d.url || "");
+      const thumb = mediaThumb(d.url, video, 160);
+      return `<div class="mytile${video ? " is-video" : ""}"><img src="${thumb}" alt="" loading="lazy">
+        ${video ? '<span class="playbadge">▶</span>' : ""}
         <button class="del" data-id="${d.id}" aria-label="Supprimer">✕</button>
         ${d.gps ? "" : '<span class="nogps">sans GPS</span>'}</div>`;
     }).join("");

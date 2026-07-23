@@ -67,10 +67,10 @@
 
     <!-- photos -->
     <div class="card">
-      <span class="label">📷 Mes photos</span>
+      <span class="label">📷 Mes photos & vidéos</span>
       <p class="hint">Elles s'affichent sur la carte du site, au bon endroit
-        (localisation gardée). Appuie sur ✕ pour en retirer une.</p>
-      <button id="add-photos" class="primary">Ajouter des photos</button>
+        (localisation gardée). Vidéos ≤ 1 min conseillées. Appuie sur ✕ pour en retirer une.</p>
+      <button id="add-photos" class="primary">Ajouter photos / vidéos</button>
       <div class="hint" id="up-status"></div>
       <div id="myphotos" class="mygrid"></div>
     </div>
@@ -80,7 +80,7 @@
          target="_blank" rel="noopener">↗ voir la carte du site</a></p>
   </section>
 
-  <input type="file" id="fallback-input" accept="image/*" multiple hidden>
+  <input type="file" id="fallback-input" accept="image/*,video/*" multiple hidden>
   <script type="module" src="app.js"></script>
 </body>
 </html>
