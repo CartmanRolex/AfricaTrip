@@ -92,6 +92,14 @@ sur iOS). Le plugin natif `AfricaMedia` n'existe que côté Android (APK).
   `mediaThumb`) avec un badge ▶. Le preset Cloudinary non signé doit
   autoriser la ressource vidéo (à vérifier côté dashboard si un upload est
   rejeté).
+  **Localisation manuelle** : si `uploadPhoto` reçoit `lat == null` (média sans
+  GPS — typiquement toute vidéo web, ou photo dépouillée), un modal `#loc-modal`
+  s'ouvre (`askLocation()`) : mini-carte Leaflet chargée À LA DEMANDE
+  (`loadLeaflet`, CDN, rien au démarrage), on cadre sous une épingle centrale
+  fixe (Valider = `map.getCenter()`) ou bouton « ◉ Ma position »
+  (`navigator.geolocation`). Résout `{lat,lng}` → `manual:true`, ou `null`
+  (Ignorer) → média sans lieu. S'applique aussi au natif si une photo/vidéo
+  arrive sans GPS.
 - `www/firebase-config.js` — clés Firebase + `CLOUDINARY` (cloudName, preset)
   + `CREW` (prénom → voiture). Clés non secrètes.
 - `firestore.rules` — à coller dans la console Firebase (pas de storage.rules :
@@ -104,10 +112,14 @@ sur iOS). Le plugin natif `AfricaMedia` n'existe que côté Android (APK).
 - `tracks/{nom}/points/{id}` : `{lat, lng, at}` — trace réelle parcourue.
 - `crew/{nom}` : `{name, car, pv, at}` — PV live (le site les lit et écrase le
   Sheet). L'app n'écrit plus xp/skill.
-- `photos/{id}` : `{name, car, url, type, lat, lng, gps, date, at}` — bulles
-  carte (`url` = lien Cloudinary `secure_url` ; le fichier n'est pas dans
+- `photos/{id}` : `{name, car, url, type, lat, lng, gps, manual, date, at}` —
+  bulles carte (`url` = lien Cloudinary `secure_url` ; le fichier n'est pas dans
   Firebase). `type` = `"image"` (défaut) ou `"video"` ; les anciens docs sans
   `type` sont traités comme image (sniff de l'URL `/video/upload/` en secours).
+  `gps` = position issue du média (EXIF/atome) ; `manual` = position choisie à
+  la main quand le média n'avait pas de GPS (le site affiche « position
+  choisie » vs « estimée (convoi) »). Un média sans lat/lng n'apparaît PAS sur
+  la carte (le lecteur live ignore les entrées sans position).
 
 ## À faire (voir README « État »)
 

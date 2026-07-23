@@ -81,6 +81,28 @@
   </section>
 
   <input type="file" id="fallback-input" accept="image/*,video/*" multiple hidden>
+
+  <!-- choix manuel de la localisation quand un média n'a pas de GPS.
+       On déplace la carte sous une épingle FIXE centrée (valider = centre). -->
+  <div id="loc-modal" class="loc-modal hidden" role="dialog" aria-modal="true">
+    <div class="loc-card">
+      <div class="loc-head">Où était-ce&nbsp;?</div>
+      <p class="loc-hint">Pas de localisation dans ce média. Déplace la carte pour
+        placer l'épingle à l'endroit, ou utilise ta position.</p>
+      <div class="loc-map-wrap">
+        <div id="loc-map" class="loc-map"></div>
+        <div class="loc-pin" aria-hidden="true">📍</div>
+      </div>
+      <div class="loc-actions">
+        <button id="loc-here" class="ghost" type="button">◉ Ma position</button>
+        <div class="loc-right">
+          <button id="loc-skip" class="ghost" type="button">Ignorer</button>
+          <button id="loc-ok" class="primary" type="button">Valider</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="app.js"></script>
 </body>
 </html>

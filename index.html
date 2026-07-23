@@ -737,7 +737,7 @@ refreshPhotos(); refreshFaces();
         const video = d.type === 'video' || /\/video\/upload\//.test(d.url || '');
         const thumb = mediaThumb(d.url, video, 96);
         GALLERY.push({ id: doc.id, name: d.name, date: d.date, lat: d.lat, lng: d.lng,
-                       gps: !!d.gps, video, thumb, file: d.url });
+                       gps: !!d.gps, manual: !!d.manual, video, thumb, file: d.url });
       });
       refreshPhotos();
     });
@@ -773,7 +773,7 @@ function showLb(){
   const d=new Date(g.date+'T12:00:00');
   lb.querySelector('.lightbox-cap').innerHTML=
     `<b>${d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}</b>`+
-    (g.gps?'':' · position estimée (convoi)')+
+    (g.gps?'':(g.manual?' · position choisie':' · position estimée (convoi)'))+
     (lbList.length>1?` · ${lbIdx+1}/${lbList.length}`:'');
   const nav=lbList.length>1?'grid':'none';
   lb.querySelector('.lb-prev').style.display=nav;

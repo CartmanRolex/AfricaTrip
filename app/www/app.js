@@ -61,6 +61,57 @@ function mediaThumb(url, video, px) {
     : url.replace("/upload/", `/upload/w_${px},h_${px},c_fill,q_auto,f_auto/`);
 }
 
+// ---- choix manuel de la localisation (média sans GPS) ---------------------
+// Leaflet chargé À LA DEMANDE (rien de plus au démarrage quand le GPS est là).
+let leafletP = null;
+function loadLeaflet() {
+  if (window.L) return Promise.resolve();
+  if (leafletP) return leafletP;
+  leafletP = new Promise((resolve, reject) => {
+    const css = document.createElement("link");
+    css.rel = "stylesheet";
+    css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
+    document.head.appendChild(css);
+    const js = document.createElement("script");
+    js.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
+    js.onload = () => resolve();
+    js.onerror = () => reject(new Error("leaflet"));
+    document.head.appendChild(js);
+  });
+  return leafletP;
+}
+
+let locMap = null;
+// Ouvre la carte, l'utilisateur cadre sous l'épingle centrale (ou "Ma position").
+// Résout {lat,lng} si Valider, null si Ignorer / échec de chargement.
+async function askLocation() {
+  try { await loadLeaflet(); } catch (_) { return null; }
+  const modal = $("loc-modal");
+  modal.classList.remove("hidden");
+  if (!locMap) {
+    locMap = L.map("loc-map", { zoomControl: true, attributionControl: true, minZoom: 2 })
+      .setView([16.5, -14], 4);   // Sahel/Sénégal par défaut
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+      { subdomains: "abcd", maxZoom: 19, attribution: "&copy; OpenStreetMap &copy; CARTO" }).addTo(locMap);
+  }
+  setTimeout(() => locMap.invalidateSize(), 60);   // la carte a une taille une fois le modal visible
+
+  return new Promise(resolve => {
+    const ok = $("loc-ok"), skip = $("loc-skip"), here = $("loc-here");
+    const done = val => { ok.onclick = skip.onclick = here.onclick = null; modal.classList.add("hidden"); resolve(val); };
+    ok.onclick = () => { const c = locMap.getCenter(); done({ lat: +c.lat.toFixed(6), lng: +c.lng.toFixed(6) }); };
+    skip.onclick = () => done(null);
+    here.onclick = () => {
+      if (!navigator.geolocation) return;
+      here.disabled = true; here.textContent = "…";
+      navigator.geolocation.getCurrentPosition(
+        p => { locMap.setView([p.coords.latitude, p.coords.longitude], 14); here.disabled = false; here.textContent = "◉ Ma position"; },
+        _ => { here.disabled = false; here.textContent = "◉ Ma position"; },
+        { enableHighAccuracy: true, timeout: 8000 });
+    };
+  });
+}
+
 // ---- Firebase à la demande -----------------------------------------------
 let _fb = null;
 async function fb() {
@@ -302,6 +353,12 @@ async function uploadPhoto(blob, lat, lng, date, video = isVideoBlob(blob)) {
     st.innerHTML = `<span class="err">vidéo trop lourde (${Math.round(blob.size / 1048576)} Mo, max 100) — filme plus court</span>`;
     return;
   }
+  // pas de localisation détectée -> l'utilisateur la choisit sur une mini-carte
+  let manual = false;
+  if (lat == null) {
+    const picked = await askLocation();
+    if (picked) { lat = picked.lat; lng = picked.lng; manual = true; }
+  }
   st.textContent = "envoi…";
   try {
     // le FICHIER va sur Cloudinary (gratuit, sans carte) ; seules les
@@ -319,13 +376,15 @@ async function uploadPhoto(blob, lat, lng, date, video = isVideoBlob(blob)) {
     const { db, addDoc, collection, ts } = await fb();
     await addDoc(collection(db, "photos"), {
       name: me, car: CREW[me], url: link, type: video ? "video" : "image",
-      lat: lat ?? null, lng: lng ?? null, gps: lat != null,
+      lat: lat ?? null, lng: lng ?? null, gps: lat != null && !manual, manual,
       date: date || new Date().toISOString().slice(0, 10), at: ts(),
     });
     // la grille "mes photos" se met à jour toute seule (onSnapshot)
-    st.innerHTML = lat != null
-      ? `<span class="ok">${noun} ajoutée avec sa position ✓</span>`
-      : `<span class="ok">${noun} ajoutée</span> (sans GPS → placée à la date)`;
+    st.innerHTML = manual
+      ? `<span class="ok">${noun} ajoutée à l'endroit choisi ✓</span>`
+      : lat != null
+        ? `<span class="ok">${noun} ajoutée avec sa position ✓</span>`
+        : `<span class="ok">${noun} ajoutée</span> (sans lieu → n'apparaîtra pas sur la carte)`;
   } catch (e) { st.innerHTML = `<span class="err">erreur: ${e.code || e}</span>`; }
 }
 
