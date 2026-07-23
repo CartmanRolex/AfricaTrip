@@ -255,8 +255,18 @@ function initPhotos() {
     if (native) {
       try {
         const { items } = await plugin("AfricaMedia").pickWithLocation();
-        for (const it of (items || []))
-          await uploadPhoto(b64toBlob(it.base64), it.lat ?? null, it.lng ?? null, it.date || null);
+        for (const it of (items || [])) {
+          const lat = it.lat ?? null, lng = it.lng ?? null, date = it.date || null;
+          if (it.video && it.path) {
+            // vidéo : le natif a copié le fichier en cache (pas de base64) ->
+            // on le relit via la WebView (convertFileSrc) puis on l'uploade.
+            const src = (CAP && CAP.convertFileSrc) ? CAP.convertFileSrc(it.path) : it.path;
+            const blob = await (await fetch(src)).blob();
+            await uploadPhoto(blob, lat, lng, date, true);
+          } else {
+            await uploadPhoto(b64toBlob(it.base64), lat, lng, date, false);
+          }
+        }
       } catch (e) { $("up-status").innerHTML = `<span class="err">erreur: ${e.message || e}</span>`; }
     } else {
       $("fallback-input").click();

@@ -22,8 +22,13 @@ sur iOS). Le plugin natif `AfricaMedia` n'existe que côté Android (APK).
 ## Pourquoi ces choix
 
 - **Capacitor** : UI web (`www/`, vanilla, thème désert) + couche native
-  minimale. Le natif ne sert qu'à une chose : lire le GPS EXIF des photos
-  (permission `ACCESS_MEDIA_LOCATION` + `setRequireOriginal()` + `ExifInterface`).
+  minimale. Le natif ne sert qu'à une chose : lire la localisation NON expurgée
+  des médias (`ACCESS_MEDIA_LOCATION` + `setRequireOriginal()`). Photos : GPS
+  EXIF via `ExifInterface`, fichier renvoyé en `base64`. Vidéos : GPS = atome
+  ISO-6709 QuickTime via `MediaMetadataRetriever` (`METADATA_KEY_LOCATION`),
+  fichier PAS en base64 (trop lourd) mais copié en cache → `path` file:// que
+  le JS relit (`Capacitor.convertFileSrc`) puis uploade. Permission
+  `READ_MEDIA_VIDEO` ajoutée. Le sélecteur accepte `image/*` + `video/*`.
 - **Firebase** : Firestore (positions, PV, méta-photos). Serverless → rien à
   héberger. Le site lira ces données en direct.
 - **Cloudinary** (fichiers photo) : Firebase Storage exige une carte (Blaze)

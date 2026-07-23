@@ -41,9 +41,10 @@
     <!-- position (partage quand l'appli est ouverte) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <!-- lire le GPS EXIF des photos (le coeur du projet) -->
+    <!-- lire le GPS EXIF des photos / l'atome de localisation des vidéos (le coeur du projet) -->
     <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 </manifest>
