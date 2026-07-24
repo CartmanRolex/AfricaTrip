@@ -125,7 +125,7 @@ async function fb() {
           onAuth: cb => au.onAuthStateChanged(auth, cb),
           db: fs.getFirestore(app),
           doc: fs.doc, getDoc: fs.getDoc, setDoc: fs.setDoc,
-          addDoc: fs.addDoc, deleteDoc: fs.deleteDoc,
+          addDoc: fs.addDoc, deleteDoc: fs.deleteDoc, updateDoc: fs.updateDoc,
           collection: fs.collection, query: fs.query, where: fs.where,
           onSnapshot: fs.onSnapshot, ts: fs.serverTimestamp };
   return _fb;
@@ -434,8 +434,10 @@ function renderMyPhotos() {
   const tile = d => {
     const video = isVid(d);
     const thumb = mediaThumb(d.url, video, 160);
-    return `<div class="mytile${video ? " is-video" : ""}"><img src="${thumb}" alt="" loading="lazy">
+    return `<div class="mytile${video ? " is-video" : ""}" data-id="${d.id}" role="button" tabindex="0">
+      <img src="${thumb}" alt="" loading="lazy">
       ${video ? '<span class="playbadge">▶</span>' : ""}
+      ${d.caption ? '<span class="capbadge" aria-label="Avec légende">💬</span>' : ""}
       <button class="del" data-id="${d.id}" aria-label="Supprimer">✕</button>
       ${d.gps || d.manual ? "" : '<span class="nogps">sans lieu</span>'}</div>`;
   };
@@ -443,11 +445,49 @@ function renderMyPhotos() {
   g.innerHTML = groups.map(grp =>
     `<div class="dayhead"><span>${dayLabel(grp.day)}</span><em>${grp.items.length}</em></div>
      <div class="mygrid">${grp.items.map(tile).join("")}</div>`).join("");
-  g.querySelectorAll(".del").forEach(b => b.onclick = () => delPhoto(b.dataset.id));
+  g.querySelectorAll(".del").forEach(b => b.onclick = e => { e.stopPropagation(); delPhoto(b.dataset.id); });
+  g.querySelectorAll(".mytile").forEach(t => t.onclick = () => openMedia(t.dataset.id));
+}
+
+// --- détail d'un média : voir en grand + éditer la légende -----------------
+let editingId = null;
+function closeMedia() {
+  const v = $("media-view").querySelector("video");
+  if (v) { try { v.pause(); } catch (_) {} }
+  $("media-view").innerHTML = "";
+  $("media-modal").classList.add("hidden");
+  editingId = null;
+}
+function openMedia(id) {
+  const d = myDocs.find(x => x.id === id);
+  if (!d) return;
+  editingId = id;
+  const video = isVid(d);
+  $("media-view").innerHTML = video
+    ? `<video src="${d.url}" controls playsinline poster="${mediaThumb(d.url, true, 600)}"></video>`
+    : `<img src="${mediaThumb(d.url, false, 800)}" alt="">`;
+  $("media-caption").value = d.caption || "";
+  $("media-modal").classList.remove("hidden");
+}
+function initMediaModal() {
+  $("media-close").onclick = closeMedia;
+  $("media-modal").onclick = e => { if (e.target === $("media-modal")) closeMedia(); };
+  $("media-save").onclick = async () => {
+    if (!editingId) return;
+    const btn = $("media-save"); btn.disabled = true; btn.textContent = "…";
+    try {
+      const { db, doc, updateDoc } = await fb();
+      await updateDoc(doc(db, "photos", editingId), { caption: $("media-caption").value.trim() });
+      closeMedia();
+    } catch (e) { $("up-status").innerHTML = `<span class="err">légende: ${e.code || e}</span>`; }
+    finally { btn.disabled = false; btn.textContent = "Enregistrer"; }
+  };
+  $("media-del").onclick = () => { const id = editingId; closeMedia(); if (id) delPhoto(id); };
 }
 
 async function watchMyPhotos() {
   const { db, collection, query, where, onSnapshot } = await fb();
+  initMediaModal();
   document.querySelectorAll("#mediafilter button").forEach(b => {
     b.onclick = () => {
       mediaFilter = b.dataset.f;

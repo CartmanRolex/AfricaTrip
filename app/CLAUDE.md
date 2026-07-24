@@ -82,7 +82,13 @@ sur iOS). Le plugin natif `AfricaMedia` n'existe que côté Android (APK).
   `#media-count`. ✕ = `deleteDoc` (le fichier reste sur Cloudinary, la
   suppression Cloudinary exigerait la clé secrète non embarquée). Tout est
   client, aucun changement de schéma → tient la charge quand il y a beaucoup
-  de médias. **Deux voies d'ajout** : plugin natif
+  de médias.
+  **Légende** : taper sur une tuile ouvre `#media-modal` (`openMedia` → média
+  en grand + `<input #media-caption>`) ; Enregistrer = `updateDoc` du seul
+  champ `caption` (`initMediaModal`). Un badge 💬 marque les tuiles légendées.
+  Le site affiche la légende dans la lightbox et en infobulle de bulle.
+  ⚠️ Nécessite la règle Firestore `photos` en `allow update` restreint à
+  `caption` (voir `firestore.rules`) — À PUBLIER dans la console. **Deux voies d'ajout** : plugin natif
   `AfricaMedia.pickWithLocation()` (GPS fiable) sinon `<input file>` + `exifr`
   (fallback navigateur ; sur Android réel le GPS y serait expurgé). Accès
   plugins via helper `plugin()` (registerPlugin OU Capacitor.Plugins.X).
@@ -117,8 +123,8 @@ sur iOS). Le plugin natif `AfricaMedia` n'existe que côté Android (APK).
 - `tracks/{nom}/points/{id}` : `{lat, lng, at}` — trace réelle parcourue.
 - `crew/{nom}` : `{name, car, pv, at}` — PV live (le site les lit et écrase le
   Sheet). L'app n'écrit plus xp/skill.
-- `photos/{id}` : `{name, car, url, type, lat, lng, gps, manual, date, at}` —
-  bulles carte (`url` = lien Cloudinary `secure_url` ; le fichier n'est pas dans
+- `photos/{id}` : `{name, car, url, type, lat, lng, gps, manual, caption, date, at}`
+  — bulles carte (`url` = lien Cloudinary `secure_url` ; le fichier n'est pas dans
   Firebase). `type` = `"image"` (défaut) ou `"video"` ; les anciens docs sans
   `type` sont traités comme image (sniff de l'URL `/video/upload/` en secours).
   `gps` = position issue du média (EXIF/atome) ; `manual` = position choisie à

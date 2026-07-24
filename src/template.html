@@ -127,6 +127,8 @@ body.danger-far .bubble-wrap{width:22px;height:22px}
 .lightbox video{background:#000;outline:none}
 .lightbox-cap{font-family:var(--mono);font-size:11px;color:var(--sand-dim);letter-spacing:.05em;text-align:center}
 .lightbox-cap b{color:var(--sand);font-weight:400}
+.lb-cap-text{font-family:var(--sans,system-ui,sans-serif);font-size:15px;color:var(--sand);
+  letter-spacing:0;line-height:1.35;margin-bottom:6px;max-width:80vw}
 .lb-nav{position:fixed;top:50%;transform:translateY(-50%);width:44px;height:66px;z-index:2001;
   display:grid;place-items:center;background:rgba(30,24,19,.85);border:1px solid var(--line);
   border-radius:10px;color:var(--sand);font-size:28px;line-height:1;padding:0 0 4px}
@@ -679,7 +681,7 @@ function refreshPhotos(){
   GALLERY.forEach((g, i) => {
     if (g.lat == null) return;
     const m = L.marker([g.lat, g.lng], { pileImg: g.thumb, icon: L.divIcon({ className: '', iconSize: [30, 30],
-      iconAnchor: [15, -3], html: `<div class="map-photo${g.video ? ' is-video' : ''}"><img src="${g.thumb}" alt=""></div>` }) });
+      iconAnchor: [15, -3], html: `<div class="map-photo${g.video ? ' is-video' : ''}"><img src="${g.thumb}" alt=""${g.caption ? ` title="${esc(g.caption)}"` : ''}></div>` }) });
     m.on('click', () => {
       const list = GALLERY.map((_, k) => k).filter(k => GALLERY[k].lat != null);
       openLightbox(list, list.indexOf(i));
@@ -736,7 +738,7 @@ refreshPhotos(); refreshFaces();
         const video = d.type === 'video' || /\/video\/upload\//.test(d.url || '');
         const thumb = mediaThumb(d.url, video, 96);
         GALLERY.push({ id: doc.id, name: d.name, date: d.date, lat: d.lat, lng: d.lng,
-                       gps: !!d.gps, manual: !!d.manual, video, thumb, file: d.url });
+                       gps: !!d.gps, manual: !!d.manual, caption: d.caption || '', video, thumb, file: d.url });
       });
       refreshPhotos();
     });
@@ -753,6 +755,8 @@ refreshPhotos(); refreshFaces();
 })();
 
 const lb=document.getElementById('lightbox');
+// échappe le texte (légende) saisi par l'équipage avant injection HTML
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 let lbList=[],lbIdx=0;
 function openLightbox(list,idx){ lbList=list; lbIdx=idx; showLb(); }
 function showLb(){
@@ -771,6 +775,7 @@ function showLb(){
   }
   const d=new Date(g.date+'T12:00:00');
   lb.querySelector('.lightbox-cap').innerHTML=
+    (g.caption?`<div class="lb-cap-text">${esc(g.caption)}</div>`:'')+
     `<b>${d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}</b>`+
     (g.gps?'':(g.manual?' · position choisie':' · position estimée (convoi)'))+
     (lbList.length>1?` · ${lbIdx+1}/${lbList.length}`:'');

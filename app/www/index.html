@@ -87,6 +87,20 @@
 
   <input type="file" id="fallback-input" accept="image/*,video/*" multiple hidden>
 
+  <!-- détail d'un média : voir en grand + ajouter/éditer sa légende -->
+  <div id="media-modal" class="media-modal hidden" role="dialog" aria-modal="true">
+    <div class="media-card">
+      <button id="media-close" class="media-close" type="button" aria-label="Fermer">✕</button>
+      <div id="media-view" class="media-view"></div>
+      <input id="media-caption" class="text cap-input" type="text" maxlength="140"
+             placeholder="Ajoute une légende…">
+      <div class="media-actions">
+        <button id="media-del" class="ghost danger" type="button">Supprimer</button>
+        <button id="media-save" class="primary" type="button">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
   <!-- choix manuel de la localisation quand un média n'a pas de GPS.
        On déplace la carte sous une épingle FIXE centrée (valider = centre). -->
   <div id="loc-modal" class="loc-modal hidden" role="dialog" aria-modal="true">

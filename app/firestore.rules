@@ -36,7 +36,10 @@ service cloud.firestore {
       allow read: if true;
       allow create: if signed() && request.resource.data.url is string;
       allow delete: if signed();   // l'app permet de retirer ses photos
-      allow update: if false;
+      // édition de la SEULE légende (le compte équipage ne peut pas altérer
+      // url/position/etc. d'une photo, juste ajouter/changer `caption`).
+      allow update: if signed()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['caption']);
     }
   }
 }
