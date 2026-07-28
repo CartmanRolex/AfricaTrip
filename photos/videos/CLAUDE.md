@@ -17,7 +17,7 @@ falls back to the static photo (`oncanplay` gate → `.vid-ok`).
 | `hugo_live.mp4`    | Hugo    | 800×1418 colonial-explorer loop (jungle, pith helmet), waist-up shot so the head sits high in frame → w:170% l:-36% t:-59.4% |
 | `gal_live.mp4`     | Gal     | 800×1088 Touareg portrait (indigo chèche, camp + camels behind); tall head (turban→chin ≈ 390px) so the circle needs a LOOSE frame or its curve clips the jaw → w:151.5% l:-26.1% t:-28.6% |
 | `arthur_live.mp4`  | Arthur  | 800x1088 desert portrait (beige djellaba, dunes + oasis) -> w:182% l:-43.2% t:-15.9% |
-| `dorvan_live.mp4`  | Dorvan  | 800x1088 savanna sunset (zebras + giraffe) -> w:181.8% l:-40.9% t:-5.6% |
+| `dorvan_live.mp4`  | Dorvan  | 800x1088 savanna sunset; Dorvan + zebras + giraffe + grass all move -> w:181.8% l:-40.9% t:-5.6% |
 | `paul_live.mp4`    | Paul    | 800x773 (near-square source) rice paddy, conical hat: wide brim, framed to keep the face readable -> w:177.8% l:-38.9% t:0% |
 | `giordano_live.mp4`| Giordano| 800x1088 physics lecture hall (blackboard of equations) -> w:160% l:-25% t:-64% |
 | `jehan_live.mp4`   | Jehan   | 800x773 sailing boat at sea, captain's cap -> w:250% l:-75% t:-0.7% |
@@ -46,3 +46,45 @@ seconds" a fait fermer les yeux à Younous pour tout le clip.
 Pour juger, extraire des images entières (`full.py` sur la machine
 Basement) : une planche de 12 vignettes rate un clignement, qui ne dure
 que 3 à 6 images sur 121.
+
+## Dorvan — arrière-plan de savane animé (2026-07-28)
+
+La version actuelle de `dorvan_live.mp4` a été régénérée localement avec
+Wan2.2 TI2V-5B depuis
+`/home/students/Gal/video-gen/dorvan_savane.png`, avec le seed `4242`.
+L'ancien prompt générique animait Dorvan mais laissait les animaux figés.
+Le nouveau prompt verrouille Dorvan et la caméra tout en demandant un
+mouvement explicite de chaque couche de l'arrière-plan :
+
+```text
+Bring this still photo to life as a seamless living portrait video. Keep the
+man's face, identity, clothing, body, pose, hand, and framing exactly as in
+the source image. His eyes stay open and look straight at the camera except
+for two or three very quick natural blinks. He breathes subtly, with tiny
+natural shifts of the head and shoulders and slight movement in the hair.
+Neutral expression, mouth closed, no talking, no smiling, no gesture. The
+entire savanna background is alive with clearly visible but gentle realistic
+motion throughout the clip: the zebras in the left background slowly walk
+and graze, naturally moving their legs, heads, ears, and tails; the giraffe
+in the right background takes one or two slow steps, gently turns its head
+and neck, and flicks its ears and tail; the more distant animals shift and
+walk slowly; tall grass sways lightly and tiny dust motes drift in the warm
+breeze. Every background animal moves independently and naturally, without
+abrupt changes of species, count, shape, or position. No frozen animals.
+Static locked-off camera, no zoom, no pan, no cut, no camera shake. Preserve
+the original composition, warm sunset lighting, depth of field, and
+photorealism. No new animals, no animal approaching or crossing in front of
+the man, no deformation, no extra limbs. Photorealistic, HD.
+```
+
+Commande :
+
+```bash
+cd /home/students/Gal/video-gen
+./generate.sh "<prompt ci-dessus>" --image dorvan_savane.png --base_seed 4242
+```
+
+Sortie validée : H.264/yuv420p, 800x1088, 24 fps, 121 images (5,041667 s),
+sans audio. Contrôler le visage et les deux zones d'animaux sur les
+121 images avant de remplacer l'asset du site ; une planche trop espacée
+peut masquer un clignement ou une déformation brève.
