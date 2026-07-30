@@ -60,6 +60,11 @@ function mediaThumb(url, video, px) {
          .replace(/\.[a-z0-9]+($|\?)/i, ".jpg$1")
     : url.replace("/upload/", `/upload/w_${px},h_${px},c_fill,q_auto,f_auto/`);
 }
+function validCoords(lat, lng) {
+  return Number.isFinite(lat) && Number.isFinite(lng)
+    && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+}
+const hasLocation = d => !!d && validCoords(d.lat, d.lng);
 
 // ---- choix manuel de la localisation (média sans GPS) ---------------------
 // Leaflet chargé À LA DEMANDE (rien de plus au démarrage quand le GPS est là).
@@ -74,41 +79,145 @@ function loadLeaflet() {
     document.head.appendChild(css);
     const js = document.createElement("script");
     js.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
-    js.onload = () => resolve();
-    js.onerror = () => reject(new Error("leaflet"));
+    const failed = () => {
+      leafletP = null;   // une panne CDN ponctuelle doit pouvoir être retentée
+      css.remove();
+      js.remove();
+      reject(new Error("leaflet"));
+    };
+    js.onload = () => window.L ? resolve() : failed();
+    js.onerror = failed;
     document.head.appendChild(js);
   });
   return leafletP;
 }
 
 let locMap = null;
+let lastUploadLocation = null;
 // Ouvre la carte, l'utilisateur cadre sous l'épingle centrale (ou "Ma position").
-// Résout {lat,lng} si Valider, null si Ignorer / échec de chargement.
-async function askLocation() {
-  try { await loadLeaflet(); } catch (_) { return null; }
-  const modal = $("loc-modal");
-  modal.classList.remove("hidden");
-  if (!locMap) {
-    locMap = L.map("loc-map", { zoomControl: true, attributionControl: true, minZoom: 2 })
-      .setView([16.5, -14], 4);   // Sahel/Sénégal par défaut
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-      { subdomains: "abcd", maxZoom: 19, attribution: "&copy; OpenStreetMap &copy; CARTO" }).addTo(locMap);
+// En édition, part du lieu existant et propose Annuler au lieu d'Ignorer.
+// Résout {lat,lng} si Valider, null si Ignorer/Annuler ; lève si la carte échoue.
+async function askLocation({ initial = null, editing = false } = {}) {
+  try { await loadLeaflet(); }
+  catch (_) {
+    leafletP = null;
+    throw new Error("Impossible d'ouvrir la carte. Vérifie la connexion.");
   }
-  setTimeout(() => locMap.invalidateSize(), 60);   // la carte a une taille une fois le modal visible
+
+  const modal = $("loc-modal");
+  const previousFocus = document.activeElement;
+  const hasInitial = hasLocation(initial);
+  const remembered = !editing && hasLocation(lastUploadLocation)
+    ? lastUploadLocation : null;
+
+  $("loc-head").textContent = editing
+    ? hasInitial ? "Modifier le lieu" : "Ajouter un lieu"
+    : "Où était-ce ?";
+  $("loc-hint").textContent = editing
+    ? "Déplace la carte sous l'épingle, ou utilise ta position actuelle."
+    : "Pas de localisation dans ce média. Déplace la carte sous l'épingle, ou utilise ta position.";
+  $("loc-skip").textContent = editing ? "Annuler" : "Ignorer";
+  $("loc-here").disabled = false;
+  $("loc-here").textContent = "◉ Ma position";
+
+  modal.classList.remove("hidden");
+  try {
+    if (!locMap) {
+      locMap = L.map("loc-map", { zoomControl: true, attributionControl: true, minZoom: 2 })
+        .setView([16.5, -14], 4);   // Sahel/Sénégal par défaut
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+        { subdomains: "abcd", maxZoom: 19, attribution: "&copy; OpenStreetMap &copy; CARTO" }).addTo(locMap);
+    }
+    if (hasInitial) locMap.setView([initial.lat, initial.lng], 14);
+    else if (remembered) locMap.setView([remembered.lat, remembered.lng], 14);
+    else locMap.setView([16.5, -14], 4);
+  } catch (_) {
+    try { if (locMap) locMap.remove(); } catch (_) {}
+    locMap = null;
+    modal.classList.add("hidden");
+    throw new Error("Impossible d'ouvrir la carte. Réessaie.");
+  }
 
   return new Promise(resolve => {
     const ok = $("loc-ok"), skip = $("loc-skip"), here = $("loc-here");
-    const done = val => { ok.onclick = skip.onclick = here.onclick = null; modal.classList.add("hidden"); resolve(val); };
-    ok.onclick = () => { const c = locMap.getCenter(); done({ lat: +c.lat.toFixed(6), lng: +c.lng.toFixed(6) }); };
+    const backgrounds = ["login", "pick", "dash", "media-modal"]
+      .map($)
+      .filter(el => el && !el.classList.contains("hidden"));
+    const backgroundState = backgrounds.map(el => ({
+      el,
+      inert: el.hasAttribute("inert"),
+      ariaHidden: el.getAttribute("aria-hidden"),
+    }));
+    let settled = false;
+    let sizeTimer = null;
+    const onKeydown = e => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        done(null);
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const items = [here, skip, ok].filter(el => !el.disabled);
+      const first = items[0], last = items[items.length - 1];
+      if (!modal.contains(document.activeElement)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      } else if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault(); last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault(); first.focus();
+      }
+    };
+    const done = val => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(sizeTimer);
+      ok.onclick = skip.onclick = here.onclick = null;
+      modal.removeEventListener("keydown", onKeydown);
+      modal.classList.add("hidden");
+      for (const state of backgroundState) {
+        if (!state.inert) state.el.removeAttribute("inert");
+        if (state.ariaHidden == null) state.el.removeAttribute("aria-hidden");
+        else state.el.setAttribute("aria-hidden", state.ariaHidden);
+      }
+      if (previousFocus && previousFocus.focus) previousFocus.focus();
+      resolve(val);
+    };
+    ok.onclick = () => {
+      const c = locMap.getCenter().wrap();
+      const picked = { lat: +c.lat.toFixed(6), lng: +c.lng.toFixed(6) };
+      if (!editing) lastUploadLocation = picked;
+      done(picked);
+    };
     skip.onclick = () => done(null);
     here.onclick = () => {
-      if (!navigator.geolocation) return;
+      if (!navigator.geolocation) {
+        $("loc-hint").textContent = "Position actuelle indisponible. Déplace la carte sous l'épingle.";
+        return;
+      }
       here.disabled = true; here.textContent = "…";
       navigator.geolocation.getCurrentPosition(
-        p => { locMap.setView([p.coords.latitude, p.coords.longitude], 14); here.disabled = false; here.textContent = "◉ Ma position"; },
-        _ => { here.disabled = false; here.textContent = "◉ Ma position"; },
+        p => {
+          if (settled) return;
+          locMap.setView([p.coords.latitude, p.coords.longitude], 14);
+          here.disabled = false; here.textContent = "◉ Ma position";
+        },
+        _ => {
+          if (settled) return;
+          here.disabled = false; here.textContent = "◉ Ma position";
+          $("loc-hint").textContent = "Position actuelle refusée ou indisponible. Déplace la carte sous l'épingle.";
+        },
         { enableHighAccuracy: true, timeout: 8000 });
     };
+    modal.addEventListener("keydown", onKeydown);
+    ok.focus({ preventScroll: true });
+    for (const state of backgroundState) {
+      state.el.setAttribute("aria-hidden", "true");
+      state.el.setAttribute("inert", "");
+    }
+    sizeTimer = setTimeout(() => {
+      if (!settled) locMap.invalidateSize();
+    }, 60);   // la carte a une taille une fois le modal visible
   });
 }
 
@@ -355,10 +464,19 @@ async function uploadPhoto(blob, lat, lng, date, video = isVideoBlob(blob)) {
   }
   // pas de localisation détectée -> l'utilisateur la choisit sur une mini-carte
   let manual = false;
-  if (lat == null) {
-    const picked = await askLocation();
+  let locationError = false;
+  if (!validCoords(lat, lng)) {
+    lat = lng = null;   // une paire partielle/invalide ne doit jamais être gardée
+    let picked;
+    try { picked = await askLocation(); }
+    catch (e) {
+      // L'upload reste possible : le nouveau bouton du détail permettra
+      // d'ajouter le lieu plus tard, une fois la carte de nouveau accessible.
+      locationError = true;
+    }
     if (picked) { lat = picked.lat; lng = picked.lng; manual = true; }
   }
+  const located = validCoords(lat, lng);
   st.textContent = "envoi…";
   try {
     // le FICHIER va sur Cloudinary (gratuit, sans carte) ; seules les
@@ -376,15 +494,18 @@ async function uploadPhoto(blob, lat, lng, date, video = isVideoBlob(blob)) {
     const { db, addDoc, collection, ts } = await fb();
     await addDoc(collection(db, "photos"), {
       name: me, car: CREW[me], url: link, type: video ? "video" : "image",
-      lat: lat ?? null, lng: lng ?? null, gps: lat != null && !manual, manual,
+      lat: located ? lat : null, lng: located ? lng : null,
+      gps: located && !manual, manual: located && manual,
       date: date || new Date().toISOString().slice(0, 10), at: ts(),
     });
     // la grille "mes photos" se met à jour toute seule (onSnapshot)
     st.innerHTML = manual
       ? `<span class="ok">${noun} ajoutée à l'endroit choisi ✓</span>`
-      : lat != null
+      : located
         ? `<span class="ok">${noun} ajoutée avec sa position ✓</span>`
-        : `<span class="ok">${noun} ajoutée</span> (sans lieu → n'apparaîtra pas sur la carte)`;
+        : locationError
+          ? `<span class="ok">${noun} ajoutée</span> (carte indisponible → ajoute le lieu plus tard)`
+          : `<span class="ok">${noun} ajoutée</span> (sans lieu → n'apparaîtra pas sur la carte)`;
   } catch (e) { st.innerHTML = `<span class="err">erreur: ${e.code || e}</span>`; }
 }
 
@@ -439,48 +560,190 @@ function renderMyPhotos() {
       ${video ? '<span class="playbadge">▶</span>' : ""}
       ${d.caption ? '<span class="capbadge" aria-label="Avec légende">💬</span>' : ""}
       <button class="del" data-id="${d.id}" aria-label="Supprimer">✕</button>
-      ${d.gps || d.manual ? "" : '<span class="nogps">sans lieu</span>'}</div>`;
+      ${hasLocation(d) ? "" : '<span class="nogps">sans lieu</span>'}</div>`;
   };
 
   g.innerHTML = groups.map(grp =>
     `<div class="dayhead"><span>${dayLabel(grp.day)}</span><em>${grp.items.length}</em></div>
      <div class="mygrid">${grp.items.map(tile).join("")}</div>`).join("");
   g.querySelectorAll(".del").forEach(b => b.onclick = e => { e.stopPropagation(); delPhoto(b.dataset.id); });
-  g.querySelectorAll(".mytile").forEach(t => t.onclick = () => openMedia(t.dataset.id));
+  g.querySelectorAll(".mytile").forEach(t => {
+    t.onclick = () => openMedia(t.dataset.id, t);
+    t.onkeydown = e => {
+      if (e.target !== t || (e.key !== "Enter" && e.key !== " ")) return;
+      e.preventDefault();
+      openMedia(t.dataset.id, t);
+    };
+  });
 }
 
-// --- détail d'un média : voir en grand + éditer la légende -----------------
+// --- détail d'un média : voir en grand + éditer légende et lieu ------------
 let editingId = null;
+let mediaSession = 0;
+let mediaReturnFocus = null;
+let mediaReturnId = null;
+let locationWriteSeq = 0;
+let captionWriteSeq = 0;
+function setMediaLocationStatus(message = "", error = false) {
+  const status = $("media-location-status");
+  status.textContent = message;
+  status.classList.toggle("err", error);
+  status.classList.toggle("ok", !!message && !error);
+}
+function renderMediaLocation(d) {
+  const located = hasLocation(d);
+  const box = $("media-location");
+  box.classList.toggle("missing", !located);
+  $("media-location-label").textContent = located
+    ? d.manual ? "Lieu choisi" : d.gps ? "GPS du média" : "Lieu enregistré"
+    : "Sans lieu";
+  $("media-location-detail").textContent = located
+    ? "Visible sur la carte"
+    : "N'apparaît pas sur la carte";
+  $("media-location-edit").textContent = located ? "Modifier" : "Ajouter un lieu";
+}
+function trapMediaFocus(e) {
+  const modal = $("media-modal");
+  if (e.key === "Escape") {
+    e.preventDefault();
+    closeMedia();
+    return;
+  }
+  if (e.key !== "Tab") return;
+  const items = [...modal.querySelectorAll("button, input, video[controls]")]
+    .filter(el => !el.disabled && el.tabIndex !== -1);
+  const first = items[0], last = items[items.length - 1];
+  if (!first) return;
+  if (!modal.contains(document.activeElement)) {
+    e.preventDefault();
+    (e.shiftKey ? last : first).focus();
+  } else if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault(); last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault(); first.focus();
+  }
+}
 function closeMedia() {
+  const returnId = editingId || mediaReturnId;
+  const fallbackFocus = mediaReturnFocus;
+  mediaSession++;
+  locationWriteSeq++;
+  captionWriteSeq++;
   const v = $("media-view").querySelector("video");
   if (v) { try { v.pause(); } catch (_) {} }
   $("media-view").innerHTML = "";
   $("media-modal").classList.add("hidden");
+  $("dash").removeAttribute("inert");
+  $("dash").removeAttribute("aria-hidden");
   editingId = null;
+  mediaReturnFocus = null;
+  mediaReturnId = null;
+  const freshTile = [...document.querySelectorAll(".mytile")]
+    .find(t => t.dataset.id === returnId);
+  const target = freshTile || (fallbackFocus && fallbackFocus.isConnected ? fallbackFocus : null);
+  if (target && target.focus) target.focus();
 }
-function openMedia(id) {
+function openMedia(id, trigger = null) {
   const d = myDocs.find(x => x.id === id);
   if (!d) return;
+  mediaSession++;
+  locationWriteSeq++;
+  captionWriteSeq++;
   editingId = id;
+  mediaReturnId = id;
+  mediaReturnFocus = trigger || document.activeElement;
   const video = isVid(d);
   $("media-view").innerHTML = video
     ? `<video src="${d.url}" controls playsinline poster="${mediaThumb(d.url, true, 600)}"></video>`
     : `<img src="${mediaThumb(d.url, false, 800)}" alt="">`;
   $("media-caption").value = d.caption || "";
+  $("media-save").disabled = false;
+  $("media-save").textContent = "Enregistrer";
+  $("media-location-edit").disabled = false;
+  renderMediaLocation(d);
+  setMediaLocationStatus();
   $("media-modal").classList.remove("hidden");
+  $("media-close").focus({ preventScroll: true });
+  $("dash").setAttribute("aria-hidden", "true");
+  $("dash").setAttribute("inert", "");
 }
 function initMediaModal() {
   $("media-close").onclick = closeMedia;
   $("media-modal").onclick = e => { if (e.target === $("media-modal")) closeMedia(); };
+  $("media-modal").onkeydown = trapMediaFocus;
+  $("media-location-edit").onclick = async () => {
+    const id = editingId;
+    const d = myDocs.find(x => x.id === id);
+    if (!id || !d) return;
+    const session = mediaSession;
+    const btn = $("media-location-edit");
+    let writeSeq = null;
+    setMediaLocationStatus();
+    try {
+      const picked = await askLocation({
+        initial: hasLocation(d) ? { lat: d.lat, lng: d.lng } : null,
+        editing: true,
+      });
+      if (!picked) return;
+      const patch = {
+        lat: picked.lat, lng: picked.lng,
+        gps: false, manual: true,
+      };
+      writeSeq = ++locationWriteSeq;
+      btn.disabled = true;
+      btn.textContent = "…";
+      const { db, doc, updateDoc } = await fb();
+      await updateDoc(doc(db, "photos", id), patch);
+      const current = myDocs.find(x => x.id === id);
+      if (current) Object.assign(current, patch);
+      renderMyPhotos();
+      if (mediaSession === session && editingId === id) {
+        renderMediaLocation(current || { ...d, ...patch });
+        setMediaLocationStatus("Lieu enregistré ✓");
+      }
+    } catch (e) {
+      if (mediaSession === session && editingId === id) {
+        setMediaLocationStatus(`Lieu non enregistré : ${e.code || e.message || e}`, true);
+      }
+    } finally {
+      if (writeSeq != null && writeSeq === locationWriteSeq) {
+        btn.disabled = false;
+        if (mediaSession === session && editingId === id) {
+          const current = myDocs.find(x => x.id === id);
+          if (current) renderMediaLocation(current);
+        }
+      }
+    }
+  };
   $("media-save").onclick = async () => {
-    if (!editingId) return;
+    const id = editingId;
+    const d = myDocs.find(x => x.id === id);
+    if (!id || !d) return;
+    const session = mediaSession;
+    const caption = $("media-caption").value.trim();
+    if (caption === (d.caption || "")) {
+      closeMedia();
+      return;
+    }
+    const writeSeq = ++captionWriteSeq;
     const btn = $("media-save"); btn.disabled = true; btn.textContent = "…";
     try {
       const { db, doc, updateDoc } = await fb();
-      await updateDoc(doc(db, "photos", editingId), { caption: $("media-caption").value.trim() });
-      closeMedia();
-    } catch (e) { $("up-status").innerHTML = `<span class="err">légende: ${e.code || e}</span>`; }
-    finally { btn.disabled = false; btn.textContent = "Enregistrer"; }
+      await updateDoc(doc(db, "photos", id), { caption });
+      const current = myDocs.find(x => x.id === id);
+      if (current) current.caption = caption;
+      renderMyPhotos();
+      if (mediaSession === session && editingId === id) closeMedia();
+    } catch (e) {
+      if (mediaSession === session && editingId === id) {
+        setMediaLocationStatus(`Légende non enregistrée : ${e.code || e}`, true);
+      }
+    } finally {
+      if (writeSeq === captionWriteSeq) {
+        btn.disabled = false;
+        btn.textContent = "Enregistrer";
+      }
+    }
   };
   $("media-del").onclick = () => { const id = editingId; closeMedia(); if (id) delPhoto(id); };
 }

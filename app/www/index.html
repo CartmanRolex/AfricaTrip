@@ -69,7 +69,8 @@
     <div class="card">
       <span class="label">📷 Mes photos & vidéos <span id="media-count" class="count"></span></span>
       <p class="hint">Elles s'affichent sur la carte du site, au bon endroit
-        (localisation gardée). Vidéos ≤ 1 min conseillées. Appuie sur ✕ pour en retirer une.</p>
+        (localisation gardée). Vidéos ≤ 1 min conseillées. Appuie sur un média
+        pour modifier sa légende ou son lieu, et sur ✕ pour le retirer.</p>
       <button id="add-photos" class="primary">Ajouter photos / vidéos</button>
       <div class="hint" id="up-status"></div>
       <div class="mediafilter" id="mediafilter">
@@ -87,13 +88,23 @@
 
   <input type="file" id="fallback-input" accept="image/*,video/*" multiple hidden>
 
-  <!-- détail d'un média : voir en grand + ajouter/éditer sa légende -->
-  <div id="media-modal" class="media-modal hidden" role="dialog" aria-modal="true">
+  <!-- détail d'un média : voir en grand + ajouter/éditer légende et lieu -->
+  <div id="media-modal" class="media-modal hidden" role="dialog" aria-modal="true"
+       aria-label="Détail du média">
     <div class="media-card">
       <button id="media-close" class="media-close" type="button" aria-label="Fermer">✕</button>
       <div id="media-view" class="media-view"></div>
       <input id="media-caption" class="text cap-input" type="text" maxlength="140"
              placeholder="Ajoute une légende…">
+      <div id="media-location" class="media-location">
+        <span class="media-location-copy">
+          <strong id="media-location-label">Sans lieu</strong>
+          <small id="media-location-detail">N'apparaît pas sur la carte</small>
+        </span>
+        <button id="media-location-edit" class="ghost" type="button">Ajouter un lieu</button>
+      </div>
+      <div id="media-location-status" class="media-location-status"
+           role="status" aria-live="polite"></div>
       <div class="media-actions">
         <button id="media-del" class="ghost danger" type="button">Supprimer</button>
         <button id="media-save" class="primary" type="button">Enregistrer</button>
@@ -103,10 +114,11 @@
 
   <!-- choix manuel de la localisation quand un média n'a pas de GPS.
        On déplace la carte sous une épingle FIXE centrée (valider = centre). -->
-  <div id="loc-modal" class="loc-modal hidden" role="dialog" aria-modal="true">
+  <div id="loc-modal" class="loc-modal hidden" role="dialog" aria-modal="true"
+       aria-labelledby="loc-head">
     <div class="loc-card">
-      <div class="loc-head">Où était-ce&nbsp;?</div>
-      <p class="loc-hint">Pas de localisation dans ce média. Déplace la carte pour
+      <div id="loc-head" class="loc-head">Où était-ce&nbsp;?</div>
+      <p id="loc-hint" class="loc-hint">Pas de localisation dans ce média. Déplace la carte pour
         placer l'épingle à l'endroit, ou utilise ta position.</p>
       <div class="loc-map-wrap">
         <div id="loc-map" class="loc-map"></div>

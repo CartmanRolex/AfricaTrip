@@ -16,6 +16,11 @@ service cloud.firestore {
         && request.auth.token.email == 'equipage@expedition-afrique.app';
     }
     function num(x) { return x is number; }
+    function validLatLng(data) {
+      return num(data.lat) && num(data.lng)
+        && data.lat >= -90 && data.lat <= 90
+        && data.lng >= -180 && data.lng <= 180;
+    }
 
     match /positions/{name} {
       allow read: if true;
@@ -36,10 +41,29 @@ service cloud.firestore {
       allow read: if true;
       allow create: if signed() && request.resource.data.url is string;
       allow delete: if signed();   // l'app permet de retirer ses photos
-      // édition de la SEULE légende (le compte équipage ne peut pas altérer
-      // url/position/etc. d'une photo, juste ajouter/changer `caption`).
-      allow update: if signed()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['caption']);
+      // Deux éditions étroites depuis le détail du média :
+      // - légende seule ;
+      // - lieu seul, nécessairement marqué comme choix manuel.
+      // url/auteur/date/type restent toujours immuables.
+      allow update: if signed() && (
+        (
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['caption'])
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['caption'])
+          && request.resource.data.caption is string
+          && request.resource.data.caption.size() <= 140
+        )
+        || (
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['lat', 'lng', 'gps', 'manual'])
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['lat', 'lng', 'gps', 'manual'])
+          && validLatLng(request.resource.data)
+          && request.resource.data.gps == false
+          && request.resource.data.manual == true
+        )
+      );
     }
   }
 }

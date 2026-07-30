@@ -83,12 +83,26 @@ sur iOS). Le plugin natif `AfricaMedia` n'existe que côté Android (APK).
   suppression Cloudinary exigerait la clé secrète non embarquée). Tout est
   client, aucun changement de schéma → tient la charge quand il y a beaucoup
   de médias.
-  **Légende** : taper sur une tuile ouvre `#media-modal` (`openMedia` → média
-  en grand + `<input #media-caption>`) ; Enregistrer = `updateDoc` du seul
-  champ `caption` (`initMediaModal`). Un badge 💬 marque les tuiles légendées.
-  Le site affiche la légende dans la lightbox et en infobulle de bulle.
-  ⚠️ Nécessite la règle Firestore `photos` en `allow update` restreint à
-  `caption` (voir `firestore.rules`) — À PUBLIER dans la console. **Deux voies d'ajout** : plugin natif
+  **Détail d'un média** : taper sur une tuile ouvre `#media-modal`
+  (`openMedia` → média en grand + `<input #media-caption>`). Enregistrer =
+  `updateDoc` du seul champ `caption` (`initMediaModal`). Un badge 💬 marque les
+  tuiles légendées. La même fenêtre indique aussi « Sans lieu », « GPS du
+  média », « Lieu choisi » ou « Lieu enregistré », avec **Ajouter un lieu /
+  Modifier**. Ce bouton réutilise `askLocation` en mode édition (lieu existant
+  comme centre, Annuler au lieu d'Ignorer) et enregistre immédiatement
+  `{lat,lng,gps:false,manual:true}` sans fermer le détail ni perdre une légende
+  en cours. Le badge `sans lieu` dépend de la validité de la paire lat/lng, pas
+  seulement des anciens flags. Les tuiles ouvrent aussi au clavier
+  (Entrée/Espace) ; les deux modals piègent le focus, rendent le fond inerte et
+  restaurent le focus à leur fermeture. Les handlers de lieu et légende
+  capturent l'id avant tout `await` pour qu'une réponse réseau lente ne vise
+  jamais le média ouvert ensuite. Le site affiche la légende dans la lightbox
+  et en infobulle de bulle.
+  ⚠️ Nécessite la règle Firestore `photos` en `allow update` : soit `caption`
+  seul (chaîne ≤ 140 caractères), soit les seuls champs de localisation avec
+  paire bornée et `gps:false/manual:true` (voir `firestore.rules`) — À PUBLIER
+  dans la console.
+  **Deux voies d'ajout** : plugin natif
   `AfricaMedia.pickWithLocation()` (GPS fiable) sinon `<input file>` + `exifr`
   (fallback navigateur ; sur Android réel le GPS y serait expurgé). Accès
   plugins via helper `plugin()` (registerPlugin OU Capacitor.Plugins.X).
@@ -103,14 +117,17 @@ sur iOS). Le plugin natif `AfricaMedia` n'existe que côté Android (APK).
   `mediaThumb`) avec un badge ▶. Le preset Cloudinary non signé doit
   autoriser la ressource vidéo (à vérifier côté dashboard si un upload est
   rejeté).
-  **Localisation manuelle** : si `uploadPhoto` reçoit `lat == null` (média sans
-  GPS — typiquement toute vidéo web, ou photo dépouillée), un modal `#loc-modal`
-  s'ouvre (`askLocation()`) : mini-carte Leaflet chargée À LA DEMANDE
+  **Localisation manuelle** : si `uploadPhoto` reçoit une paire lat/lng absente,
+  partielle ou invalide (média sans GPS — typiquement toute vidéo web, ou photo
+  dépouillée), un modal `#loc-modal` s'ouvre (`askLocation()`) : mini-carte
+  Leaflet chargée À LA DEMANDE
   (`loadLeaflet`, CDN, rien au démarrage), on cadre sous une épingle centrale
   fixe (Valider = `map.getCenter()`) ou bouton « ◉ Ma position »
   (`navigator.geolocation`). Résout `{lat,lng}` → `manual:true`, ou `null`
   (Ignorer) → média sans lieu. S'applique aussi au natif si une photo/vidéo
-  arrive sans GPS.
+  arrive sans GPS. Le dernier lieu validé pendant une série d'uploads est
+  mémorisé comme prochain centre ; le mode édition ne pollue pas ce centre. Un
+  échec de chargement Leaflet remet la promesse à zéro pour permettre Réessayer.
 - `www/firebase-config.js` — clés Firebase + `CLOUDINARY` (cloudName, preset)
   + `CREW` (prénom → voiture). Clés non secrètes.
 - `firestore.rules` — à coller dans la console Firebase (pas de storage.rules :

@@ -94,6 +94,7 @@ button.primary:disabled{opacity:.5}
 .media-modal.hidden{display:none!important}
 .media-card{position:relative;width:100%;max-width:460px;background:var(--panel);
   border:1px solid var(--line);border-radius:14px;padding:14px;
+  max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow-y:auto;
   box-shadow:0 20px 60px rgba(0,0,0,.6)}
 .media-close{position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:50%;
   border:none;background:rgba(20,17,14,.85);color:#fff;font-size:14px;cursor:pointer;z-index:2}
@@ -101,6 +102,17 @@ button.primary:disabled{opacity:.5}
   display:flex;align-items:center;justify-content:center;max-height:60vh}
 .media-view img,.media-view video{width:100%;max-height:60vh;object-fit:contain;display:block}
 .cap-input{width:100%;margin:12px 0 0}
+.media-location{display:flex;align-items:center;gap:12px;margin-top:10px;padding:10px 11px;
+  border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+.media-location.missing{border-color:rgba(217,91,67,.65)}
+.media-location-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:2px}
+.media-location-copy strong{font-size:13px}
+.media-location-copy small{font-size:11px;color:var(--sand-dim)}
+.media-location.missing .media-location-copy strong{color:var(--danger)}
+.media-location .ghost{width:auto;height:auto;padding:8px 10px;font-size:12px;white-space:nowrap}
+.media-location .ghost:disabled{opacity:.5}
+.media-location-status{font-size:11px;margin:7px 2px 0}
+.media-location-status:empty{display:none}
 .media-actions{display:flex;justify-content:space-between;gap:8px;margin-top:12px}
 .media-actions .ghost{background:transparent;border:1px solid var(--line);color:var(--sand);
   width:auto;height:auto;padding:9px 14px;border-radius:9px;cursor:pointer;font-size:13px}
@@ -108,7 +120,7 @@ button.primary:disabled{opacity:.5}
 .media-actions .primary{width:auto;margin:0;padding:9px 18px}
 
 /* ---- choix manuel de la localisation (modal + mini-carte) ---- */
-.loc-modal{position:fixed;inset:0;z-index:3000;background:rgba(10,8,6,.78);
+.loc-modal{position:fixed;inset:0;z-index:3100;background:rgba(10,8,6,.78);
   display:flex;align-items:center;justify-content:center;padding:16px}
 .loc-modal.hidden{display:none!important}
 .loc-card{width:100%;max-width:460px;background:var(--panel);border:1px solid var(--line);
