@@ -26,7 +26,8 @@ Google Sheet (live, private link in .sheet-url, git-ignored)
    │  python src/refresh.py        # downloads CSV export + runs the two steps below
    ▼
 data/AfriqueCalendrier_-_Presences_Voyage.csv
-   │  python src/parse_csv.py      # CSV -> src/data.json
+   + src/site-overrides.json       # roster/phone overrides
+   │  python src/parse_csv.py      # CSV + overrides -> src/data.json
    ▼
 src/data.json ──┐
 src/photos.json ─┤ python src/build.py   # injects both into src/template.html
@@ -36,6 +37,13 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
 
 - `src/photos.json` (face/car/sticker images as data URIs) is produced by
   `python src/make_faces.py` from the images in `photos/`.
+- `src/site-overrides.json` is a small, committed final layer applied after
+  every Sheet download. It currently removes Thomas from the published roster
+  (so car 2 exposes a fourth **Place disponible**) and supplies the formatted
+  phone numbers shown in traveler fiches. `parse_csv.py` also recomputes car
+  capacities/totals after a removal, so stale Sheet formulas cannot count the
+  removed column. This exists because Sheet write credentials are not present
+  on the build machine; a future `refresh.py` must not undo the published site.
 - `src/gallery.json` (shared trip photos shown as bubbles on the map) is
   produced by `python src/fetch_photos.py`, which pulls new images from the
   shared Google Drive folder (`.drive-folder`, git-ignored), geolocates them
@@ -50,14 +58,15 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
   from CDNs.
 - **One-shot update for the user**: `python src/sync.py` (or double-clicking
   `sync.bat` at the root) chains refresh.py + fetch_photos.py, then commits
-  and pushes ONLY the pipeline outputs (explicit whitelist — safe wrt
-  `photos/gal.enc`). No-op if nothing changed.
+  and pushes ONLY the whitelisted pipeline inputs/outputs (including
+  `src/site-overrides.json`, safe wrt `photos/gal.enc`). No-op if nothing
+  changed.
 
 ## Folder map
 
 | Path        | Contents                                                        |
 |-------------|-----------------------------------------------------------------|
-| `src/`      | All source: pipeline scripts + `template.html` (the whole app)  |
+| `src/`      | All source: pipeline scripts + `template.html` + persistent `site-overrides.json` |
 | `data/`     | CSV snapshot downloaded from the Google Sheet                   |
 | `photos/`   | Source images (traveler photos, sticker sheets) + generated subfolders |
 | `index.html`, `voyage-afrique.html` | Generated site (do not edit)            |

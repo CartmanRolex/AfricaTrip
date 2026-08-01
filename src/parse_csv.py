@@ -24,6 +24,7 @@ import csv, json, os, re
 HERE = os.path.dirname(__file__)
 CSV = os.path.join(HERE, "..", "data", "AfriqueCalendrier_-_Presences_Voyage.csv")
 CONFIG_CSV = os.path.join(HERE, "..", "data", "Config.csv")
+SITE_OVERRIDES = os.path.join(HERE, "site-overrides.json")
 OUT = os.path.join(HERE, "data.json")
 
 YEAR = 2025
@@ -59,6 +60,31 @@ ROUTE = [
 CAR_COLORS = ["#E8924A", "#4FB7B3", "#C77DC0", "#7E9CD8"]
 
 SYMBOL = {"●": "present", "?": "unknown", "○": "tentative", "": "absent"}
+
+
+def read_site_overrides():
+    """Read deliberate repo-side overrides applied after every Sheet refresh.
+
+    The Google Sheet remains the normal source of truth. This small final layer
+    is for changes that must survive refreshes when Sheet write credentials are
+    unavailable on the build machine (removed travelers and phone formatting).
+    """
+    try:
+        with open(SITE_OVERRIDES, encoding="utf-8") as f:
+            raw = json.load(f)
+    except FileNotFoundError:
+        return {"removed_travelers": set(), "phones": {}}
+    if not isinstance(raw, dict):
+        raise ValueError("site-overrides.json must contain a JSON object")
+    removed = raw.get("removed_travelers", [])
+    phones = raw.get("phones", {})
+    if not isinstance(removed, list) or not all(isinstance(v, str) for v in removed):
+        raise ValueError("site-overrides.json removed_travelers must be a string list")
+    if not isinstance(phones, dict) or not all(
+            isinstance(k, str) and isinstance(v, str) for k, v in phones.items()):
+        raise ValueError("site-overrides.json phones must map names to strings")
+    return {"removed_travelers": {v.strip() for v in removed if v.strip()},
+            "phones": {k.strip(): v.strip() for k, v in phones.items() if k.strip()}}
 
 
 def read_config():
@@ -165,6 +191,19 @@ def find_header(rows):
 
 def main():
     config = read_config()
+    overrides = read_site_overrides()
+    removed = overrides["removed_travelers"]
+    rpg = config.get("rpg", {})
+    missing_phone_names = sorted(set(overrides["phones"]) - set(rpg))
+    if missing_phone_names and os.path.exists(CONFIG_CSV):
+        raise ValueError("Phone override targets missing RPG rows: "
+                         + ", ".join(missing_phone_names))
+    for name, phone in overrides["phones"].items():
+        if name in rpg:
+            rpg[name]["tel"] = phone
+    for name in removed:
+        rpg.pop(name, None)
+
     route = config.get("route") or ROUTE
     colors = [config.get("couleurs", {}).get(str(i + 1), c)
               for i, c in enumerate(CAR_COLORS)]
@@ -183,13 +222,17 @@ def main():
     total_col = next((i for i, c in enumerate(header)
                       if "total" in c.strip().lower()), len(header) - 1)
 
-    car1_cols = [i for i in range(2, cap_cols[0]) if header[i].strip()]
-    car2_cols = [i for i in range(cap_cols[0] + 1, cap_cols[1]) if header[i].strip()]
+    raw_car1_cols = [i for i in range(2, cap_cols[0]) if header[i].strip()]
+    raw_car2_cols = [i for i in range(cap_cols[0] + 1, cap_cols[1]) if header[i].strip()]
+    removed_in_grid = removed.intersection(header[i].strip()
+                                           for i in raw_car1_cols + raw_car2_cols)
+    car1_cols = [i for i in raw_car1_cols if header[i].strip() not in removed]
+    car2_cols = [i for i in raw_car2_cols if header[i].strip() not in removed]
     CAR1 = [header[i].strip() for i in car1_cols]
     CAR2 = [header[i].strip() for i in car2_cols]
 
-    e1, n1 = split_emoji(title_row[car1_cols[0]] if car1_cols else "")
-    e2, n2 = split_emoji(title_row[car2_cols[0]] if car2_cols else "")
+    e1, n1 = split_emoji(title_row[raw_car1_cols[0]] if raw_car1_cols else "")
+    e2, n2 = split_emoji(title_row[raw_car2_cols[0]] if raw_car2_cols else "")
     CARS = {
         "1": {"name": n1 or "VOITURE 1", "emoji": e1 or "🚗", "color": colors[0]},
         "2": {"name": n2 or "VOITURE 2", "emoji": e2 or "🚙", "color": colors[1]},
@@ -209,16 +252,28 @@ def main():
 
         if cell(1):
             location = cell(1)
+        car1 = {p: state(cell(i)) for p, i in zip(CAR1, car1_cols)}
+        car2 = {p: state(cell(i)) for p, i in zip(CAR2, car2_cols)}
+        # The Sheet's capacity/total formulas may still count a removed column.
+        # Once an override removes someone, recompute confirmed occupants so
+        # the dashboard exposes the newly free seat and correct total.
+        if removed_in_grid:
+            present1 = sum(v == "present" for v in car1.values())
+            present2 = sum(v == "present" for v in car2.values())
+            cap1, cap2, total = f"{present1}/4", f"{present2}/4", str(present1 + present2)
+        else:
+            cap1, cap2, total = cell(cap_cols[0]), cell(cap_cols[1]), cell(total_col)
+
         records.append({
             "date": date,
             "iso": iso,
             "checkpoint": cell(1),                       # set only on arrival days
             "location": location,                        # carried forward
-            "cap1": cell(cap_cols[0]),
-            "cap2": cell(cap_cols[1]),
-            "total": cell(total_col),
-            "car1": {p: state(cell(i)) for p, i in zip(CAR1, car1_cols)},
-            "car2": {p: state(cell(i)) for p, i in zip(CAR2, car2_cols)},
+            "cap1": cap1,
+            "cap2": cap2,
+            "total": total,
+            "car1": car1,
+            "car2": car2,
         })
 
     data = {"records": records, "route": route, "car1": CAR1, "car2": CAR2,

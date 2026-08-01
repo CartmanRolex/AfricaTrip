@@ -13,6 +13,7 @@ Full pipeline to rebuild from the raw CSV:
     python src/parse_csv.py   # CSV  -> src/data.json
     python src/build.py       # JSON -> voyage-afrique.html + index.html
 """
+import json
 import os
 
 HERE = os.path.dirname(__file__)
@@ -25,8 +26,24 @@ OUTS = [os.path.join(HERE, "..", "voyage-afrique.html"),
 
 def main():
     template = open(TEMPLATE, encoding="utf-8").read()
-    data = open(DATA, encoding="utf-8").read()
-    photos = open(PHOTOS, encoding="utf-8").read() if os.path.exists(PHOTOS) else "{}"
+    with open(DATA, encoding="utf-8") as f:
+        data_obj = json.load(f)
+    data = json.dumps(data_obj, ensure_ascii=False)
+    if os.path.exists(PHOTOS):
+        with open(PHOTOS, encoding="utf-8") as f:
+            photos_obj = json.load(f)
+        # Do not embed portraits for people removed by site-overrides.json.
+        active = set(data_obj.get("car1", [])) | set(data_obj.get("car2", []))
+        active.update(data_obj.get("config", {}).get("observateurs") or [])
+        for group in ("faces", "facesWide"):
+            photos_obj[group] = {
+                name: value
+                for name, value in photos_obj.get(group, {}).items()
+                if name in active
+            }
+        photos = json.dumps(photos_obj, ensure_ascii=False)
+    else:
+        photos = "{}"
     gallery = open(GALLERY, encoding="utf-8").read() if os.path.exists(GALLERY) else "[]"
     html = (template.replace("__DATA__", data).replace("__PHOTOS__", photos)
             .replace("__GALLERY__", gallery))

@@ -29,8 +29,10 @@ Key JS structures (all near the top of the script):
 - `DATA.records` — one entry per day: `{date, iso, checkpoint, location,
   cap1, cap2, car1:{Name:state}, car2:{...}}`; states: `present | unknown |
   tentative | absent`.
-- `DATA.config` — the parsed Config sheet tab; **all editorial content
-  comes from it** (`CFG` in the JS): `textes` (titre — site name in the header/tab, tagline, foot,
+- `DATA.config` — the parsed Config sheet tab; editorial content normally
+  comes from it (`CFG` in the JS), then `site-overrides.json` applies the small
+  committed roster/phone exceptions that must survive a Sheet refresh:
+  `textes` (titre — site name in the header/tab, tagline, foot,
   open-route labels), `checkpoints` (display names), `etapes` → `LEG_META`, `rpg` →
   `RPG`, `rpgVoitures` → `CAR_RPG`, `danger` → `DANGER`, `deco` (decorative stickers), `couleurs`.
   Fallbacks are minimal — edit the sheet, not the JS.
@@ -106,8 +108,11 @@ Key JS structures (all near the top of the script):
   1.9× wider (`WIDE` in make_faces.py): a chip is a pre-cropped JPEG, so
   without it there is nothing "around" to reveal on zoom.
   Faces render in seat chips (30 px circle, status-colored ring, hover zoom
-  ×3.2 via `.seat-chip.photo:hover img`); all 10 travelers have one (a
-  missing face would fall back to the initial letter).
+  ×3.2 via `.seat-chip.photo:hover img`). The source bundle contains portraits
+  for the original roster; a missing face falls back to the initial letter.
+  `build.py` embeds only active roster/observer faces, so a generated portrait
+  may remain in `photos.json` without keeping a removed traveler on the
+  published site.
 - **Odomètre** (`odoSet()`, `.odo*` CSS): the header's km stat is a mechanical
   counter — one 0-9 reel per digit in a `overflow:hidden` window, rolled by
   `transform: translateY(calc(-N * var(--oh)))` with a CSS transition, so
@@ -160,7 +165,9 @@ Key JS structures (all near the top of the script):
   `PHOTOS.faces[nom]` background-size 140% + ring couleur voiture, clic→fiche).
   Les têtes se stackent entre elles, les photos entre elles, jamais mélangées ;
   chaque marqueur porte ses données de pile en options (`pileImg`/`pileFc`/
-  `pileInit`). **Amas = un EMPILEMENT, pas un chiffre** : `pileHTML()` dessine
+  `pileInit`). `refreshFaces()` filtre explicitement sur `CAR1`/`CAR2`/
+  observateurs : une ancienne position Firestore d'un voyageur retiré (Thomas)
+  ne recrée pas sa tête sur la carte. **Amas = un EMPILEMENT, pas un chiffre** : `pileHTML()` dessine
   jusqu'à 3 vraies vignettes/têtes en éventail (`.pile` / `.pile-item` /
   `.pile-top|b1|b2`) + un petit compteur `.pile-n` (orange pour les photos,
   sombre pour les têtes). Pour ne pas se chevaucher au même point, les amas sont
@@ -173,12 +180,25 @@ Key JS structures (all near the top of the script):
 
 ### `build.py`
 Reads `template.html` + `data.json` + `photos.json` + `gallery.json`,
-writes the two root HTML files. Trivial; run after ANY change to template
-or JSON.
+writes the two root HTML files. Before injection it filters `faces` et
+`facesWide` to the active `car1` + `car2` + observer names from `data.json`,
+so retired portraits are not embedded. Run after ANY change to template or
+JSON.
+
+### `site-overrides.json`
+Committed post-Sheet exceptions. `removed_travelers` removes names from the
+parsed rosters/RPG config; when a removed name still has a raw presence column,
+`parse_csv.py` recomputes both `X/4` capacities and the total from confirmed
+`present` states. `phones` replaces `config.rpg[name].tel` while preserving the
+human-readable `+CC …` formatting used by the fiche and its sanitized `tel:`
+link. Current override removes Thomas and defines the eight requested numbers.
 
 ### `parse_csv.py`
 `data/AfriqueCalendrier_-_Presences_Voyage.csv` (+ `data/Config.csv`, the
 Config tab: `read_config()` parses its `## section` blocks) → `data.json`.
+`read_site_overrides()` applies `site-overrides.json` last, after the Sheet
+config and before records are emitted, so `refresh.py` cannot reintroduce a
+removed traveler or overwrite a corrected phone number.
 The `ROUTE`/`CAR_COLORS` constants are only fallbacks for a missing
 Config.csv. Only needs rerunning when the CSVs change (usually via
 `refresh.py`).
@@ -226,8 +246,9 @@ seeded by `entry_id`), then writes `photos/uploads/<safe>.jpg` (max 1600 px)
 ### `sync.py`
 The user-facing one-shot updater (`python src/sync.py`, or `sync.bat` at the
 root for double-click): refresh.py → fetch_photos.py → `git add` of an
-explicit whitelist of pipeline outputs (never `photos/gal.enc`) → commit →
-push. Exits without committing when nothing changed.
+explicit whitelist of pipeline inputs/outputs, including
+`site-overrides.json` (never `photos/gal.enc`) → commit → push. Exits
+without committing when nothing changed.
 
 ### `make_faces.py`
 Produces `photos.json` + the generated image folders. **The source images

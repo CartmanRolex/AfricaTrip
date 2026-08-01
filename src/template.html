@@ -694,6 +694,8 @@ function refreshFaces(){
   faceCluster.clearLayers();
   const markers = [];
   Object.entries(livePositions).forEach(([name, p]) => {
+    // Ignore positions left by people no longer present in the current roster.
+    if(!CAR1.includes(name)&&!CAR2.includes(name)&&!(CFG.observateurs||[]).includes(name))return;
     const face = (PHOTOS.faces || {})[name];
     const html = face
       ? `<div class="map-face" style="--fc:${colorOf(name)};background-image:url('${face}')"></div>`
@@ -1076,7 +1078,6 @@ const LIVE={
   Paul:{src:'photos/videos/paul_live.mp4',w:'177.8%',l:'-38.9%',t:'0%'},
   Giordano:{src:'photos/videos/giordano_live.mp4',w:'160%',l:'-25%',t:'-64%'},
   Jehan:{src:'photos/videos/jehan_live.mp4',w:'250%',l:'-75%',t:'-0.7%'},
-  Thomas:{src:'photos/videos/thomas_live.mp4',w:'227.3%',l:'-63.6%',t:'-49.5%'},
 };
 // Markup d'un visage. Deux cas, même boîte ronde :
 //  - portrait vivant : photo + vidéo, le dézoom élargit le cadrage vidéo ;
@@ -1108,7 +1109,7 @@ function seatHTML(name,state,isDriver,color){
     <span class="seat-skill">${r.skill}</span></div></div>`;
 }
 function emptySeat(){return `<div class="seat empty"><div class="seat-chip empty"></div>
-  <div class="seat-info"><span class="seat-name" style="color:var(--muted)">libre</span>
+  <div class="seat-info"><span class="seat-name" style="color:var(--muted)">Place disponible</span>
   <span class="seat-stat">—</span></div></div>`;}
 
 // observateurs (section "observateurs" de Config) : suivent depuis la maison,

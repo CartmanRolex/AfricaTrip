@@ -15,7 +15,7 @@ editorial content as `## section` blocks (marker row, header row, data rows):
 `rpg_voitures`, `danger`. Parsed by `read_config()` in `src/parse_csv.py`
 into `data.json` as `config`; edit the sheet, then rerun `refresh.py`.
 
-Shape (parsed by `src/parse_csv.py` into `src/data.json`):
+Raw Sheet snapshot shape (then transformed by `src/parse_csv.py`):
 - Decorative title/period rows at the top, then a header row with dates.
 - One row per day (Aug 2 → Sep 30, 2025), one column per traveler, grouped
   in two car blocks (car 1 "HUGODOUARD": Gal, Hugo, Malen, Arthur, Edouard,
@@ -27,3 +27,11 @@ Shape (parsed by `src/parse_csv.py` into `src/data.json`):
 
 If the sheet's structure changes (new traveler, new column layout), fix
 `src/parse_csv.py` accordingly and document it in `src/CLAUDE.md`.
+
+The raw public Sheet snapshot still contains Thomas and its old capacity
+formulas. The published result deliberately applies `src/site-overrides.json`
+after reading these files: Thomas is removed from `car2`/RPG, capacities and
+totals are recomputed, and car 2's renderer fills the fourth slot with
+**Place disponible**. The same override supplies formatted phone numbers.
+This post-Sheet layer is necessary until Sheet write credentials are installed;
+do not "fix" the generated `src/data.json` by editing these snapshots manually.

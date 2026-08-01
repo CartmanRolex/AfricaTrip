@@ -19,7 +19,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, ".."))
 
 PUBLISH = ["index.html", "voyage-afrique.html", "src/data.json",
-           "src/gallery.json", "src/photos.json", "data", "photos/uploads"]
+           "src/gallery.json", "src/photos.json", "src/site-overrides.json",
+           "data", "photos/uploads"]
 
 
 def run(*cmd):
