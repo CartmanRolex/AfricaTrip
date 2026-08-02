@@ -1,7 +1,7 @@
 # Voyage en Afrique — interactive trip map
 
 A self-contained website showing a two-car overland convoy from Switzerland to
-Senegal (Aug–Sep 2025). Pick a leg or scrub the timeline to see the route on a
+Senegal (Aug–Sep 2026). Pick a leg or scrub the timeline to see the route on a
 map and who is in each car on any given day.
 
 ## Open it

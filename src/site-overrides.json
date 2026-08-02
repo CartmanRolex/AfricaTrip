@@ -1,4 +1,9 @@
 {
+  "trip_year": 2026,
+  "textes": {
+    "titre": "Expédition Afrique 2026",
+    "tagline": "Carnet de route · 2 août → 30 septembre 2026"
+  },
   "removed_travelers": [
     "Thomas"
   ],

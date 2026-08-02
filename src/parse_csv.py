@@ -19,7 +19,7 @@ tab, exported by refresh.py to data/Config.csv and embedded into data.json as
 `config`. The ROUTE/CAR_COLORS constants below are only fallbacks for when
 that file is missing.
 """
-import csv, json, os, re
+import csv, datetime, json, os, re
 
 HERE = os.path.dirname(__file__)
 CSV = os.path.join(HERE, "..", "data", "AfriqueCalendrier_-_Presences_Voyage.csv")
@@ -27,10 +27,11 @@ CONFIG_CSV = os.path.join(HERE, "..", "data", "Config.csv")
 SITE_OVERRIDES = os.path.join(HERE, "site-overrides.json")
 OUT = os.path.join(HERE, "data.json")
 
-YEAR = 2025
+DEFAULT_TRIP_YEAR = 2026
 MONTH = {"janv": 1, "févr": 2, "fevr": 2, "mars": 3, "avr": 4, "mai": 5,
          "juin": 6, "juil": 7, "août": 8, "aout": 8, "sept": 9, "oct": 10,
          "nov": 11, "déc": 12, "dec": 12}
+WEEKDAY = ("Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim")
 
 # Route waypoints. Only the entries with "cp" are official checkpoints matched
 # against the sheet's Localisation column; the rest are intermediate points so
@@ -67,23 +68,34 @@ def read_site_overrides():
 
     The Google Sheet remains the normal source of truth. This small final layer
     is for changes that must survive refreshes when Sheet write credentials are
-    unavailable on the build machine (removed travelers and phone formatting).
+    unavailable on the build machine (confirmed year/text, removed travelers
+    and phone formatting).
     """
     try:
         with open(SITE_OVERRIDES, encoding="utf-8") as f:
             raw = json.load(f)
     except FileNotFoundError:
-        return {"removed_travelers": set(), "phones": {}}
+        return {"trip_year": DEFAULT_TRIP_YEAR, "textes": {},
+                "removed_travelers": set(), "phones": {}}
     if not isinstance(raw, dict):
         raise ValueError("site-overrides.json must contain a JSON object")
     removed = raw.get("removed_travelers", [])
     phones = raw.get("phones", {})
+    trip_year = raw.get("trip_year", DEFAULT_TRIP_YEAR)
+    textes = raw.get("textes", {})
+    if not isinstance(trip_year, int) or not 2000 <= trip_year <= 2100:
+        raise ValueError("site-overrides.json trip_year must be an integer from 2000 to 2100")
+    if not isinstance(textes, dict) or not all(
+            isinstance(k, str) and isinstance(v, str) for k, v in textes.items()):
+        raise ValueError("site-overrides.json textes must map keys to strings")
     if not isinstance(removed, list) or not all(isinstance(v, str) for v in removed):
         raise ValueError("site-overrides.json removed_travelers must be a string list")
     if not isinstance(phones, dict) or not all(
             isinstance(k, str) and isinstance(v, str) for k, v in phones.items()):
         raise ValueError("site-overrides.json phones must map names to strings")
-    return {"removed_travelers": {v.strip() for v in removed if v.strip()},
+    return {"trip_year": trip_year,
+            "textes": {k.strip(): v.strip() for k, v in textes.items() if k.strip()},
+            "removed_travelers": {v.strip() for v in removed if v.strip()},
             "phones": {k.strip(): v.strip() for k, v in phones.items() if k.strip()}}
 
 
@@ -161,15 +173,23 @@ def state(cell):
     return SYMBOL.get(cell.strip(), "absent")
 
 
-def parse_date(cell):
-    """'Ven 1 août' / 'Mar 30 sept.' -> ('Ven 1 août', '2025-08-01') or None."""
+def parse_date(cell, year=DEFAULT_TRIP_YEAR):
+    """Parse a French date cell and recompute its weekday for the trip year."""
     parts = cell.split()
     if len(parts) < 3 or not parts[1].isdigit():
         return None
     month = MONTH.get(re.sub(r"[^a-zà-ÿ]", "", parts[2].lower()))
     if not month:
         return None
-    return cell.strip(), f"{YEAR}-{month:02d}-{int(parts[1]):02d}"
+    day = int(parts[1])
+    try:
+        date = datetime.date(year, month, day)
+    except ValueError:
+        return None
+    # The public Sheet snapshot may still carry weekday names from an older
+    # year. Replace only that token and preserve its human month punctuation.
+    label = re.sub(r"^\S+", WEEKDAY[date.weekday()], cell.strip(), count=1)
+    return label, date.isoformat()
 
 
 def split_emoji(title):
@@ -192,6 +212,8 @@ def find_header(rows):
 def main():
     config = read_config()
     overrides = read_site_overrides()
+    config.setdefault("textes", {}).update(overrides["textes"])
+    trip_year = overrides["trip_year"]
     removed = overrides["removed_travelers"]
     rpg = config.get("rpg", {})
     missing_phone_names = sorted(set(overrides["phones"]) - set(rpg))
@@ -242,7 +264,7 @@ def main():
     for r in rows[h + 1:]:
         if not r or not r[0].strip():
             continue
-        parsed = parse_date(r[0])
+        parsed = parse_date(r[0], trip_year)
         if not parsed:
             break  # reached the legend / end of the grid
         date, iso = parsed

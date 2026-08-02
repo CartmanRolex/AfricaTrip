@@ -1,7 +1,7 @@
 # Voyage en Afrique — Carnet de route
 
 Interactive one-page site tracking a friends' road trip from Switzerland to
-Dakar (Aug 1 – Sep 30, 2025): a Leaflet map with the route, a day-by-day
+Dakar (Aug 2 – Sep 30, 2026): a Leaflet map with the route, a day-by-day
 timeline scrubber, and RPG-flavored dashboards for the two cars and their
 crews. Everything is tongue-in-cheek (XP, HP bars, skills, danger zones) —
 keep that tone when adding features.
@@ -26,7 +26,7 @@ Google Sheet (live, private link in .sheet-url, git-ignored)
    │  python src/refresh.py        # downloads CSV export + runs the two steps below
    ▼
 data/AfriqueCalendrier_-_Presences_Voyage.csv
-   + src/site-overrides.json       # roster/phone overrides
+   + src/site-overrides.json       # confirmed year/text + roster/phone overrides
    │  python src/parse_csv.py      # CSV + overrides -> src/data.json
    ▼
 src/data.json ──┐
@@ -38,7 +38,8 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
 - `src/photos.json` (face/car/sticker images as data URIs) is produced by
   `python src/make_faces.py` from the images in `photos/`.
 - `src/site-overrides.json` is a small, committed final layer applied after
-  every Sheet download. It currently removes Thomas from the published roster
+  every Sheet download. It pins the confirmed 2026 trip year/tagline and
+  recomputes weekday labels, removes Thomas from the published roster
   (so car 2 exposes a fourth **Place disponible**) and supplies the formatted
   phone numbers shown in traveler fiches. `parse_csv.py` also recomputes car
   capacities/totals after a removal, so stale Sheet formulas cannot count the

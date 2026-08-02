@@ -261,19 +261,26 @@ so retired portraits are not embedded. Run after ANY change to template or
 JSON.
 
 ### `site-overrides.json`
-Committed post-Sheet exceptions. `removed_travelers` removes names from the
-parsed rosters/RPG config; when a removed name still has a raw presence column,
+Committed post-Sheet exceptions. `trip_year: 2026` is the confirmed year and
+drives every generated ISO date plus a recomputation of the French weekday
+token; `textes.titre`/`textes.tagline` pin both header strings so a future Sheet
+edit cannot recreate a year mismatch. `removed_travelers` removes names from
+the parsed rosters/RPG config; when a removed name still has a raw presence column,
 `parse_csv.py` recomputes both `X/4` capacities and the total from confirmed
 `present` states. `phones` replaces `config.rpg[name].tel` while preserving the
 human-readable `+CC …` formatting used by the fiche and its sanitized `tel:`
-link. Current override removes Thomas and defines the eight requested numbers.
+link. Current override also removes Thomas and defines the eight requested
+numbers.
 
 ### `parse_csv.py`
 `data/AfriqueCalendrier_-_Presences_Voyage.csv` (+ `data/Config.csv`, the
 Config tab: `read_config()` parses its `## section` blocks) → `data.json`.
 `read_site_overrides()` applies `site-overrides.json` last, after the Sheet
-config and before records are emitted, so `refresh.py` cannot reintroduce a
-removed traveler or overwrite a corrected phone number.
+config and before records are emitted, so `refresh.py` cannot restore the stale
+2025 year/tagline, reintroduce a removed traveler or overwrite a corrected
+phone number. `parse_date()` parses the day/month from the raw cell, creates an
+ISO date with `trip_year`, and replaces the raw weekday with the correct French
+weekday for that year while preserving the cell's month spelling/punctuation.
 The `ROUTE`/`CAR_COLORS` constants are only fallbacks for a missing
 Config.csv. Only needs rerunning when the CSVs change (usually via
 `refresh.py`).
