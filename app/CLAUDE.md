@@ -140,7 +140,8 @@ tests des règles avant tout déploiement.
 - `build-android.sh` — injecte le natif, synchronise Capacitor et génère
   `android/app/build/outputs/apk/debug/app-debug.apk`.
 - `firestore.rules` — compatibilité v1 + validation stricte v2.
-- `README.md` — configuration, publication des règles, build et distribution.
+- `README.md` — configuration, publication des règles, build et distribution,
+  avec l'URL GitHub Releases stable de téléchargement de la dernière APK.
 
 Ne jamais versionner un mot de passe, un token Firebase CLI, un compte de
 service, `node_modules/`, un APK ou un secret Cloudinary.

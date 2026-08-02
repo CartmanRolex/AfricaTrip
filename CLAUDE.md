@@ -53,15 +53,22 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
   inside — this is the supported way for friends to upload with GPS intact,
   because Android (since April 2026) strips EXIF location on normal uploads
   but not from photos inside a zip (see `COMMENT-UPLOADER.md`).
-- **Planned vs actual tracking** is deliberately split. The Sheet/`DATA.route`
-  remains the editorial plan; the crew app writes the actual trip under
-  `trips/africa-trip-01`. Every GPS point carries the person and the declared
-  context (`hugodouard`, `paul-pot`, or independent), so personal routes never
-  get mixed. Car routes are derived on the public site from their occupants'
-  points in one-minute windows with accuracy/speed/gap rejection. The app starts
-  in Pause for a person who has never chosen a mode, queues offline in IndexedDB,
-  samples at most once/minute (five minutes while still), and groups immutable
-  points by person/session/assignment in two-hour Firestore chunks.
+- **The map is one hybrid planned/actual truth per subject.** The Sheet/
+  `DATA.route` remains the untouched editorial plan and the crew app writes GPS
+  history under `trips/africa-trip-01`. For each car, the public site draws the
+  accepted GPS history in a solid car-coloured line, then only the untravelled
+  suffix of `DATA.route` in complementary dashes; without GPS, the full planned
+  route remains dashed. The latest reliable point is projected geometrically
+  onto the planned route to find that suffix, independently of the conflicting
+  calendar-year metadata. A very distant point is never joined by a misleading
+  diagonal.
+  Every GPS point carries the person and declared context (`hugodouard`,
+  `paul-pot`, or independent), so personal routes never get mixed. Car routes
+  are derived from occupant points in one-minute windows with accuracy/speed/gap
+  rejection. The app starts in Pause for a person who has never chosen a mode,
+  queues offline in IndexedDB, samples at most once/minute (five minutes while
+  still), and groups immutable points by person/session/assignment in two-hour
+  Firestore chunks.
 - The site is **fully self-contained**: all images are embedded as data URIs
   so `voyage-afrique.html` opens from disk; only map tiles/fonts/Leaflet come
   from CDNs.

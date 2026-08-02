@@ -25,11 +25,11 @@ hidden); the seats grid stays 2 columns but the seat cards compact
 (`body.danger-far`) the danger stickers shrink to 38 % (vs 62 % desktop)
 and the deco camels hide entirely, so they don't bury the small map.
 The centered `.map-toolbar` overlays the top of the map on both breakpoints;
-its mode row always stays visible and its horizontally scrollable subject row
-appears only outside the planned view, leaving Leaflet's zoom control clear.
-On mobile the GPS status wraps onto one compact ellipsized line instead of
-being hidden, so an empty Réel view remains explained and `aria-live` stays
-available.
+there is deliberately no Prévu/Réel/Comparer switch. Its horizontally
+scrollable subject row always selects the convoy, one car or one person, and a
+permanent key explains solid = real / dashed = planned. On mobile the GPS
+status wraps onto one compact ellipsized line instead of being hidden, so an
+empty trace remains explained and `aria-live` stays available.
 
 Key JS structures (all near the top of the script):
 - `DATA.records` — one entry per day: `{date, iso, checkpoint, location,
@@ -65,11 +65,12 @@ Key JS structures (all near the top of the script):
   and Note rows when the sheet columns are filled, and a lien button.
   ✕ button or Escape closes (`closeFiche()`); the fiche survives day
   changes. On mobile the click handler also smooth-scrolls the opened
-  `.fiche-card` to the center of the bottom sheet (it can open off-screen). While open, `ficheLine` (wide translucent polyline in the car's
-  colour, `updateFicheLine()`, sent to back) highlights the person's
-  stretch of the route between embarkation and disembarkation. The chip click is captured (capture:true) so it beats the
-  card's `<a>`; hover-zoom stays desktop-only sugar, the tap IS the
-  mobile gesture.
+  `.fiche-card` to the center of the bottom sheet (it can open off-screen).
+  Opening a fiche also selects that person in the map toolbar: their accepted
+  GPS history and only their remaining planned presence range replace any
+  previous subject. The chip click is captured (`capture:true`) so it beats the
+  card's `<a>`; hover-zoom stays desktop-only sugar, the tap IS the mobile
+  gesture.
 - `OBS` — `CFG.observateurs` (sheet `## observateurs`, `nom` column): people
   following from home. Rendered ONCE into `#obs`/`.sec-obs` as a car-style
   box (🛰️, khaki accent) of seat cards with state `observer`; stats + lien
@@ -128,41 +129,47 @@ Key JS structures (all near the top of the script):
   `<span>`s inside `.stat`, so ALL THREE classes (`.odo-d`, `.odo-r`,
   `.odo-sep`) must override `.stat span` (9.5px, muted) — forgetting the
   reel alone silently shrinks everything it contains.
-- Map rendering in `render()`: `traveled` orange polyline (+ glow) up to the
-  convoy, `legLine` highlighting the ACTIVE leg (this is what makes a clicked
-  leg visible — don't remove it) with animated dashes (`.leg-flow` CSS) and
-  difficulty color, a floating `leg-chip` (emoji + label + pips) at the leg's
-  mid-distance, numbered `cp-badge` milestones (done = orange fill, next
-  destination pulses amber; name pills hide below zoom 5 via
-  `body.danger-far`), pulsing convoy marker (amber "?" variant on the final
-  stay leg with the "open route" circle).
+- Planning rendering in `render()`: the timeline is explicitly labelled
+  **prévu** and never moves a real marker or paints a fake travelled line.
+  `legLine` discreetly highlights only the selected planned leg (animated
+  dashes via `.leg-flow` CSS) with its difficulty colour; `leg-chip` shows the
+  label/pips at the leg midpoint. Numbered `cp-badge` milestones stay neutral
+  because two real cars may have different progress; name pills hide below
+  zoom 5 via `body.danger-far`. The final selected planning leg still shows the
+  editorial "open route" zone/label, without a synthetic convoy marker.
 - The Étapes list is a horizontal scroll-snap slider (`.legs`), ‹ › buttons
   (`#legs-prev/next`), and `render()` auto-scrolls the active card into view.
-  An Étape is planned data: clicking one from Réel first switches to Comparer,
-  making `plannedLayer` visible before `fitLeg()` moves the map.
+  An Étape is always planned data: clicking one changes the planning timeline
+  and fits that leg without hiding or modifying the selected hybrid trace.
 - **Clicking the route** jumps the timeline: `routeHit` is an invisible
   22 px-wide polyline over the whole route whose click handler finds the
   record index whose `posAt()` position is closest (equirectangular metric)
   and calls `setIndex()`. The numbered `cp-badge` circles are clickable too
   (jump to that checkpoint's arrival day; the name pill stays click-through).
-- **Three map truths** (`tripView`, `setTripView()`): the toolbar exposes
-  `Prévu | Réel | Comparer`, without ever overwriting the Sheet itinerary.
-  `plannedLayer` contains the interpolated route, active leg, checkpoints,
-  convoy, dangers/deco and planned fiche highlight. **Prévu** shows that layer
-  plus legacy/build-time media. **Réel** removes it and shows only reconstructed
-  GPS layers and v2 media. **Comparer** keeps the planned layer deliberately
-  faint underneath the real layers. `actualTrackPane` and
-  `actualMarkerPane` keep real polylines and current markers visually above the
-  comparison layer.
-- **Actual subject filters** (`trackSubject`, `setTrackSubject()`): `Convoi`
-  renders Hugodouard and Paul Pot as two independent coloured tracks — never a
-  mean line; either vehicle button renders only that derived vehicle track; a
-  person button renders only that person's own points. Person buttons come from
-  deduplicated `ACTIVE_NAMES` (both cars plus observers). The toolbar is native
-  buttons with `aria-pressed`, keyboard focus styles and horizontal overflow on
-  small screens. `Convoi` includes all v2 media (also photos taken while
-  independent), while vehicle/person selections filter media by
-  `vehicleIdAtCapture`/`personId` respectively.
+- **One hybrid map truth** (`renderHybridTracks()`): `plannedLayer` contains
+  only editorial context (selected leg, neutral checkpoints, dangers/deco,
+  clickable route and open-zone annotation). `actualTrackLayer` draws, for
+  each selected car, the accepted GPS history as a solid car-coloured line and
+  only the remaining planned suffix as a dashed line. With zero points the
+  whole plan is dashed. `projectOnPlannedRoute()` uses local equirectangular
+  projection plus cumulative-distance tie-breaking, not the inconsistent
+  calendar year, to find the suffix from the latest reliable point. The short
+  join to that projection is a separate dotted line and never enters real km;
+  it is omitted beyond 50 km so it cannot become a misleading diagonal. The
+  route data is sparse, so the explicit off-itinerary warning starts only at
+  150 km. Complementary `dashOffset`s keep both cars visible over their shared
+  future. `actualTrackPane` and
+  `actualMarkerPane` keep hybrid lines and current markers above context.
+- **Subject filters** (`trackSubject`, `setTrackSubject()`): `Convoi` renders
+  Hugodouard and Paul Pot as two independent hybrids — never a mean line;
+  either vehicle button renders only that derived vehicle hybrid; a person
+  button renders only that person's own accepted points plus the remaining
+  part of their planned presence range. Person buttons come from deduplicated
+  `ACTIVE_NAMES` (both cars plus observers). The toolbar uses native buttons
+  with `aria-pressed`, keyboard focus styles and horizontal overflow on small
+  screens. `Convoi` includes all located media (legacy/build and v2, including
+  independent captures), while vehicle/person selections show only reliably
+  attributed v2 media by `vehicleIdAtCapture`/`personId`.
 - **Actual GPS model** (`TRIP_ID = "africa-trip-01"`): stable person ids are
   normalized to active display names by `slug()`/`NAME_BY_ID`; coordinates are
   rejected before number coercion when null, blank, non-finite or outside
@@ -186,10 +193,12 @@ Key JS structures (all near the top of the script):
   the link between two good neighbours) and starts a new section after gaps
   over 20 minutes. Person/vehicle/all-point caches are invalidated only when
   `latest` or a changed chunk arrives.
-- **Person click = real focus** (`openFicheFor()`): opening a traveler with
-  real data switches Prévu to Réel, selects that person, draws their own path
-  thick with a soft glow, pulses their portrait at the latest usable point and
-  `flyTo`s the exact coordinate (zoom ≥13). A usable current point is chosen in
+- **Person click = real focus** (`openFicheFor()`): opening any traveler
+  selects that person. With real data, it draws only their own path thick with
+  a soft glow, pulses their portrait at the latest usable point and `flyTo`s
+  the exact coordinate (zoom ≥13); without GPS it fits that person's own
+  confirmed/tentative planned range instead of borrowing another position. A
+  usable current point is chosen in
   order `latest v2 → last accepted personal track point → legacy position`;
   points worse than 250 m or a short impossible latest jump are not used for the
   marker/zoom. The fiche always prints coordinates/age from that same reliable
@@ -204,15 +213,15 @@ Key JS structures (all near the top of the script):
   timer leak.
 - `GALLERY` starts with shared Drive/build media `[{id, name, date, lat, lng,
   gps, thumb, file}]` from `fetch_photos.py`. `refreshPhotos()` renders only the
-  indices allowed by the current view/subject into `photoCluster`; clicking a
+  indices allowed by the current subject into `photoCluster`; clicking a
   marker opens the filtered `#lightbox` list, with image/video support,
   captions, date, location provenance and thumbnail fallback. Firebase v2
   media remain in the existing root `photos` collection for compatibility but
   carry `tripId`, `personId`, `vehicleIdAtCapture`, `mode`, `assignmentId`,
   `capturedAt` and `locationSource`. Only documents for this trip with a known
   active person become `_v2` actual media. Legacy root photos and embedded Drive
-  photos have no v2 identity, therefore stay visible only in Prévu and never
-  contaminate a person/vehicle real filter. Media without valid coordinates are
+  photos have no v2 identity, therefore appear only for `Convoi` and never
+  contaminate a person/vehicle filter. Media without valid coordinates are
   omitted until their location is added.
 - **Live Firebase listeners** (dynamic import at the end of the classic
   script):

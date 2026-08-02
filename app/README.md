@@ -140,6 +140,11 @@ L'APK debug peut être installé directement sur Android. Après une modificatio
 de `app/www/` ou `app/native/`, reconstruire puis réinstaller l'APK : une app
 déjà installée ne récupère pas automatiquement ces fichiers.
 
+La version distribuée à l'équipage est publiée sur GitHub Releases :
+
+- [Télécharger la dernière APK](https://github.com/CartmanRolex/AfricaTrip/releases/latest/download/expedition-afrique.apk)
+- [Voir la dernière release](https://github.com/CartmanRolex/AfricaTrip/releases/latest)
+
 ## PWA iPhone
 
 Le même `www/` est installable depuis Safari avec « Partager » → « Sur l'écran
@@ -168,4 +173,4 @@ d'accueil ». Il n'y a pas d'app iOS native. Le GPS de trajet utilise
 - [x] Outbox hors ligne idempotente.
 - [x] Photos/vidéos Cloudinary enrichies et lieu modifiable après envoi.
 - [x] Règles Firestore v2 et configuration de déploiement CLI.
-- [x] Lecture publique Prévu/Réel/Comparer sur le site.
+- [x] Carte publique hybride : GPS réel plein, futur prévu pointillé, séparé par voiture/personne.

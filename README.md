@@ -10,11 +10,25 @@ Open **`voyage-afrique.html`** in any browser. No build step or server needed �
 it's a single file. It loads Leaflet, map tiles (CARTO), and Google Fonts from
 CDNs, so it needs an internet connection to render the map.
 
-The map has three views: **Prévu** (the Sheet itinerary), **Réel** (GPS sent by
-the crew app), and **Comparer** (both). In the actual views, select the convoy,
-a car, or a person. Selecting a traveler highlights only that person's route
-and flies to their latest reliable position; the timestamp remains visible so
-an old point is never presented as a fresh one.
+The map presents one hybrid route instead of separate planned/actual modes. For
+each car, the GPS path already covered is solid and only the remaining Sheet
+itinerary is dashed; a car with no GPS data keeps the full planned route. The
+two cars retain separate colours and can be filtered independently. Selecting
+a traveler highlights only that person's own route and flies to their latest
+reliable position; the timestamp remains visible so an old point is never
+presented as fresh.
+
+## Download the Android app
+
+The current APK is published in GitHub Releases so every crew member can
+download it without building the project:
+
+- [Download `expedition-afrique.apk`](https://github.com/CartmanRolex/AfricaTrip/releases/latest/download/expedition-afrique.apk)
+- [Open the release page](https://github.com/CartmanRolex/AfricaTrip/releases/latest)
+
+Android may ask for permission to install an app downloaded outside the Play
+Store. Existing installations must be replaced manually when a new APK is
+published.
 
 ## Project layout
 

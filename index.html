@@ -59,25 +59,27 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
 .map-toolbar{grid-area:map;align-self:start;justify-self:center;z-index:700;width:min(760px,calc(100% - 116px));min-width:0;
   margin:12px;padding:6px;background:rgba(20,17,14,.9);border:1px solid var(--line);border-radius:13px;
   box-shadow:0 5px 20px rgba(0,0,0,.42);backdrop-filter:blur(8px);pointer-events:auto}
-.map-modes,.track-subjects{display:flex;align-items:center;gap:4px}
-.map-modes{justify-content:center}
-.map-mode,.track-subject{border:1px solid transparent;background:transparent;color:var(--sand-dim);
+.track-subjects{display:flex;align-items:center;gap:4px}
+.track-subject{border:1px solid transparent;background:transparent;color:var(--sand-dim);
   border-radius:8px;font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;white-space:nowrap;
   min-height:30px;padding:5px 10px;transition:background .15s,border-color .15s,color .15s}
-.map-mode:hover,.track-subject:hover{color:var(--sand);background:var(--panel2)}
-.map-mode[aria-pressed="true"],.track-subject[aria-pressed="true"]{color:#17110b;background:var(--c1);
+.track-subject:hover{color:var(--sand);background:var(--panel2)}
+.track-subject[aria-pressed="true"]{color:#17110b;background:var(--c1);
   border-color:var(--c1);font-weight:700}
 .track-subject[data-kind="vehicle"][aria-pressed="true"]{background:var(--subject-color,var(--c1));
   border-color:var(--subject-color,var(--c1))}
-.map-mode:focus-visible,.track-subject:focus-visible{outline:2px solid var(--sand);outline-offset:2px}
-.track-subject-row{display:flex;align-items:center;gap:6px;margin-top:5px;padding-top:5px;border-top:1px solid var(--line)}
+.track-subject:focus-visible{outline:2px solid var(--sand);outline-offset:2px}
+.track-subject-row{display:flex;align-items:center;gap:6px}
 .track-subjects{flex:1 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none;overscroll-behavior-x:contain}
 .track-subjects::-webkit-scrollbar{display:none}
-.track-status{flex:0 0 auto;max-width:190px;font-family:var(--mono);font-size:8px;line-height:1.25;
+.track-meta{flex:0 0 auto;min-width:170px;max-width:210px}
+.track-key{display:flex;justify-content:flex-end;gap:8px;font-family:var(--mono);font-size:7px;
+  line-height:1.2;color:var(--sand-dim);white-space:nowrap}
+.track-key span{display:inline-flex;align-items:center;gap:4px}
+.track-key i{display:inline-block;width:16px;border-top:2px solid var(--sand-dim)}
+.track-key i.planned{border-top-style:dashed}
+.track-status{margin-top:2px;font-family:var(--mono);font-size:8px;line-height:1.25;
   color:var(--sand-dim);text-align:right}
-body.view-planned .track-subject-row{display:none}
-body.view-compare .cp-badge,body.view-compare .leg-chip,body.view-compare .open-label,
-body.view-compare .danger-label,body.view-compare .danger-img,body.view-compare .convoy{opacity:.3}
 .leaflet-tile-pane{filter:brightness(.92) sepia(.32) hue-rotate(-12deg) saturate(1.05);}
 .leaflet-container{background:#14110E;font-family:var(--mono)}
 .leaflet-control-attribution{background:rgba(20,17,14,.7)!important;color:#80735C!important}
@@ -85,7 +87,7 @@ body.view-compare .danger-label,body.view-compare .danger-img,body.view-compare 
 .leaflet-bar a{background:#1E1813;color:var(--sand);border-color:var(--line)}
 .leaflet-bar a:hover{background:#28201A}
 
-/* convoy + checkpoint markers */
+/* checkpoint markers */
 .cp-badge{display:flex;align-items:center;gap:5px;pointer-events:none}
 .cp-badge b{pointer-events:auto;cursor:pointer}
 .cp-badge b{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto;
@@ -184,8 +186,6 @@ body.danger-far .bubble-wrap{width:22px;height:22px}
 .fiche-link:hover{filter:brightness(1.08)}
 .seat-chip[data-name]{cursor:pointer}
 .lb-prev{left:16px}.lb-next{right:16px}
-.convoy{filter:drop-shadow(0 0 6px rgba(232,146,74,.7))}
-.convoy-ring{animation:pulse 2.2s ease-out infinite}
 @keyframes pulse{0%{r:9;opacity:.8}100%{r:24;opacity:0}}
 
 /* ---------- panel ---------- */
@@ -352,9 +352,11 @@ span.fiche-face{display:block;overflow:hidden}
   .stat span{font-size:7.5px;letter-spacing:.06em}
   #map{z-index:1}
   .map-toolbar{z-index:700;margin:7px;width:calc(100% - 76px);padding:4px;border-radius:11px}
-  .map-mode,.track-subject{font-size:8.5px;min-height:27px;padding:4px 8px}
-  .track-subject-row{min-width:0;margin-top:3px;padding-top:3px;flex-wrap:wrap}
-  .track-status{display:block;flex:1 0 100%;max-width:none;padding:2px 4px 1px;text-align:left;
+  .track-subject{font-size:8.5px;min-height:27px;padding:4px 8px}
+  .track-subject-row{min-width:0;flex-wrap:wrap}
+  .track-meta{display:flex;align-items:center;gap:8px;flex:1 0 100%;min-width:0;max-width:none;padding:2px 4px 1px}
+  .track-key{flex:0 0 auto;justify-content:flex-start;font-size:6.5px}
+  .track-status{display:block;flex:1 1 auto;min-width:0;margin-top:0;text-align:left;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:7.5px}
   .panel{position:relative;z-index:5;border-left:none;border-top:1px solid var(--line);
     margin-top:-14px;border-radius:16px 16px 0 0;box-shadow:0 -8px 24px rgba(0,0,0,.45)}
@@ -432,7 +434,7 @@ span.fiche-face{display:block;overflow:hidden}
 .pile-faces .pile-n{color:var(--sand);background:var(--panel2);border-color:var(--sand-dim)}
 </style>
 </head>
-<body class="view-planned">
+<body>
 <div class="app">
   <header>
     <div>
@@ -453,28 +455,28 @@ span.fiche-face{display:block;overflow:hidden}
       <div class="ticks" id="ticks"></div>
     </section>
     <div class="head-stats">
-      <div class="stat"><b id="s-day">—</b><span>jour du voyage</span></div>
-      <div class="stat"><b id="s-km">—</b><span id="s-km-tot">km parcourus</span></div>
-      <div class="stat"><b id="s-pax">—</b><span>à bord ce jour</span></div>
+      <div class="stat"><b id="s-day">—</b><span>jour prévu</span></div>
+      <div class="stat"><b id="s-km">—</b><span id="s-km-tot">km prévus</span></div>
+      <div class="stat"><b id="s-pax">—</b><span>équipage prévu</span></div>
     </div>
   </header>
   <div id="map"></div>
   <nav class="map-toolbar" aria-label="Vue du trajet">
-    <div class="map-modes" role="group" aria-label="Type de trajet">
-      <button class="map-mode" data-view="planned" aria-pressed="true">Prévu</button>
-      <button class="map-mode" data-view="actual" aria-pressed="false">Réel</button>
-      <button class="map-mode" data-view="compare" aria-pressed="false">Comparer</button>
-    </div>
     <div class="track-subject-row">
       <div class="track-subjects" id="track-subjects" role="group" aria-label="Trace affichée"></div>
-      <div class="track-status" id="track-status" role="status" aria-live="polite"></div>
+      <div class="track-meta">
+        <div class="track-key" aria-label="Légende des tracés">
+          <span><i></i>plein = réel</span><span><i class="planned"></i>pointillés = prévu</span>
+        </div>
+        <div class="track-status" id="track-status" role="status" aria-live="polite"></div>
+      </div>
     </div>
   </nav>
   <div class="panel">
     <div class="panel-scroll">
       <section>
         <div class="legs-head">
-          <p class="eyebrow">Étapes du voyage</p>
+          <p class="eyebrow">Étapes prévues</p>
           <div class="legs-nav">
             <button id="legs-prev" aria-label="Étapes précédentes">‹</button>
             <button id="legs-next" aria-label="Étapes suivantes">›</button>
@@ -530,7 +532,6 @@ const MAX_ACCURACY_M = 250;
 let trackRevision=0,cachedTrackRevision=-1,cachedTrackPoints=[];
 const personTrackCache=new Map(),vehicleTrackCache=new Map();
 function invalidateTracks(){trackRevision++;cachedTrackRevision=-1;personTrackCache.clear();vehicleTrackCache.clear();}
-let tripView = 'planned';
 let trackSubject = 'convoy';
 const ago = ms => { const s=(Date.now()-ms)/1000;
   if(s<90) return "à l'instant";
@@ -585,7 +586,10 @@ function hav(a,b){const R=6371,d=Math.PI/180;
   const h=Math.sin(dla/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dlo/2)**2;
   return 2*R*Math.asin(Math.sqrt(h));}
 // cumulative distance of full route
-let totalKm=0; for(let i=1;i<ROUTE.length;i++) totalKm+=hav(ROUTE[i-1],ROUTE[i]);
+const ROUTE_KM=[0];
+let totalKm=0; for(let i=1;i<ROUTE.length;i++){
+  totalKm+=hav(ROUTE[i-1],ROUTE[i]); ROUTE_KM.push(totalKm);
+}
 const kmFmt = n => Math.round(n).toLocaleString('fr-FR');
 
 // odomètre : réutilise les bandes tant que la "forme" du nombre ne change pas
@@ -607,7 +611,7 @@ function odoSet(el,n){
   for(const c of str) if(/\d/.test(c))
     reels[k++].style.transform=`translateY(calc(${-c} * var(--oh)))`;
 }
-// km actually driven up to a convoy position {upTo, partial}
+// planned km up to a timeline position {upTo, partial}
 function traveledKm(P){
   let km=0; for(let i=0;i<P.upTo;i++) km+=hav(ROUTE[i],ROUTE[i+1]);
   if(P.partial) km+=hav(ROUTE[P.upTo],P.partial);
@@ -633,7 +637,7 @@ function legOf(r){
   for(let i=0;i<LEGS.length-1;i++){ if(r>=LEGS[i].s && r<LEGS[i].e) return i; }
   return LEGS.length-1;
 }
-// interpolate convoy position for record index r -> {lat,lng, traveledIdx, frac}
+// interpolate the planned timeline position for record index r
 function posAt(r){
   const li=legOf(r), L=LEGS[li];
   if(L.stay || L.ri0===L.ri1){ return {pt:ROUTE[L.ri1], legIdx:li, upTo:L.ri1, partial:null}; }
@@ -665,20 +669,15 @@ map.getPane('actualTrackPane').style.pointerEvents='none';
 map.createPane('actualMarkerPane');
 map.getPane('actualMarkerPane').style.zIndex=670;
 const plannedLayer=L.layerGroup().addTo(map);
-const actualTrackLayer=L.layerGroup();
+const actualTrackLayer=L.layerGroup().addTo(map);
 
 const latlngs = ROUTE.map(p=>[p.lat,p.lng]);
-// base (faint full route)
-const plannedBase=L.polyline(latlngs,{color:'#6b5b44',weight:2.5,opacity:.45,dashArray:'1 7',lineCap:'round'}).addTo(plannedLayer);
-// active leg highlight — animated dashes, coloured by leg difficulty; shows
-// WHICH leg is selected before the convoy has driven it (traveled sits on top)
-const legLine = L.polyline([],{color:'#EFE7D6',weight:3,opacity:.85,lineCap:'round',className:'leg-flow'}).addTo(plannedLayer);
-// traveled (bright) — updated dynamically, with a soft glow underneath
-const glow = L.polyline([],{color:'#E8924A',weight:9,opacity:.16,lineCap:'round',lineJoin:'round'}).addTo(plannedLayer);
-const traveled = L.polyline([],{color:'#E8924A',weight:3.5,opacity:.95,lineCap:'round',lineJoin:'round'}).addTo(plannedLayer);
+// La frise ne simule aucun trajet réel. Elle ne fait que surligner discrètement
+// l'étape planifiée sélectionnée, sous les traces hybrides par véhicule/personne.
+const legLine = L.polyline([],{color:'#EFE7D6',weight:3,opacity:.38,lineCap:'round',className:'leg-flow'}).addTo(plannedLayer);
 
 // couloir de clic invisible sur TOUT le tracé : cliquer un endroit du chemin
-// cale la frise (et le slider) sur le jour où le convoi y passe
+// cale la frise sur le jour auquel le planning associe ce point
 const routeHit=L.polyline(latlngs,{weight:22,opacity:.002,lineCap:'round',lineJoin:'round'}).addTo(plannedLayer);
 routeHit.on('click',e=>{
   const c=e.latlng, k=Math.cos(c.lat*Math.PI/180);
@@ -700,12 +699,6 @@ ROUTE.forEach((p,i)=>{ if(!p.cp) return;
   m.on('click',()=>{ stop(); setIndex(cpRecIdx[n-1]); });
   cpMarkers.push({i,marker:m});
 });
-// done = déjà atteint · next = prochaine destination (pulsation ambre)
-function refreshCp(upTo,nextIdx){ document.querySelectorAll('.cp-badge').forEach(el=>{
-  const i=+el.dataset.i;
-  el.classList.toggle('done', i<=upTo);
-  el.classList.toggle('next', i===nextIdx && i>upTo);}); }
-
 // zones à risque (section "danger" de l'onglet Config), habillées façon
 // carte de jeu vidéo — toutes loin de la route côtière
 const DANGER=CFG.danger||[];
@@ -944,50 +937,140 @@ function currentForPerson(name){
   const legacy=legacyPositions[name];
   return legacy&&(legacy.accuracyM==null||legacy.accuracyM<=MAX_ACCURACY_M)?legacy:null;
 }
-function subjectPoints(){
-  const {kind,id}=subjectParts();
-  if(kind==='vehicle')return vehiclePoints(id);
-  if(kind==='person'){const name=NAME_BY_ID.get(id);return name?personPoints(name):[];}
-  return [...vehiclePoints('hugodouard'),...vehiclePoints('paul-pot')];
+const PROJECTION_TIE_KM=.05;
+// Un raccord n'est qu'un repère visuel : au-delà de 50 km il deviendrait une
+// grande diagonale trompeuse. La route éditoriale étant clairsemée, on ne
+// qualifie toutefois la position de réellement hors itinéraire qu'à 150 km.
+const MAX_PLAN_CONNECTOR_KM=50,OFF_ROUTE_WARNING_KM=150;
+function projectOnPlannedRoute(point){
+  if(!point||!ROUTE.length)return null;
+  if(ROUTE.length===1)return {point:{lat:ROUTE[0].lat,lng:ROUTE[0].lng},segment:0,t:0,
+    progressKm:0,distanceKm:hav(point,ROUTE[0])};
+  let best=null;
+  for(let i=0;i<ROUTE.length-1;i++){
+    const A=ROUTE[i],B=ROUTE[i+1];
+    // Projection équirectangulaire locale : les longitudes sont ramenées à la
+    // même échelle que les latitudes avant le produit scalaire.
+    const refLat=(point.lat+A.lat+B.lat)/3*Math.PI/180;
+    const cosLat=Math.max(.01,Math.abs(Math.cos(refLat)));
+    const ax=(A.lng-point.lng)*cosLat,ay=A.lat-point.lat;
+    const bx=(B.lng-point.lng)*cosLat,by=B.lat-point.lat;
+    const vx=bx-ax,vy=by-ay,den=vx*vx+vy*vy;
+    const t=den?Math.max(0,Math.min(1,-(ax*vx+ay*vy)/den)):0;
+    const projected={lat:A.lat+(B.lat-A.lat)*t,lng:A.lng+(B.lng-A.lng)*t};
+    const distanceKm=hav(point,projected);
+    const progressKm=ROUTE_KM[i]+(ROUTE_KM[i+1]-ROUTE_KM[i])*t;
+    // À distance quasi identique (boucle/croisement), retenir la branche la
+    // plus avancée évite de faire repartir le suffixe prévu vers l'arrière.
+    if(!best||distanceKm<best.distanceKm-PROJECTION_TIE_KM||
+      (Math.abs(distanceKm-best.distanceKm)<=PROJECTION_TIE_KM&&progressKm>best.progressKm))
+      best={point:projected,segment:i,t,progressKm,distanceKm};
+  }
+  return best;
 }
-function renderActualTracks(){
+function routePointAt(progressKm){
+  const progress=Math.max(0,Math.min(totalKm,progressKm));
+  if(!ROUTE.length)return null;
+  if(ROUTE.length===1)return {lat:ROUTE[0].lat,lng:ROUTE[0].lng};
+  let i=0;
+  while(i<ROUTE.length-2&&ROUTE_KM[i+1]<progress)i++;
+  const span=ROUTE_KM[i+1]-ROUTE_KM[i];
+  const t=span?(progress-ROUTE_KM[i])/span:0,A=ROUTE[i],B=ROUTE[Math.min(i+1,ROUTE.length-1)];
+  return {lat:A.lat+(B.lat-A.lat)*t,lng:A.lng+(B.lng-A.lng)*t};
+}
+function routeSlice(startKm,endKm){
+  const start=Math.max(0,Math.min(totalKm,startKm));
+  const end=Math.max(start,Math.min(totalKm,endKm));
+  const A=routePointAt(start),B=routePointAt(end);
+  if(!A||!B)return [];
+  const out=[[A.lat,A.lng]];
+  for(let i=1;i<ROUTE.length-1;i++)if(ROUTE_KM[i]>start+.001&&ROUTE_KM[i]<end-.001)
+    out.push([ROUTE[i].lat,ROUTE[i].lng]);
+  if(end-start>.001)out.push([B.lat,B.lng]);
+  return out;
+}
+function routeProgressAtRecord(recordIndex){
+  const P=posAt(recordIndex);
+  if(!P.partial)return ROUTE_KM[Math.min(P.upTo,ROUTE_KM.length-1)]||0;
+  return (ROUTE_KM[P.upTo]||0)+hav(ROUTE[P.upTo],P.partial);
+}
+function plannedRangeForPerson(name){
+  const onboard=[];
+  REC.forEach((r,i)=>{
+    const state=r.car1[name]||r.car2[name];
+    if(state==='present'||state==='tentative')onboard.push(i);
+  });
+  if(!onboard.length)return null;
+  return {startKm:routeProgressAtRecord(onboard[0]),
+    endKm:onboard.at(-1)===REC.length-1?totalKm:routeProgressAtRecord(onboard.at(-1))};
+}
+function addPlannedFuture(last,color,{focused=false,dashOffset='0',startKm=0,endKm=totalKm}={}){
+  const projection=last?projectOnPlannedRoute(last):null;
+  const start=Math.max(startKm,projection?projection.progressKm:startKm);
+  const end=Math.max(startKm,Math.min(totalKm,endKm));
+  const tail=routeSlice(start,end);
+  const connectorTooFar=!!projection&&projection.distanceKm>MAX_PLAN_CONNECTOR_KM;
+  const offRoute=!!projection&&projection.distanceKm>OFF_ROUTE_WARNING_KM;
+  // Le raccord est une information de lecture, jamais un déplacement réel :
+  // il reste fin et pointillé, et disparaît plutôt que créer une diagonale
+  // trompeuse quand la position est très loin de l'itinéraire envisagé.
+  if(last&&projection&&!connectorTooFar&&start<=projection.progressKm+.001&&projection.distanceKm>.08)
+    L.polyline([[last.lat,last.lng],[projection.point.lat,projection.point.lng]],{
+      pane:'actualTrackPane',color,weight:1.5,opacity:.48,dashArray:'1 7',lineCap:'round',interactive:false
+    }).addTo(actualTrackLayer);
+  if(tail.length>1)L.polyline(tail,{pane:'actualTrackPane',color,weight:focused?4:3.2,opacity:focused?.8:.66,
+    dashArray:'10 12',dashOffset,lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
+  return {projection,connectorTooFar,offRoute,hasFuture:tail.length>1};
+}
+function trackSummary(points){
+  const count=trackPointCount(points);
+  return count?`${count} point${count>1?'s':''}, ${kmFmt(trackKm(points))} km réels`:'aucune trace réelle';
+}
+function renderHybridTracks(){
   actualTrackLayer.clearLayers();
   const status=document.getElementById('track-status');
-  if(tripView==='planned'){status.textContent='';return;}
-  if(!map.hasLayer(actualTrackLayer))actualTrackLayer.addTo(map);
   const {kind,id}=subjectParts();
   if(kind==='convoy'){
     const summaries=[];
-    Object.entries(VEHICLES).forEach(([vid,meta])=>{
+    Object.entries(VEHICLES).forEach(([vid,meta],i)=>{
       const pts=vehiclePoints(vid); addActualPath(pts,meta.color,false);
       addActualMarker(pts.at(-1),meta.color,meta.label,null,false);
-      summaries.push(`${meta.label} : ${pts.length||'aucun'} point${pts.length>1?'s':''}`);
+      const future=addPlannedFuture(pts.at(-1),meta.color,{dashOffset:i?'11':'0'});
+      summaries.push(`${meta.label} : ${trackSummary(pts)}${future.hasFuture?' · futur prévu':''}`+
+        (future.offRoute?` · hors itinéraire prévu (${kmFmt(future.projection.distanceKm)} km)`:''));
     });
     status.textContent=summaries.join(' · ');
   }else if(kind==='vehicle'){
     const meta=VEHICLES[id]; if(!meta)return;
     const pts=vehiclePoints(id); addActualPath(pts,meta.color,true);
     addActualMarker(pts.at(-1),meta.color,meta.label,null,true);
-    status.textContent=pts.length?`${pts.length} points · ${kmFmt(trackKm(pts))} km`:`Aucune trace GPS pour ${meta.label}.`;
+    const future=addPlannedFuture(pts.at(-1),meta.color,{focused:true});
+    status.textContent=`${meta.label} : ${trackSummary(pts)}${future.hasFuture?' · futur prévu pointillé':' · itinéraire prévu terminé'}`+
+      (future.offRoute?` · hors itinéraire prévu (${kmFmt(future.projection.distanceKm)} km)`:'.');
   }else if(kind==='person'){
     const name=NAME_BY_ID.get(id); if(!name)return;
     const pts=personPoints(name),current=currentForPerson(name),reported=reportedForPerson(name),
       rejected=rejectedLatestForPerson(name),plotted=trackPointCount(pts),color=colorOf(name);
     addActualPath(pts,color,true); addActualMarker(current,color,name,name,true);
+    const range=plannedRangeForPerson(name);
+    const future=range?addPlannedFuture(current,color,{focused:true,...range}):null;
+    const planned=future?(future.hasFuture?' · futur prévu pointillé':' · trajet prévu terminé'):'';
+    const offRoute=future&&future.offRoute?` · hors itinéraire prévu (${kmFmt(future.projection.distanceKm)} km)`:'';
     if(plotted){
-      status.innerHTML=`${plotted} point${plotted>1?'s':''} · ${kmFmt(trackKm(pts))} km${current&&current.at?` · ${ageMarkup(current.at)}`:''}`+
-        (rejected?` · <span title="${esc(rejected.reason)}">dernier fix écarté</span>`:'');
+      status.innerHTML=`${plotted} point${plotted>1?'s':''} · ${kmFmt(trackKm(pts))} km réels${current&&current.at?` · ${ageMarkup(current.at)}`:''}`+
+        (rejected?` · <span title="${esc(rejected.reason)}">dernier fix écarté</span>`:'')+planned+offRoute;
     }else if(current){
-      status.innerHTML=`Dernière position seulement${current.at?` · ${ageMarkup(current.at)}`:''}`;
+      status.innerHTML=`Dernière position seulement${current.at?` · ${ageMarkup(current.at)}`:''}${planned}${offRoute}`;
     }else if(reported){
-      status.textContent=`Position écartée : ${rejected?rejected.reason:'précision insuffisante'}.`;
-    }else status.textContent=`Aucune trace GPS pour ${name}.`;
+      status.textContent=`Position écartée : ${rejected?rejected.reason:'précision insuffisante'}${planned}.`;
+    }else status.textContent=`Aucune trace GPS pour ${name}${planned}.`;
   }
 }
 function photoVisible(g){
-  if(tripView==='planned')return !g._v2;
-  if(!g._v2)return false;
   const {kind,id}=subjectParts();
+  // Les médias historiques n'ont pas d'auteur/véhicule fiable : visibles pour
+  // le convoi, mais jamais attribués artificiellement dans un filtre précis.
+  if(!g._v2)return kind==='convoy';
   if(kind==='vehicle')return g.vehicleIdAtCapture===id;
   if(kind==='person')return g.personName===NAME_BY_ID.get(id);
   return true; // Convoi = tous les médias réels, y compris à pied/autre
@@ -998,44 +1081,34 @@ function visibleGalleryIndices(){
 function rebuildLivePositions(){
   Object.keys(livePositions).forEach(k=>delete livePositions[k]);
   ACTIVE_NAMES.forEach(name=>{const p=currentForPerson(name);if(p)livePositions[name]=p;});
-  refreshFaces(); renderActualTracks();
+  refreshFaces(); renderHybridTracks();
   if(ficheFor){render();renderObs();}
 }
 function focusTrackSubject(){
-  if(tripView==='planned')return;
   const {kind,id}=subjectParts();
   if(kind==='person'){
     const name=NAME_BY_ID.get(id),p=name&&currentForPerson(name);
     if(p)map.flyTo([p.lat,p.lng],Math.max(map.getZoom(),13),{duration:.75});
+    else if(name){
+      const range=plannedRangeForPerson(name),ll=range&&routeSlice(range.startKm,range.endKm);
+      if(ll&&ll.length>1)map.flyToBounds(ll,{padding:[55,55],maxZoom:8,duration:.75});
+    }
     return;
   }
   if(kind==='vehicle'){
-    const p=vehiclePoints(id).at(-1); if(p)map.flyTo([p.lat,p.lng],Math.max(map.getZoom(),11),{duration:.75});
+    const p=vehiclePoints(id).at(-1);
+    if(p)map.flyTo([p.lat,p.lng],Math.max(map.getZoom(),11),{duration:.75});
+    else map.flyToBounds(latlngs,{padding:[55,55],maxZoom:7,duration:.75});
     return;
   }
   const pts=[...vehiclePoints('hugodouard'),...vehiclePoints('paul-pot')];
   if(pts.length)map.flyToBounds(L.latLngBounds(pts.map(p=>[p.lat,p.lng])),{padding:[55,55],maxZoom:9,duration:.75});
+  else map.flyToBounds(latlngs,{padding:[55,55],maxZoom:7,duration:.75});
 }
 function setTrackSubject(subject,focus=true){
   trackSubject=subject;
   document.querySelectorAll('.track-subject').forEach(b=>{const on=b.dataset.subject===subject;b.setAttribute('aria-pressed',on?'true':'false');});
-  renderActualTracks();refreshPhotos();refreshFaces();
-  if(focus)focusTrackSubject();
-}
-function setTripView(view,focus=true){
-  if(!['planned','actual','compare'].includes(view))return;
-  tripView=view;
-  document.body.classList.remove('view-planned','view-actual','view-compare');
-  document.body.classList.add(`view-${view}`);
-  document.querySelectorAll('.map-mode').forEach(b=>b.setAttribute('aria-pressed',b.dataset.view===view?'true':'false'));
-  const compare=view==='compare';
-  plannedBase.setStyle({opacity:compare ? .16 : .45});legLine.setStyle({opacity:compare ? .25 : .85});
-  glow.setStyle({opacity:compare ? .05 : .16});traveled.setStyle({opacity:compare ? .28 : .95});ficheLine.setStyle({opacity:compare ? .15 : .45});
-  if(view==='actual'){if(map.hasLayer(plannedLayer))map.removeLayer(plannedLayer);}
-  else if(!map.hasLayer(plannedLayer))plannedLayer.addTo(map);
-  if(view==='planned'){if(map.hasLayer(actualTrackLayer))map.removeLayer(actualTrackLayer);}
-  else if(!map.hasLayer(actualTrackLayer))actualTrackLayer.addTo(map);
-  renderActualTracks();refreshPhotos();refreshFaces();updateFicheLine();
+  renderHybridTracks();refreshPhotos();refreshFaces();
   if(focus)focusTrackSubject();
 }
 function setupTrackControls(){
@@ -1046,7 +1119,6 @@ function setupTrackControls(){
   el.innerHTML=buttons.map(b=>`<button class="track-subject" data-subject="${b.subject}" data-kind="${b.kind}"
     aria-pressed="${b.subject==='convoy'}"${b.color?` style="--subject-color:${b.color}"`:''}>${esc(b.label)}</button>`).join('');
   el.addEventListener('click',e=>{const b=e.target.closest('.track-subject');if(b)setTrackSubject(b.dataset.subject,true);});
-  document.querySelectorAll('.map-mode').forEach(b=>b.addEventListener('click',()=>setTripView(b.dataset.view,true)));
 }
 
 function refreshPhotos(){
@@ -1070,14 +1142,12 @@ function refreshFaces(){
   Object.entries(livePositions).forEach(([name, p]) => {
     // Ignore positions left by people no longer present in the current roster.
     if(!CAR1.includes(name)&&!CAR2.includes(name)&&!(CFG.observateurs||[]).includes(name))return;
-    if(tripView!=='planned'){
-      const subject=subjectParts();
-      if(subject.kind==='person'){
-        if(name!==NAME_BY_ID.get(subject.id))return;
-        return; // le marqueur pulsant exact est déjà dans actualTrackLayer
-      }
-      if(subject.kind==='vehicle'&&p.vehicleId!==subject.id)return;
+    const subject=subjectParts();
+    if(subject.kind==='person'){
+      if(name!==NAME_BY_ID.get(subject.id))return;
+      return; // le marqueur pulsant exact est déjà dans actualTrackLayer
     }
+    if(subject.kind==='vehicle'&&p.vehicleId!==subject.id)return;
     const face = (PHOTOS.faces || {})[name];
     const html = face
       ? `<div class="map-face" style="--fc:${colorOf(name)};background-image:url('${face}')"></div>`
@@ -1159,7 +1229,8 @@ refreshPhotos(); refreshFaces();
         const thumb = mediaThumb(d.url, video, 96);
         const captured=toMs(firstValue(d.capturedAtMs,d.capturedAt,d.createdAt));
         const date=typeof d.date==='string'&&d.date?d.date.slice(0,10):(captured?new Date(captured).toISOString().slice(0,10):'');
-        GALLERY.push({id:doc.id,name:d.name||author||'',date,lat,lng,gps:!!d.gps||d.locationSource==='gps',
+        GALLERY.push({id:doc.id,name:d.name||author||'',date,lat,lng,
+          gps:!!d.gps||d.locationSource==='gps'||d.locationSource==='media-gps',
           manual:!!d.manual||d.locationSource==='manual',caption:d.caption||'',video,thumb,file:d.url,
           _origin:'firebase',_v2:isV2,personName:author,personId:slug(d.personId||author),
           vehicleIdAtCapture:vehicleId(d.vehicleIdAtCapture)});
@@ -1202,7 +1273,7 @@ function showLb(){
   lb.querySelector('.lightbox-cap').innerHTML=
     (g.caption?`<div class="lb-cap-text">${esc(g.caption)}</div>`:'')+
     `<b>${dateLabel}</b>`+
-    (g.gps?'':(g.manual?' · position choisie':' · position estimée (convoi)'))+
+    (g.gps?'':(g.manual?' · position choisie':' · position estimée'))+
     (lbList.length>1?` · ${lbIdx+1}/${lbList.length}`:'');
   const nav=lbList.length>1?'grid':'none';
   lb.querySelector('.lb-prev').style.display=nav;
@@ -1235,20 +1306,6 @@ function presenceOf(name){
 function colorOf(name){
   return CAR1.includes(name)?CARS[1].color:CAR2.includes(name)?CARS[2].color:'#8E8066';
 }
-// tronçon du personnage sélectionné : large bande translucide sous le tracé
-const ficheLine=L.polyline([],{weight:11,opacity:.45,lineCap:'round',lineJoin:'round'}).addTo(plannedLayer);
-ficheLine.bringToBack();
-function updateFicheLine(){
-  if(tripView==='actual'){ ficheLine.setLatLngs([]); return; }
-  const pres=ficheFor&&presenceOf(ficheFor);
-  if(!pres){ ficheLine.setLatLngs([]); return; }
-  const A=posAt(pres.i0), B=posAt(pres.i1);
-  const pts=[[A.pt.lat,A.pt.lng]];
-  for(let j=A.upTo+1;j<=B.upTo;j++)pts.push([ROUTE[j].lat,ROUTE[j].lng]);
-  pts.push([B.pt.lat,B.pt.lng]);
-  ficheLine.setStyle({color:colorOf(ficheFor)});
-  ficheLine.setLatLngs(pts);
-}
 function ficheHTML(name,color){
   const r=RPG[name]||{xp:0,pv:5,skill:'—'};
   const ph=PHOTOS.faces[name];
@@ -1274,7 +1331,7 @@ function ficheHTML(name,color){
     rows.push(['Dernier fix écarté',`${rejected.reason}${rejected.point.at?` · ${ageMarkup(rejected.point.at)}`:''} · non affiché`]);
   }
   const realCount=trackPointCount(real);
-  rows.push(['Trace réelle',realCount?`${realCount} point${realCount>1?'s':''} · ${kmFmt(trackKm(real))} km`:
+  rows.push(['Trace réelle',realCount?`${realCount} point${realCount>1?'s':''} · ${kmFmt(trackKm(real))} km réels`:
     (lp?'position seule, historique indisponible':rejected?'aucun point GPS fiable':'aucun point GPS reçu')]);
   return `<div class="car fiche-card" style="--cc:${color}">
     <button class="fiche-close" aria-label="Fermer la fiche">✕</button>
@@ -1288,7 +1345,7 @@ function ficheHTML(name,color){
     <div class="fiche-rows">${rows.map(([k,v])=>`<div class="fiche-row"><span>${k}</span><b>${v}</b></div>`).join('')}</div>
     ${r.lien?`<a class="fiche-link" href="${r.lien.replace(/"/g,'&quot;')}" target="_blank" rel="noopener">Ouvrir le lien ↗</a>`:''}</div>`;
 }
-function closeFiche(){ ficheFor=null; render(); renderObs(); updateFicheLine(); }
+function closeFiche(){ ficheFor=null; render(); renderObs(); }
 window.addEventListener('keydown',e=>{ if(e.key==='Escape'&&ficheFor)closeFiche(); });
 /* Ouverture d'une fiche + aperçu tactile.
    Desktop (souris) : survol = aperçu, clic n'importe où dans la carte = fiche.
@@ -1312,11 +1369,9 @@ function setPreview(chip){
 function openFicheFor(name){
   setPreview(null);
   ficheFor=name;
-  const hasActual=!!reportedForPerson(name)||personPoints(name).length>0;
-  if(hasActual&&tripView==='planned')setTripView('actual',false);
-  if(hasActual||tripView!=='planned')setTrackSubject(`person:${slug(name)}`,false);
-  render(); renderObs(); updateFicheLine();
-  if(hasActual)focusTrackSubject();
+  setTrackSubject(`person:${slug(name)}`,false);
+  render(); renderObs();
+  focusTrackSubject();
   // mobile : la fiche peut s'ouvrir hors de la zone visible du bottom-sheet
   if(matchMedia('(max-width:880px)').matches){
     const el=document.querySelector('.fiche-card');
@@ -1384,23 +1439,6 @@ document.addEventListener('mouseout',e=>{
   liveZoom(chip,chip.dataset.name,false);
 });
 
-// convoy marker
-const convoyIcon=L.divIcon({className:'',iconSize:[34,34],iconAnchor:[17,17],html:`
-  <svg class="convoy" width="34" height="34" viewBox="0 0 34 34">
-    <circle class="convoy-ring" cx="17" cy="17" r="9" fill="none" stroke="#E8924A" stroke-width="2"/>
-    <circle cx="17" cy="17" r="7" fill="#E8924A" stroke="#14110E" stroke-width="2.5"/>
-    <circle cx="17" cy="17" r="2.5" fill="#14110E"/>
-  </svg>`});
-// open-ended variant: amber + "?" — the convoy has reached Dakar but the
-// onward route is undecided (not parked there, just unknown).
-const convoyIconOpen=L.divIcon({className:'',iconSize:[34,34],iconAnchor:[17,17],html:`
-  <svg class="convoy" width="34" height="34" viewBox="0 0 34 34">
-    <circle class="convoy-ring" cx="17" cy="17" r="9" fill="none" stroke="#E3B53F" stroke-width="2"/>
-    <circle cx="17" cy="17" r="8" fill="#E3B53F" stroke="#14110E" stroke-width="2.5"/>
-    <text x="17" y="21.5" text-anchor="middle" font-family="Oswald,sans-serif" font-weight="700" font-size="12" fill="#14110E">?</text>
-  </svg>`});
-const convoy=L.marker([ROUTE[0].lat,ROUTE[0].lng],{icon:convoyIcon,zIndexOffset:1000}).addTo(plannedLayer);
-
 // "open road" overlay past the last checkpoint: a dashed horizon zone + label,
 // shown only during the final, undecided leg so it's clear the trip goes on.
 const ENDPT=ROUTE[ROUTE.length-1];
@@ -1411,8 +1449,8 @@ const openLabel=L.marker([ENDPT.lat-2.3,ENDPT.lng+0.2],{interactive:false,icon:L
 let zoneOn=false;
 function setOpenZone(on){
   if(on===zoneOn) return; zoneOn=on;
-  if(on){ openZone.addTo(plannedLayer); openLabel.addTo(plannedLayer); convoy.setIcon(convoyIconOpen); }
-  else  { plannedLayer.removeLayer(openZone); plannedLayer.removeLayer(openLabel); convoy.setIcon(convoyIcon); }
+  if(on){ openZone.addTo(plannedLayer); openLabel.addTo(plannedLayer); }
+  else  { plannedLayer.removeLayer(openZone); plannedLayer.removeLayer(openLabel); }
 }
 
 /* ---- render legs ---- */
@@ -1442,12 +1480,7 @@ LEGS.forEach((L,i)=>{
     <span class="leg-route">${title}</span>
     <span class="leg-sub">${sub}</span>
     <span class="leg-diff" style="color:${DIFF_COLOR(m.diff)}">${pips} ${m.lbl}</span>`;
-  b.onclick=()=>{
-    // Une étape appartient au trajet prévu : depuis Réel, garder les traces
-    // GPS mais réafficher le fond prévu avant de cadrer ce tronçon.
-    if(tripView==='actual')setTripView('compare',false);
-    setIndex(L.s); fitLeg(L);
-  };
+  b.onclick=()=>{ setIndex(L.s); fitLeg(L); };
   legsEl.appendChild(b);
 });
 document.getElementById('legs-prev').onclick=()=>legsEl.scrollBy({left:-legsEl.clientWidth*.8,behavior:'smooth'});
@@ -1605,23 +1638,19 @@ function renderCar(carNo,rec){
 /* ---- main render ---- */
 function render(){
   const rec=REC[idx];
-  // map
+  // La frise pilote exclusivement la lecture du planning. Les lignes pleines,
+  // marqueurs et suffixes pointillés restent dérivés des données GPS fiables.
   const P=posAt(idx);
-  convoy.setLatLng([P.pt.lat,P.pt.lng]);
-  const tl=[]; for(let i=0;i<=P.upTo;i++)tl.push([ROUTE[i].lat,ROUTE[i].lng]);
-  if(P.partial)tl.push([P.partial.lat,P.partial.lng]);
-  traveled.setLatLngs(tl); glow.setLatLngs(tl);
   const AL=LEGS[P.legIdx], lpts=[];
   if(!AL.stay){ for(let i=AL.ri0;i<=AL.ri1;i++) lpts.push([ROUTE[i].lat,ROUTE[i].lng]); }
   legLine.setLatLngs(lpts);
   legLine.setStyle({color:DIFF_COLOR(legMeta(P.legIdx).diff)});
-  refreshCp(P.upTo, AL.stay?-1:AL.ri1);
   updateLegChip(P.legIdx);
   setOpenZone(P.legIdx===LEGS.length-1);   // final leg = onward route undecided
   // panel
   document.getElementById('tl-date').textContent=rec.date;
   const onFinal=P.legIdx===LEGS.length-1;
-  document.getElementById('tl-loc').textContent='⌖ '+pretty(rec.location||'—')+(onFinal?' · '+(T.open_route_suffix||'itinéraire ouvert'):'');
+  document.getElementById('tl-loc').textContent='PRÉVU · '+pretty(rec.location||'—')+(onFinal?' · '+(T.open_route_suffix||'itinéraire ouvert'):'');
   const pct=(idx/(REC.length-1))*100; scrub.style.setProperty('--pct',pct+'%');
   document.getElementById('s-pax').textContent=paxCount(rec);
   document.getElementById('s-day').textContent=`${idx+1} / ${REC.length}`;
@@ -1637,9 +1666,9 @@ function render(){
   }
 }
 
-document.getElementById('s-km-tot').textContent=`/ ${kmFmt(totalKm)} km`;
+document.getElementById('s-km-tot').textContent=`/ ${kmFmt(totalKm)} km prévus`;
 setupTrackControls();
-setTripView('planned',false);
+renderHybridTracks();
 // Les âges restent justes même en pause, sans rerendre les traces ni accumuler
 // de timers lors d'un passage en arrière-plan / retour via le bfcache.
 document.addEventListener('visibilitychange',()=>document.hidden?stopAgoRefresh():startAgoRefresh());
