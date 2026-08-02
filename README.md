@@ -10,6 +10,12 @@ Open **`voyage-afrique.html`** in any browser. No build step or server needed �
 it's a single file. It loads Leaflet, map tiles (CARTO), and Google Fonts from
 CDNs, so it needs an internet connection to render the map.
 
+The map has three views: **Prévu** (the Sheet itinerary), **Réel** (GPS sent by
+the crew app), and **Comparer** (both). In the actual views, select the convoy,
+a car, or a person. Selecting a traveler highlights only that person's route
+and flies to their latest reliable position; the timestamp remains visible so
+an old point is never presented as a fresh one.
+
 ## Project layout
 
 ```
@@ -23,6 +29,31 @@ src/
   data.json        <- structured trip data, embedded into the site at build time
   template.html    <- the full HTML/CSS/JS with a literal __DATA__ token
   build.py         <- injects data.json into template.html -> voyage-afrique.html
+app/               <- Capacitor crew app: mode/car choice, GPS, PV and media
+firebase.json      <- deploys app/firestore.rules to africatrip-eea1a
+```
+
+## Actual-trip data
+
+The planned route stays in `src/data.json`. Actual data is isolated in Firestore
+under `trips/africa-trip-01`:
+
+- `assignmentEvents`: immutable changes of car/mode (crew-only read);
+- `trackChunks`: public, append-only point maps, split by person/session/
+  assignment and two-hour window;
+- `latest`: one public reliable latest point per person;
+- root `photos`: legacy-compatible media enriched with trip/person/vehicle
+  context and capture/location-source metadata.
+
+The app never invents a car position: each person explicitly chooses
+Hugodouard, Paul Pot, À pied/autre, or Pause. The site derives each car route
+from the points declared in that car, using one-minute buckets and rejecting
+inaccurate fixes, impossible speeds and long gaps.
+
+Deploy only the rules (the site itself remains on GitHub Pages):
+
+```bash
+firebase deploy --only firestore:rules
 ```
 
 ## Refresh from the live Google Sheet

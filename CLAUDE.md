@@ -53,6 +53,15 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
   inside — this is the supported way for friends to upload with GPS intact,
   because Android (since April 2026) strips EXIF location on normal uploads
   but not from photos inside a zip (see `COMMENT-UPLOADER.md`).
+- **Planned vs actual tracking** is deliberately split. The Sheet/`DATA.route`
+  remains the editorial plan; the crew app writes the actual trip under
+  `trips/africa-trip-01`. Every GPS point carries the person and the declared
+  context (`hugodouard`, `paul-pot`, or independent), so personal routes never
+  get mixed. Car routes are derived on the public site from their occupants'
+  points in one-minute windows with accuracy/speed/gap rejection. The app starts
+  in Pause for a person who has never chosen a mode, queues offline in IndexedDB,
+  samples at most once/minute (five minutes while still), and groups immutable
+  points by person/session/assignment in two-hour Firestore chunks.
 - The site is **fully self-contained**: all images are embedded as data URIs
   so `voyage-afrique.html` opens from disk; only map tiles/fonts/Leaflet come
   from CDNs.
@@ -73,6 +82,7 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
 | `sync.bat`  | Double-click updater for the user (runs `src/sync.py`)         |
 | `COMMENT-UPLOADER.md` | Friend-facing note: how to upload photos keeping GPS (zip method) |
 | `app/`      | Crew Android app (Capacitor + Firebase): live position, PV/XP, photo & video upload keeping GPS. See `app/CLAUDE.md` |
+| `firebase.json`, `.firebaserc` | Reproducible Firebase Rules target (`app/firestore.rules`, project `africatrip-eea1a`) |
 | `.sheet-url`| Local only, git-ignored: link to the live Google Sheet          |
 | `.drive-folder` | Local only, git-ignored: link to the shared Drive photo folder |
 
@@ -110,3 +120,7 @@ Gotchas learned the hard way:
   `drive.readonly` scope; folder link in the git-ignored `.drive-folder`).
 - Google Drive MCP connector: read/search/copy/create only, no editing —
   use `sheet_edit.py` / `fetch_photos.py` instead for scripted access.
+- **Firestore Rules**: authenticate the Firebase CLI, then run
+  `firebase deploy --only firestore:rules`. The committed `.firebaserc` pins
+  the project and `firebase.json` pins the rules file; never deploy Hosting
+  from Firebase because the public site is hosted by GitHub Pages.

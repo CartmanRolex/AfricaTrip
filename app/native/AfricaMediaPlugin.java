@@ -4,6 +4,7 @@ import android.content.ContentResolver;
 import android.content.Intent;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
+import android.os.Build;
 import android.provider.MediaStore;
 import android.util.Base64;
 
@@ -112,7 +113,9 @@ public class AfricaMediaPlugin extends Plugin {
         // demande l'ORIGINAL non expurgé (nécessite ACCESS_MEDIA_LOCATION) ;
         // si l'URI ne le supporte pas, on lit tel quel (GPS possiblement absent)
         Uri readUri = uri;
-        try { readUri = MediaStore.setRequireOriginal(uri); } catch (Exception ignore) {}
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try { readUri = MediaStore.setRequireOriginal(uri); } catch (Exception ignore) {}
+        }
 
         return isVideo ? readVideo(cr, readUri, mime) : readImage(cr, readUri);
     }

@@ -56,6 +56,28 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
 .stat span{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.13em;color:var(--muted)}
 
 #map{grid-area:map;height:100%;width:100%;background:#14110E;}
+.map-toolbar{grid-area:map;align-self:start;justify-self:center;z-index:700;width:min(760px,calc(100% - 116px));min-width:0;
+  margin:12px;padding:6px;background:rgba(20,17,14,.9);border:1px solid var(--line);border-radius:13px;
+  box-shadow:0 5px 20px rgba(0,0,0,.42);backdrop-filter:blur(8px);pointer-events:auto}
+.map-modes,.track-subjects{display:flex;align-items:center;gap:4px}
+.map-modes{justify-content:center}
+.map-mode,.track-subject{border:1px solid transparent;background:transparent;color:var(--sand-dim);
+  border-radius:8px;font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;white-space:nowrap;
+  min-height:30px;padding:5px 10px;transition:background .15s,border-color .15s,color .15s}
+.map-mode:hover,.track-subject:hover{color:var(--sand);background:var(--panel2)}
+.map-mode[aria-pressed="true"],.track-subject[aria-pressed="true"]{color:#17110b;background:var(--c1);
+  border-color:var(--c1);font-weight:700}
+.track-subject[data-kind="vehicle"][aria-pressed="true"]{background:var(--subject-color,var(--c1));
+  border-color:var(--subject-color,var(--c1))}
+.map-mode:focus-visible,.track-subject:focus-visible{outline:2px solid var(--sand);outline-offset:2px}
+.track-subject-row{display:flex;align-items:center;gap:6px;margin-top:5px;padding-top:5px;border-top:1px solid var(--line)}
+.track-subjects{flex:1 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none;overscroll-behavior-x:contain}
+.track-subjects::-webkit-scrollbar{display:none}
+.track-status{flex:0 0 auto;max-width:190px;font-family:var(--mono);font-size:8px;line-height:1.25;
+  color:var(--sand-dim);text-align:right}
+body.view-planned .track-subject-row{display:none}
+body.view-compare .cp-badge,body.view-compare .leg-chip,body.view-compare .open-label,
+body.view-compare .danger-label,body.view-compare .danger-img,body.view-compare .convoy{opacity:.3}
 .leaflet-tile-pane{filter:brightness(.92) sepia(.32) hue-rotate(-12deg) saturate(1.05);}
 .leaflet-container{background:#14110E;font-family:var(--mono)}
 .leaflet-control-attribution{background:rgba(20,17,14,.7)!important;color:#80735C!important}
@@ -329,6 +351,11 @@ span.fiche-face{display:block;overflow:hidden}
   .stat b.odo{font-size:12.5px}
   .stat span{font-size:7.5px;letter-spacing:.06em}
   #map{z-index:1}
+  .map-toolbar{z-index:700;margin:7px;width:calc(100% - 76px);padding:4px;border-radius:11px}
+  .map-mode,.track-subject{font-size:8.5px;min-height:27px;padding:4px 8px}
+  .track-subject-row{min-width:0;margin-top:3px;padding-top:3px;flex-wrap:wrap}
+  .track-status{display:block;flex:1 0 100%;max-width:none;padding:2px 4px 1px;text-align:left;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:7.5px}
   .panel{position:relative;z-index:5;border-left:none;border-top:1px solid var(--line);
     margin-top:-14px;border-radius:16px 16px 0 0;box-shadow:0 -8px 24px rgba(0,0,0,.45)}
   .panel::before{content:"";flex:0 0 auto;width:44px;height:4px;border-radius:2px;
@@ -367,6 +394,16 @@ span.fiche-face{display:block;overflow:hidden}
   background-repeat:no-repeat;border:2.5px solid var(--fc,var(--c1));
   box-shadow:0 2px 8px rgba(0,0,0,.55);display:grid;place-items:center;
   font-family:var(--display);font-weight:700;font-size:14px;color:var(--sand)}
+.track-now{position:relative;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;
+  color:#15110d;background:var(--tc,var(--c1));border:3px solid var(--sand);
+  box-shadow:0 3px 14px rgba(0,0,0,.72);font-family:var(--display);font-size:11px;font-weight:700}
+.track-now::before{content:"";position:absolute;inset:-4px;border:2px solid var(--tc,var(--c1));border-radius:50%;
+  animation:trackping 1.8s ease-out infinite}
+.track-now.person{width:30px;height:30px;background-color:var(--panel2);background-size:140%;
+  background-position:center;background-repeat:no-repeat;color:var(--sand)}
+.track-now.quiet::before{display:none}
+@keyframes trackping{0%{transform:scale(.75);opacity:.9}100%{transform:scale(2.25);opacity:0}}
+@media (prefers-reduced-motion:reduce){.track-now::before{animation:none}.leg-flow{animation:none}}
 .map-photo{position:relative;width:30px;height:30px;border-radius:50%;overflow:hidden;border:2px solid var(--sand-dim);
   box-shadow:0 2px 8px rgba(0,0,0,.5);background:var(--panel2)}
 .map-photo img{width:100%;height:100%;object-fit:cover;display:block}
@@ -395,7 +432,7 @@ span.fiche-face{display:block;overflow:hidden}
 .pile-faces .pile-n{color:var(--sand);background:var(--panel2);border-color:var(--sand-dim)}
 </style>
 </head>
-<body>
+<body class="view-planned">
 <div class="app">
   <header>
     <div>
@@ -422,6 +459,17 @@ span.fiche-face{display:block;overflow:hidden}
     </div>
   </header>
   <div id="map"></div>
+  <nav class="map-toolbar" aria-label="Vue du trajet">
+    <div class="map-modes" role="group" aria-label="Type de trajet">
+      <button class="map-mode" data-view="planned" aria-pressed="true">Prévu</button>
+      <button class="map-mode" data-view="actual" aria-pressed="false">Réel</button>
+      <button class="map-mode" data-view="compare" aria-pressed="false">Comparer</button>
+    </div>
+    <div class="track-subject-row">
+      <div class="track-subjects" id="track-subjects" role="group" aria-label="Trace affichée"></div>
+      <div class="track-status" id="track-status" role="status" aria-live="polite"></div>
+    </div>
+  </nav>
   <div class="panel">
     <div class="panel-scroll">
       <section>
@@ -467,17 +515,61 @@ span.fiche-face{display:block;overflow:hidden}
 const DATA = __DATA__;
 const PHOTOS = __PHOTOS__;
 const GALLERY = __GALLERY__;
-// dernière position live par personne (remplie par Firebase, lue par la fiche)
+const TRIP_ID = 'africa-trip-01';
+const BUILD_GALLERY_N = GALLERY.length;
+GALLERY.forEach(g => { g._origin = 'build'; g._v2 = false; });
+// Les positions v2 prennent le pas sur le fallback historique `positions`.
+// Les deux sources restent séparées afin qu'une suppression Firebase v2 ne
+// laisse jamais un ancien document fantôme dans la carte.
 const livePositions = {};
+const legacyPositions = {};
+const latestPositions = {};
+const trackChunkDocs = new Map();
+const MAX_ACCURACY_M = 250;
+let trackRevision=0,cachedTrackRevision=-1,cachedTrackPoints=[];
+const personTrackCache=new Map(),vehicleTrackCache=new Map();
+function invalidateTracks(){trackRevision++;cachedTrackRevision=-1;personTrackCache.clear();vehicleTrackCache.clear();}
+let tripView = 'planned';
+let trackSubject = 'convoy';
 const ago = ms => { const s=(Date.now()-ms)/1000;
   if(s<90) return "à l'instant";
   if(s<5400) return `il y a ${Math.round(s/60)} min`;
   if(s<172800) return `il y a ${Math.round(s/3600)} h`;
   return `il y a ${Math.round(s/86400)} j`; };
+const ageMarkup=ms=>ms?`<span class="live-ago" data-live-at="${Math.round(ms)}">${ago(ms)}</span>`:'';
+let agoRefreshTimer=null;
+function refreshAgoTexts(){
+  document.querySelectorAll('[data-live-at]').forEach(el=>{
+    const at=Number(el.dataset.liveAt);if(at)el.textContent=ago(at);
+  });
+}
+function startAgoRefresh(){
+  if(agoRefreshTimer||document.hidden)return;
+  refreshAgoTexts();agoRefreshTimer=setInterval(refreshAgoTexts,30000);
+}
+function stopAgoRefresh(){if(agoRefreshTimer){clearInterval(agoRefreshTimer);agoRefreshTimer=null;}}
 const REC = DATA.records, ROUTE = DATA.route, CARS = DATA.cars;
 const CAR1 = DATA.car1, CAR2 = DATA.car2;
 // tout le contenu "modifiable" vient de l'onglet Config de la feuille
 const CFG = DATA.config || {}, T = CFG.textes || {};
+const ACTIVE_NAMES = [...new Set([...CAR1, ...CAR2, ...(CFG.observateurs||[])])];
+const slug = s => String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+  .toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+const NAME_BY_ID = new Map(ACTIVE_NAMES.map(name => [slug(name), name]));
+const personName = (...ids) => {
+  for(const id of ids){ const name=NAME_BY_ID.get(slug(id)); if(name)return name; }
+  return null;
+};
+const VEHICLES = {
+  'hugodouard': {label:(CARS[1]||{}).name||'Hugodouard', color:(CARS[1]||{}).color||'#E8924A', short:'1'},
+  'paul-pot': {label:(CARS[2]||{}).name||'Paul Pot', color:(CARS[2]||{}).color||'#4FB7B3', short:'2'},
+};
+function vehicleId(v){
+  const id=slug(v);
+  if(id==='hugodouard'||id==='1'||id==='car-1'||id==='voiture-1')return 'hugodouard';
+  if(id==='paul-pot'||id==='paulpot'||id==='2'||id==='car-2'||id==='voiture-2')return 'paul-pot';
+  return null;
+}
 if (T.tagline) document.getElementById('tagline').textContent = T.tagline;
 if (T.titre){ document.getElementById('brand-txt').textContent = T.titre; document.title = T.titre + ' — Carnet de route'; }
 if (T.foot) document.getElementById('foot').textContent = T.foot;
@@ -566,20 +658,27 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
   subdomains:'abcd',maxZoom:19,
   attribution:'&copy; OpenStreetMap &copy; CARTO'
 }).addTo(map);
+map.createPane('actualTrackPane');
+map.getPane('actualTrackPane').style.zIndex=430;
+map.getPane('actualTrackPane').style.pointerEvents='none';
+map.createPane('actualMarkerPane');
+map.getPane('actualMarkerPane').style.zIndex=670;
+const plannedLayer=L.layerGroup().addTo(map);
+const actualTrackLayer=L.layerGroup();
 
 const latlngs = ROUTE.map(p=>[p.lat,p.lng]);
 // base (faint full route)
-L.polyline(latlngs,{color:'#6b5b44',weight:2.5,opacity:.45,dashArray:'1 7',lineCap:'round'}).addTo(map);
+const plannedBase=L.polyline(latlngs,{color:'#6b5b44',weight:2.5,opacity:.45,dashArray:'1 7',lineCap:'round'}).addTo(plannedLayer);
 // active leg highlight — animated dashes, coloured by leg difficulty; shows
 // WHICH leg is selected before the convoy has driven it (traveled sits on top)
-const legLine = L.polyline([],{color:'#EFE7D6',weight:3,opacity:.85,lineCap:'round',className:'leg-flow'}).addTo(map);
+const legLine = L.polyline([],{color:'#EFE7D6',weight:3,opacity:.85,lineCap:'round',className:'leg-flow'}).addTo(plannedLayer);
 // traveled (bright) — updated dynamically, with a soft glow underneath
-const glow = L.polyline([],{color:'#E8924A',weight:9,opacity:.16,lineCap:'round',lineJoin:'round'}).addTo(map);
-const traveled = L.polyline([],{color:'#E8924A',weight:3.5,opacity:.95,lineCap:'round',lineJoin:'round'}).addTo(map);
+const glow = L.polyline([],{color:'#E8924A',weight:9,opacity:.16,lineCap:'round',lineJoin:'round'}).addTo(plannedLayer);
+const traveled = L.polyline([],{color:'#E8924A',weight:3.5,opacity:.95,lineCap:'round',lineJoin:'round'}).addTo(plannedLayer);
 
 // couloir de clic invisible sur TOUT le tracé : cliquer un endroit du chemin
 // cale la frise (et le slider) sur le jour où le convoi y passe
-const routeHit=L.polyline(latlngs,{weight:22,opacity:.002,lineCap:'round',lineJoin:'round'}).addTo(map);
+const routeHit=L.polyline(latlngs,{weight:22,opacity:.002,lineCap:'round',lineJoin:'round'}).addTo(plannedLayer);
 routeHit.on('click',e=>{
   const c=e.latlng, k=Math.cos(c.lat*Math.PI/180);
   let best=0, bd=Infinity;
@@ -595,7 +694,7 @@ const cpMarkers=[];
 ROUTE.forEach((p,i)=>{ if(!p.cp) return;
   const n=cpMarkers.length+1;
   const m=L.marker([p.lat,p.lng],{icon:L.divIcon({className:'',iconSize:[0,0],
-    iconAnchor:[10,10],html:`<div class="cp-badge" data-i="${i}"><b>${n}</b><span>${pretty(p.cp)}</span></div>`})}).addTo(map);
+    iconAnchor:[10,10],html:`<div class="cp-badge" data-i="${i}"><b>${n}</b><span>${pretty(p.cp)}</span></div>`})}).addTo(plannedLayer);
   // clic sur le badge = sauter au jour d'arrivée à ce checkpoint
   m.on('click',()=>{ stop(); setIndex(cpRecIdx[n-1]); });
   cpMarkers.push({i,marker:m});
@@ -611,14 +710,14 @@ function refreshCp(upTo,nextIdx){ document.querySelectorAll('.cp-badge').forEach
 const DANGER=CFG.danger||[];
 DANGER.forEach(z=>{
   L.circle([z.lat,z.lng],{radius:z.r,color:'#D95B43',weight:1.2,opacity:.5,
-    dashArray:'4 8',fillColor:'#D95B43',fillOpacity:.055,interactive:false}).addTo(map);
+    dashArray:'4 8',fillColor:'#D95B43',fillOpacity:.055,interactive:false}).addTo(plannedLayer);
   const pic=(PHOTOS.terros||{})[z.img];
   const html=pic?`<img class="danger-img" style="height:${z.s}px" src="${pic}">`
                :`<div class="danger-emoji">💀</div>`;
   L.marker([z.lat,z.lng],{interactive:false,icon:L.divIcon({className:'',iconSize:[0,0],
-    iconAnchor:[0,0],html})}).addTo(map);
+    iconAnchor:[0,0],html})}).addTo(plannedLayer);
   L.marker([z.lat,z.lng],{interactive:false,icon:L.divIcon({className:'',iconSize:[0,0],
-    iconAnchor:[0,-(z.s/2+5)],html:`<div class="danger-label">${z.t}</div>`})}).addTo(map);
+    iconAnchor:[0,-(z.s/2+5)],html:`<div class="danger-label">${z.t}</div>`})}).addTo(plannedLayer);
 });
 // stickers décoratifs (section "deco" de l'onglet Config) : chameaux dans le
 // désert le long de la route — pas de cercle ni d'étiquette, non interactifs
@@ -627,7 +726,7 @@ DANGER.forEach(z=>{
   if(!pic)return;
   L.marker([z.lat,z.lng],{interactive:false,icon:L.divIcon({className:'',iconSize:[0,0],
     iconAnchor:[0,0],html:`<img class="danger-img deco-img" style="height:${z.s}px" src="${pic}">`}
-  )}).addTo(map);
+  )}).addTo(plannedLayer);
 });
 
 function dangerZoom(){document.body.classList.toggle('danger-far',map.getZoom()<5);}
@@ -675,16 +774,290 @@ function mediaThumb(url, video, px){
   return url.replace('/upload/', `/upload/w_${px},h_${px},c_fill,q_auto,f_auto/`);
 }
 
+/* ---- trajet réel -------------------------------------------------------
+   Les points personnels ne sont jamais fusionnés entre personnes. La trace
+   d'une voiture est une vue dérivée : une observation maximum par fenêtre de
+   60 s, choisie selon précision + cohérence avec les autres occupants. */
+function firstValue(...values){return values.find(v=>v!==undefined&&v!==null);}
+function validCoords(latValue,lngValue){
+  if(latValue==null||lngValue==null||latValue===''||lngValue==='')return false;
+  const lat=Number(latValue),lng=Number(lngValue);
+  return Number.isFinite(lat)&&Number.isFinite(lng)&&Math.abs(lat)<=90&&Math.abs(lng)<=180;
+}
+function toMs(v){
+  if(v==null)return 0;
+  try{ if(typeof v.toMillis==='function')return v.toMillis(); }catch(_){}
+  if(typeof v==='object'){
+    const sec=Number(firstValue(v.seconds,v._seconds));
+    if(Number.isFinite(sec))return sec*1000+Number(firstValue(v.nanoseconds,v._nanoseconds,0))/1e6;
+  }
+  if(typeof v==='number'&&Number.isFinite(v))return v<1e11?v*1000:v;
+  const parsed=Date.parse(v); return Number.isFinite(parsed)?parsed:0;
+}
+function normalisePoint(raw,base={}){
+  if(!raw||typeof raw!=='object')return null;
+  if(!validCoords(raw.lat,raw.lng))return null;
+  const lat=Number(raw.lat),lng=Number(raw.lng);
+  const name=personName(raw.displayName,raw.name,raw.personId,base.displayName,base.personId);
+  if(!name)return null;
+  const at=toMs(firstValue(raw.capturedAtMs,raw.t,raw.capturedAt,raw.at,base.bucketStartMs,base.bucketStartAt,base.startedAt));
+  if(!at)return null; // sans heure fiable, impossible de reconstruire honnêtement l'ordre
+  const accuracy=Number(firstValue(raw.accuracyM,raw.accuracy));
+  const vid=vehicleId(firstValue(raw.vehicleId,base.vehicleId));
+  const mode=String(firstValue(raw.mode,base.mode,vid?'vehicle':'independent'));
+  if(mode==='paused')return null;
+  return {pointId:String(raw.pointId||`${slug(name)}:${at}:${lat.toFixed(6)}:${lng.toFixed(6)}`),
+    personId:slug(name),name,lat,lng,at,accuracyM:Number.isFinite(accuracy)&&accuracy>=0?accuracy:null,
+    vehicleId:vid,mode};
+}
+function uniquePoints(points,accuracyLimit=MAX_ACCURACY_M){
+  const byId=new Map();
+  points.forEach(p=>{if(p&&(p.accuracyM==null||p.accuracyM<=accuracyLimit))byId.set(`${p.personId}:${p.pointId}`,p);});
+  return [...byId.values()].sort((a,b)=>a.at-b.at);
+}
+function allTrackPoints(){
+  if(cachedTrackRevision===trackRevision)return cachedTrackPoints;
+  const out=[];
+  trackChunkDocs.forEach(points=>out.push(...points));
+  Object.values(latestPositions).forEach(p=>out.push(p));
+  cachedTrackPoints=uniquePoints(out);cachedTrackRevision=trackRevision;
+  personTrackCache.clear();vehicleTrackCache.clear();return cachedTrackPoints;
+}
+function personPoints(name){
+  if(!personTrackCache.has(name))personTrackCache.set(name,uniquePoints(allTrackPoints().filter(p=>p.name===name)));
+  return personTrackCache.get(name);
+}
+function median(values){
+  if(!values.length)return 0;
+  values=[...values].sort((a,b)=>a-b); const i=Math.floor(values.length/2);
+  return values.length%2?values[i]:(values[i-1]+values[i])/2;
+}
+const TRACK_GAP_MS=20*60000,MAX_TRACK_SPEED_KMH=220;
+function transitionToleranceKm(a,b){
+  // Plancher anti-jitter + 1,5× la somme des rayons de précision annoncés.
+  // Cela tolère deux fixes voisins sans autoriser 800 m parcourus en 2 s.
+  const aa=a.accuracyM==null?35:a.accuracyM,bb=b.accuracyM==null?35:b.accuracyM;
+  return Math.max(.12,(aa+bb)*1.5/1000);
+}
+function impossibleTransition(a,b){
+  const gap=b.at-a.at;
+  if(gap<=0)return true;
+  const allowedKm=transitionToleranceKm(a,b)+MAX_TRACK_SPEED_KMH*gap/3600000;
+  return hav(a,b)>allowedKm;
+}
+function lastCoherentPoint(points){
+  let last=null;
+  points.forEach(p=>{
+    if(!last||p.at-last.at>TRACK_GAP_MS||!impossibleTransition(last,p))last=p;
+  });
+  return last;
+}
+function vehiclePoints(id){
+  if(vehicleTrackCache.has(id))return vehicleTrackCache.get(id);
+  const candidates=allTrackPoints().filter(p=>p.vehicleId===id&&p.mode==='vehicle'&&(p.accuracyM==null||p.accuracyM<=MAX_ACCURACY_M));
+  const buckets=new Map();
+  candidates.forEach(p=>{const key=Math.floor(p.at/60000);if(!buckets.has(key))buckets.set(key,[]);buckets.get(key).push(p);});
+  let previous=null; const chosen=[];
+  [...buckets.keys()].sort((a,b)=>a-b).forEach(key=>{
+    const original=buckets.get(key); let group=original;
+    if(previous){
+      group=group.filter(p=>!impossibleTransition(previous,p));
+      // Un saut bref est rejeté. Après une vraie coupure de 20 min, on reprend
+      // cependant une nouvelle section : sinon un premier fix erroné pourrait
+      // condamner toutes les observations suivantes pendant des heures.
+      if(!group.length){
+        if(Math.max(...original.map(p=>p.at-previous.at))>TRACK_GAP_MS)group=original;
+        else return;
+      }
+    }
+    let best=null,bestScore=Infinity;
+    group.forEach(p=>{
+      const neighbours=group.filter(q=>q!==p).map(q=>hav(p,q)*1000);
+      let score=(p.accuracyM==null?80:p.accuracyM)+median(neighbours)*.65;
+      if(score<bestScore){best=p;bestScore=score;}
+    });
+    if(best){chosen.push({...best,vehicleId:id});previous=best;}
+  });
+  vehicleTrackCache.set(id,chosen);return chosen;
+}
+function trackSegments(points){
+  const segments=[]; let current=[];
+  points.forEach(p=>{
+    const prev=current.at(-1);
+    if(prev){
+      const gap=p.at-prev.at;
+      if(gap<=0)return;
+      if(gap>TRACK_GAP_MS){if(current.length)segments.push(current);current=[];}
+      // Un fix isolé impossible doit être ignoré : en faire le début d'une
+      // section casserait aussi la liaison entre les deux bons fixes voisins.
+      else if(impossibleTransition(prev,p))return;
+    }
+    current.push(p);
+  });
+  if(current.length)segments.push(current);
+  return segments;
+}
+function trackKm(points){
+  let km=0; trackSegments(points).forEach(seg=>{for(let i=1;i<seg.length;i++)km+=hav(seg[i-1],seg[i]);}); return km;
+}
+function trackPointCount(points){return trackSegments(points).reduce((n,seg)=>n+seg.length,0);}
+function subjectParts(){
+  const [kind,id]=trackSubject.split(':'); return {kind,id};
+}
+function addActualPath(points,color,focused){
+  trackSegments(points).forEach(seg=>{
+    if(seg.length<2)return;
+    const ll=seg.map(p=>[p.lat,p.lng]);
+    if(focused)L.polyline(ll,{pane:'actualTrackPane',color,weight:11,opacity:.17,lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
+    L.polyline(ll,{pane:'actualTrackPane',color,weight:focused?5:3.5,opacity:focused?1:.82,
+      lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
+  });
+}
+function addActualMarker(point,color,label,name,pulse=true){
+  if(!point)return;
+  const face=name&&(PHOTOS.faces||{})[name];
+  const bg=face?`;background-image:url('${face}')`:'';
+  const html=`<div class="track-now${name?' person':''}${pulse?'':' quiet'}" style="--tc:${color}${bg}" aria-label="${esc(label)}">${face?'':esc(label.slice(0,1))}</div>`;
+  const marker=L.marker([point.lat,point.lng],{pane:'actualMarkerPane',zIndexOffset:1600,icon:L.divIcon({className:'',iconSize:name?[30,30]:[24,24],
+    iconAnchor:name?[15,15]:[12,12],html})}).addTo(actualTrackLayer);
+  if(name)marker.on('click',()=>openFicheFor(name));
+}
+function reportedForPerson(name){
+  return latestPositions[name]||personPoints(name).at(-1)||legacyPositions[name]||null;
+}
+function rejectedLatestForPerson(name){
+  const latest=latestPositions[name];
+  if(!latest)return null;
+  if(latest.accuracyM!=null&&latest.accuracyM>MAX_ACCURACY_M)
+    return {point:latest,reason:`précision ±${Math.round(latest.accuracyM)} m`};
+  const previous=lastCoherentPoint(personPoints(name).filter(p=>p.pointId!==latest.pointId&&p.at<latest.at));
+  if(previous&&latest.at-previous.at<=TRACK_GAP_MS&&impossibleTransition(previous,latest))
+    return {point:latest,reason:'saut GPS incohérent'};
+  return null;
+}
+function currentForPerson(name){
+  const latest=latestPositions[name],rejected=rejectedLatestForPerson(name);
+  if(latest&&!rejected)return latest;
+  const personal=lastCoherentPoint(personPoints(name).filter(p=>!latest||p.pointId!==latest.pointId));
+  if(personal)return personal;
+  const legacy=legacyPositions[name];
+  return legacy&&(legacy.accuracyM==null||legacy.accuracyM<=MAX_ACCURACY_M)?legacy:null;
+}
+function subjectPoints(){
+  const {kind,id}=subjectParts();
+  if(kind==='vehicle')return vehiclePoints(id);
+  if(kind==='person'){const name=NAME_BY_ID.get(id);return name?personPoints(name):[];}
+  return [...vehiclePoints('hugodouard'),...vehiclePoints('paul-pot')];
+}
+function renderActualTracks(){
+  actualTrackLayer.clearLayers();
+  const status=document.getElementById('track-status');
+  if(tripView==='planned'){status.textContent='';return;}
+  if(!map.hasLayer(actualTrackLayer))actualTrackLayer.addTo(map);
+  const {kind,id}=subjectParts();
+  if(kind==='convoy'){
+    const summaries=[];
+    Object.entries(VEHICLES).forEach(([vid,meta])=>{
+      const pts=vehiclePoints(vid); addActualPath(pts,meta.color,false);
+      addActualMarker(pts.at(-1),meta.color,meta.label,null,false);
+      summaries.push(`${meta.label} : ${pts.length||'aucun'} point${pts.length>1?'s':''}`);
+    });
+    status.textContent=summaries.join(' · ');
+  }else if(kind==='vehicle'){
+    const meta=VEHICLES[id]; if(!meta)return;
+    const pts=vehiclePoints(id); addActualPath(pts,meta.color,true);
+    addActualMarker(pts.at(-1),meta.color,meta.label,null,true);
+    status.textContent=pts.length?`${pts.length} points · ${kmFmt(trackKm(pts))} km`:`Aucune trace GPS pour ${meta.label}.`;
+  }else if(kind==='person'){
+    const name=NAME_BY_ID.get(id); if(!name)return;
+    const pts=personPoints(name),current=currentForPerson(name),reported=reportedForPerson(name),
+      rejected=rejectedLatestForPerson(name),plotted=trackPointCount(pts),color=colorOf(name);
+    addActualPath(pts,color,true); addActualMarker(current,color,name,name,true);
+    if(plotted){
+      status.innerHTML=`${plotted} point${plotted>1?'s':''} · ${kmFmt(trackKm(pts))} km${current&&current.at?` · ${ageMarkup(current.at)}`:''}`+
+        (rejected?` · <span title="${esc(rejected.reason)}">dernier fix écarté</span>`:'');
+    }else if(current){
+      status.innerHTML=`Dernière position seulement${current.at?` · ${ageMarkup(current.at)}`:''}`;
+    }else if(reported){
+      status.textContent=`Position écartée : ${rejected?rejected.reason:'précision insuffisante'}.`;
+    }else status.textContent=`Aucune trace GPS pour ${name}.`;
+  }
+}
+function photoVisible(g){
+  if(tripView==='planned')return !g._v2;
+  if(!g._v2)return false;
+  const {kind,id}=subjectParts();
+  if(kind==='vehicle')return g.vehicleIdAtCapture===id;
+  if(kind==='person')return g.personName===NAME_BY_ID.get(id);
+  return true; // Convoi = tous les médias réels, y compris à pied/autre
+}
+function visibleGalleryIndices(){
+  return GALLERY.map((g,i)=>({g,i})).filter(x=>x.g.lat!=null&&photoVisible(x.g)).map(x=>x.i);
+}
+function rebuildLivePositions(){
+  Object.keys(livePositions).forEach(k=>delete livePositions[k]);
+  ACTIVE_NAMES.forEach(name=>{const p=currentForPerson(name);if(p)livePositions[name]=p;});
+  refreshFaces(); renderActualTracks();
+  if(ficheFor){render();renderObs();}
+}
+function focusTrackSubject(){
+  if(tripView==='planned')return;
+  const {kind,id}=subjectParts();
+  if(kind==='person'){
+    const name=NAME_BY_ID.get(id),p=name&&currentForPerson(name);
+    if(p)map.flyTo([p.lat,p.lng],Math.max(map.getZoom(),13),{duration:.75});
+    return;
+  }
+  if(kind==='vehicle'){
+    const p=vehiclePoints(id).at(-1); if(p)map.flyTo([p.lat,p.lng],Math.max(map.getZoom(),11),{duration:.75});
+    return;
+  }
+  const pts=[...vehiclePoints('hugodouard'),...vehiclePoints('paul-pot')];
+  if(pts.length)map.flyToBounds(L.latLngBounds(pts.map(p=>[p.lat,p.lng])),{padding:[55,55],maxZoom:9,duration:.75});
+}
+function setTrackSubject(subject,focus=true){
+  trackSubject=subject;
+  document.querySelectorAll('.track-subject').forEach(b=>{const on=b.dataset.subject===subject;b.setAttribute('aria-pressed',on?'true':'false');});
+  renderActualTracks();refreshPhotos();refreshFaces();
+  if(focus)focusTrackSubject();
+}
+function setTripView(view,focus=true){
+  if(!['planned','actual','compare'].includes(view))return;
+  tripView=view;
+  document.body.classList.remove('view-planned','view-actual','view-compare');
+  document.body.classList.add(`view-${view}`);
+  document.querySelectorAll('.map-mode').forEach(b=>b.setAttribute('aria-pressed',b.dataset.view===view?'true':'false'));
+  const compare=view==='compare';
+  plannedBase.setStyle({opacity:compare ? .16 : .45});legLine.setStyle({opacity:compare ? .25 : .85});
+  glow.setStyle({opacity:compare ? .05 : .16});traveled.setStyle({opacity:compare ? .28 : .95});ficheLine.setStyle({opacity:compare ? .15 : .45});
+  if(view==='actual'){if(map.hasLayer(plannedLayer))map.removeLayer(plannedLayer);}
+  else if(!map.hasLayer(plannedLayer))plannedLayer.addTo(map);
+  if(view==='planned'){if(map.hasLayer(actualTrackLayer))map.removeLayer(actualTrackLayer);}
+  else if(!map.hasLayer(actualTrackLayer))actualTrackLayer.addTo(map);
+  renderActualTracks();refreshPhotos();refreshFaces();updateFicheLine();
+  if(focus)focusTrackSubject();
+}
+function setupTrackControls(){
+  const el=document.getElementById('track-subjects');
+  const buttons=[{subject:'convoy',label:'Convoi',kind:'convoy'},
+    ...Object.entries(VEHICLES).map(([id,v])=>({subject:`vehicle:${id}`,label:v.label,kind:'vehicle',color:v.color})),
+    ...ACTIVE_NAMES.map(name=>({subject:`person:${slug(name)}`,label:name,kind:'person'}))];
+  el.innerHTML=buttons.map(b=>`<button class="track-subject" data-subject="${b.subject}" data-kind="${b.kind}"
+    aria-pressed="${b.subject==='convoy'}"${b.color?` style="--subject-color:${b.color}"`:''}>${esc(b.label)}</button>`).join('');
+  el.addEventListener('click',e=>{const b=e.target.closest('.track-subject');if(b)setTrackSubject(b.dataset.subject,true);});
+  document.querySelectorAll('.map-mode').forEach(b=>b.addEventListener('click',()=>setTripView(b.dataset.view,true)));
+}
+
 function refreshPhotos(){
   photoCluster.clearLayers();
   const markers = [];
-  GALLERY.forEach((g, i) => {
-    if (g.lat == null) return;
+  const visible=visibleGalleryIndices();
+  visible.forEach(i => {
+    const g=GALLERY[i];
     const m = L.marker([g.lat, g.lng], { pileImg: g.thumb, icon: L.divIcon({ className: '', iconSize: [30, 30],
       iconAnchor: [15, -3], html: `<div class="map-photo${g.video ? ' is-video' : ''}"><img src="${g.thumb}" alt=""${g.caption ? ` title="${esc(g.caption)}"` : ''}></div>` }) });
     m.on('click', () => {
-      const list = GALLERY.map((_, k) => k).filter(k => GALLERY[k].lat != null);
-      openLightbox(list, list.indexOf(i));
+      const list = visibleGalleryIndices(); openLightbox(list, list.indexOf(i));
     });
     markers.push(m);
   });
@@ -696,6 +1069,14 @@ function refreshFaces(){
   Object.entries(livePositions).forEach(([name, p]) => {
     // Ignore positions left by people no longer present in the current roster.
     if(!CAR1.includes(name)&&!CAR2.includes(name)&&!(CFG.observateurs||[]).includes(name))return;
+    if(tripView!=='planned'){
+      const subject=subjectParts();
+      if(subject.kind==='person'){
+        if(name!==NAME_BY_ID.get(subject.id))return;
+        return; // le marqueur pulsant exact est déjà dans actualTrackLayer
+      }
+      if(subject.kind==='vehicle'&&p.vehicleId!==subject.id)return;
+    }
     const face = (PHOTOS.faces || {})[name];
     const html = face
       ? `<div class="map-face" style="--fc:${colorOf(name)};background-image:url('${face}')"></div>`
@@ -721,29 +1102,69 @@ refreshPhotos(); refreshFaces();
       projectId: "africatrip-eea1a",
       appId: "1:301314590575:web:3b89efb7bbc8a4a95aca9a",
     }));
-    // positions -> livePositions (têtes sur la carte + "dernière position" fiche)
+    const liveError=label=>e=>console.warn(`${label}:`,e);
+    // Fallback v1 : conservé pour les anciens téléphones et anciennes données.
     fs.onSnapshot(fs.collection(db, "positions"), snap => {
+      Object.keys(legacyPositions).forEach(k=>delete legacyPositions[k]);
       snap.forEach(doc => {
-        const d = doc.data(); if (d.lat == null) return;
-        let at = 0; try { at = d.at ? d.at.toMillis() : 0; } catch (_) {}
-        livePositions[d.name] = { lat: d.lat, lng: d.lng, at };
+        const d=doc.data(),name=personName(d.displayName,d.name,doc.id);
+        if(!name||!validCoords(d.lat,d.lng))return;
+        const lat=Number(d.lat),lng=Number(d.lng);
+        legacyPositions[name]={name,personId:slug(name),lat,lng,at:toMs(firstValue(d.capturedAtMs,d.capturedAt,d.at)),
+          accuracyM:d.accuracyM!=null&&Number.isFinite(Number(d.accuracyM))?Number(d.accuracyM):null,
+          vehicleId:null,mode:'legacy',source:'legacy'};
       });
-      refreshFaces();
-    });
+      rebuildLivePositions();
+    },liveError('positions v1'));
 
-    // photos envoyées depuis l'appli -> entrées GALLERY (build-time gardées)
-    const buildN = GALLERY.length;
+    // V2 : derniers points exacts + historique par chunks idempotents.
+    fs.onSnapshot(fs.collection(db,'trips',TRIP_ID,'latest'),snap=>{
+      Object.keys(latestPositions).forEach(k=>delete latestPositions[k]);
+      snap.forEach(doc=>{
+        const p=normalisePoint(doc.data(),{personId:doc.id});
+        if(p)latestPositions[p.name]={...p,source:'v2'};
+      });
+      invalidateTracks();
+      rebuildLivePositions();
+    },liveError('positions v2'));
+    fs.onSnapshot(fs.collection(db,'trips',TRIP_ID,'trackChunks'),snap=>{
+      const readChunk=doc=>{
+        const d=doc.data(),raw=Array.isArray(d.points)?d.points:Object.values(d.points||{});
+        trackChunkDocs.set(doc.id,raw.map(p=>normalisePoint(p,d)).filter(Boolean));
+      };
+      if(typeof snap.docChanges==='function'){
+        snap.docChanges().forEach(change=>change.type==='removed'?trackChunkDocs.delete(change.doc.id):readChunk(change.doc));
+      }else{
+        trackChunkDocs.clear();snap.forEach(readChunk);
+      }
+      invalidateTracks();
+      // Un chunk peut arriver avant/à la place de `latest`; reconstruire aussi
+      // les têtes courantes et le fallback personnel, pas seulement la ligne.
+      rebuildLivePositions();
+    },liveError('traces v2'));
+
+    // La collection média reste compatible v1. Les nouveaux documents v2
+    // portent tripId/personId/vehicleIdAtCapture et deviennent filtrables.
     fs.onSnapshot(fs.collection(db, "photos"), snap => {
-      GALLERY.length = buildN;
+      GALLERY.length = BUILD_GALLERY_N;
       snap.forEach(doc => {
-        const d = doc.data(); if (d.lat == null) return;
+        const d=doc.data(); if(d.tripId&&d.tripId!==TRIP_ID)return;
+        if(!validCoords(d.lat,d.lng))return;
+        const lat=Number(d.lat),lng=Number(d.lng);
+        const isV2=d.tripId===TRIP_ID&&!!d.personId;
+        const author=personName(d.displayName,d.name,d.personId);
+        if(isV2&&!author)return;
         const video = d.type === 'video' || /\/video\/upload\//.test(d.url || '');
         const thumb = mediaThumb(d.url, video, 96);
-        GALLERY.push({ id: doc.id, name: d.name, date: d.date, lat: d.lat, lng: d.lng,
-                       gps: !!d.gps, manual: !!d.manual, caption: d.caption || '', video, thumb, file: d.url });
+        const captured=toMs(firstValue(d.capturedAtMs,d.capturedAt,d.createdAt));
+        const date=typeof d.date==='string'&&d.date?d.date.slice(0,10):(captured?new Date(captured).toISOString().slice(0,10):'');
+        GALLERY.push({id:doc.id,name:d.name||author||'',date,lat,lng,gps:!!d.gps||d.locationSource==='gps',
+          manual:!!d.manual||d.locationSource==='manual',caption:d.caption||'',video,thumb,file:d.url,
+          _origin:'firebase',_v2:isV2,personName:author,personId:slug(d.personId||author),
+          vehicleIdAtCapture:vehicleId(d.vehicleIdAtCapture)});
       });
       refreshPhotos();
-    });
+    },liveError('médias'));
 
     // PV live envoyés par l'appli -> écrasent les PV du Sheet (source unique)
     fs.onSnapshot(fs.collection(db, "crew"), snap => {
@@ -752,7 +1173,7 @@ refreshPhotos(); refreshFaces();
         if (RPG[d.name] && typeof d.pv === "number") RPG[d.name].pv = d.pv;
       });
       render(); renderObs();   // rafraîchit les barres de PV
-    });
+    },liveError('équipage'));
   } catch (e) { console.warn("live:", e); }
 })();
 
@@ -775,10 +1196,11 @@ function showLb(){
     img.style.display='block';
     img.src=g.file; img.onerror=()=>{img.onerror=null;img.src=g.thumb;};
   }
-  const d=new Date(g.date+'T12:00:00');
+  const d=g.date?new Date(g.date+'T12:00:00'):null;
+  const dateLabel=d&&!Number.isNaN(d.getTime())?d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'}):'date inconnue';
   lb.querySelector('.lightbox-cap').innerHTML=
     (g.caption?`<div class="lb-cap-text">${esc(g.caption)}</div>`:'')+
-    `<b>${d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}</b>`+
+    `<b>${dateLabel}</b>`+
     (g.gps?'':(g.manual?' · position choisie':' · position estimée (convoi)'))+
     (lbList.length>1?` · ${lbIdx+1}/${lbList.length}`:'');
   const nav=lbList.length>1?'grid':'none';
@@ -813,9 +1235,10 @@ function colorOf(name){
   return CAR1.includes(name)?CARS[1].color:CAR2.includes(name)?CARS[2].color:'#8E8066';
 }
 // tronçon du personnage sélectionné : large bande translucide sous le tracé
-const ficheLine=L.polyline([],{weight:11,opacity:.45,lineCap:'round',lineJoin:'round'}).addTo(map);
+const ficheLine=L.polyline([],{weight:11,opacity:.45,lineCap:'round',lineJoin:'round'}).addTo(plannedLayer);
 ficheLine.bringToBack();
 function updateFicheLine(){
+  if(tripView==='actual'){ ficheLine.setLatLngs([]); return; }
   const pres=ficheFor&&presenceOf(ficheFor);
   if(!pres){ ficheLine.setLatLngs([]); return; }
   const A=posAt(pres.i0), B=posAt(pres.i1);
@@ -839,9 +1262,19 @@ function ficheHTML(name,color){
   }else rows.push(['Statut',isObs?'suit depuis la maison':'jamais à bord (pour l’instant)']);
   if(r.tel)rows.push(['Téléphone',`<a href="tel:${r.tel.replace(/[^+0-9]/g,'')}">${r.tel}</a>`]);
   if(r.note)rows.push(['Note',r.note]);
-  const lp=livePositions[name];   // dernière position envoyée par l'appli
-  if(lp)rows.push(['Dernière position',
-    `${lp.lat.toFixed(4)}, ${lp.lng.toFixed(4)}${lp.at?` · <span class="live-ago">${ago(lp.at)}</span>`:''}`]);
+  const lp=currentForPerson(name),real=personPoints(name),rejected=rejectedLatestForPerson(name);
+  if(lp){
+    const move=lp.vehicleId&&VEHICLES[lp.vehicleId]?`dans ${VEHICLES[lp.vehicleId].label}`:
+      (lp.mode==='independent'?'à pied / autre':lp.mode==='legacy'?'ancienne application':'hors voiture');
+    rows.push(['Au dernier point GPS',move]);
+    rows.push(['Dernière position fiable',`${lp.lat.toFixed(4)}, ${lp.lng.toFixed(4)}${lp.at?` · ${ageMarkup(lp.at)}`:''}${lp.accuracyM!=null?` · ±${Math.round(lp.accuracyM)} m`:''}`]);
+  }
+  if(rejected){
+    rows.push(['Dernier fix écarté',`${rejected.reason}${rejected.point.at?` · ${ageMarkup(rejected.point.at)}`:''} · non affiché`]);
+  }
+  const realCount=trackPointCount(real);
+  rows.push(['Trace réelle',realCount?`${realCount} point${realCount>1?'s':''} · ${kmFmt(trackKm(real))} km`:
+    (lp?'position seule, historique indisponible':rejected?'aucun point GPS fiable':'aucun point GPS reçu')]);
   return `<div class="car fiche-card" style="--cc:${color}">
     <button class="fiche-close" aria-label="Fermer la fiche">✕</button>
     <div class="fiche-head">
@@ -877,7 +1310,12 @@ function setPreview(chip){
 }
 function openFicheFor(name){
   setPreview(null);
-  ficheFor=name; render(); renderObs(); updateFicheLine();
+  ficheFor=name;
+  const hasActual=!!reportedForPerson(name)||personPoints(name).length>0;
+  if(hasActual&&tripView==='planned')setTripView('actual',false);
+  if(hasActual||tripView!=='planned')setTrackSubject(`person:${slug(name)}`,false);
+  render(); renderObs(); updateFicheLine();
+  if(hasActual)focusTrackSubject();
   // mobile : la fiche peut s'ouvrir hors de la zone visible du bottom-sheet
   if(matchMedia('(max-width:880px)').matches){
     const el=document.querySelector('.fiche-card');
@@ -960,7 +1398,7 @@ const convoyIconOpen=L.divIcon({className:'',iconSize:[34,34],iconAnchor:[17,17]
     <circle cx="17" cy="17" r="8" fill="#E3B53F" stroke="#14110E" stroke-width="2.5"/>
     <text x="17" y="21.5" text-anchor="middle" font-family="Oswald,sans-serif" font-weight="700" font-size="12" fill="#14110E">?</text>
   </svg>`});
-const convoy=L.marker([ROUTE[0].lat,ROUTE[0].lng],{icon:convoyIcon,zIndexOffset:1000}).addTo(map);
+const convoy=L.marker([ROUTE[0].lat,ROUTE[0].lng],{icon:convoyIcon,zIndexOffset:1000}).addTo(plannedLayer);
 
 // "open road" overlay past the last checkpoint: a dashed horizon zone + label,
 // shown only during the final, undecided leg so it's clear the trip goes on.
@@ -972,8 +1410,8 @@ const openLabel=L.marker([ENDPT.lat-2.3,ENDPT.lng+0.2],{interactive:false,icon:L
 let zoneOn=false;
 function setOpenZone(on){
   if(on===zoneOn) return; zoneOn=on;
-  if(on){ openZone.addTo(map); openLabel.addTo(map); convoy.setIcon(convoyIconOpen); }
-  else  { map.removeLayer(openZone); map.removeLayer(openLabel); convoy.setIcon(convoyIcon); }
+  if(on){ openZone.addTo(plannedLayer); openLabel.addTo(plannedLayer); convoy.setIcon(convoyIconOpen); }
+  else  { plannedLayer.removeLayer(openZone); plannedLayer.removeLayer(openLabel); convoy.setIcon(convoyIcon); }
 }
 
 /* ---- render legs ---- */
@@ -1003,7 +1441,12 @@ LEGS.forEach((L,i)=>{
     <span class="leg-route">${title}</span>
     <span class="leg-sub">${sub}</span>
     <span class="leg-diff" style="color:${DIFF_COLOR(m.diff)}">${pips} ${m.lbl}</span>`;
-  b.onclick=()=>{ setIndex(L.s); fitLeg(L); };
+  b.onclick=()=>{
+    // Une étape appartient au trajet prévu : depuis Réel, garder les traces
+    // GPS mais réafficher le fond prévu avant de cadrer ce tronçon.
+    if(tripView==='actual')setTripView('compare',false);
+    setIndex(L.s); fitLeg(L);
+  };
   legsEl.appendChild(b);
 });
 document.getElementById('legs-prev').onclick=()=>legsEl.scrollBy({left:-legsEl.clientWidth*.8,behavior:'smooth'});
@@ -1043,7 +1486,7 @@ function updateLegChip(li){
   legChip.setIcon(L.divIcon({className:'',iconSize:[0,0],iconAnchor:[0,30],
     html:`<div class="leg-chip" style="--dc:${DIFF_COLOR(m.diff)}">${m.emoji} ${m.lbl} <i>${pips}</i></div>`}));
   legChip.setLatLng(legMid(LEGS[li]));
-  if(!map.hasLayer(legChip)) legChip.addTo(map);
+  if(!plannedLayer.hasLayer(legChip)) legChip.addTo(plannedLayer);
 }
 
 /* ---- timeline ---- */
@@ -1194,6 +1637,14 @@ function render(){
 }
 
 document.getElementById('s-km-tot').textContent=`/ ${kmFmt(totalKm)} km`;
+setupTrackControls();
+setTripView('planned',false);
+// Les âges restent justes même en pause, sans rerendre les traces ni accumuler
+// de timers lors d'un passage en arrière-plan / retour via le bfcache.
+document.addEventListener('visibilitychange',()=>document.hidden?stopAgoRefresh():startAgoRefresh());
+window.addEventListener('pageshow',startAgoRefresh);
+window.addEventListener('pagehide',stopAgoRefresh);
+startAgoRefresh();
 // initial fit to whole route
 map.fitBounds(latlngs,{padding:[50,50]});
 setIndex(0);

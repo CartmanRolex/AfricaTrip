@@ -1,13 +1,7 @@
 rules_version = '2';
-// Le site lit TOUT (carte publique, aucune connexion), mais l'écriture est
-// réservée au COMPTE UNIQUE de l'équipage : un seul email + un mot de passe
-// partagé (Firebase Email/Password). Personne d'autre ne peut donc polluer la
-// carte, même si la config Firebase est publique. Le mot de passe n'est jamais
-// dans le code : Firebase le gère (haché) côté serveur.
-// -> `signed()` = connecté AVEC ce compte précis (email exact). Doit
-//    correspondre à AUTH_EMAIL de app/www/firebase-config.js et à l'utilisateur
-//    créé dans la console (Authentication → Users).
-// Quelques garde-fous de forme pour éviter d'écrire n'importe quoi.
+
+// La lecture des traces publiees reste anonyme pour le site. Toute ecriture
+// exige le compte Firebase Email/Password unique de l'equipage.
 service cloud.firestore {
   match /databases/{db}/documents {
 
@@ -15,36 +9,286 @@ service cloud.firestore {
       return request.auth != null
         && request.auth.token.email == 'equipage@expedition-afrique.app';
     }
-    function num(x) { return x is number; }
+
+    function targetTrip(tripId) {
+      return tripId == 'africa-trip-01';
+    }
+
+    function num(x) {
+      return x is number;
+    }
+
+    function shortString(x, maxSize) {
+      return x is string && x.size() > 0 && x.size() <= maxSize;
+    }
+
+    function validPersonId(personId) {
+      return personId in [
+        'arthur', 'dorvan', 'edouard', 'gal', 'giordano',
+        'hugo', 'jehan', 'malen', 'paul', 'younous'
+      ];
+    }
+
+    function validIdentity(personId, displayName) {
+      return validPersonId(personId) && (
+        (personId == 'arthur' && displayName == 'Arthur')
+        || (personId == 'dorvan' && displayName == 'Dorvan')
+        || (personId == 'edouard' && displayName == 'Edouard')
+        || (personId == 'gal' && displayName == 'Gal')
+        || (personId == 'giordano' && displayName == 'Giordano')
+        || (personId == 'hugo' && displayName == 'Hugo')
+        || (personId == 'jehan' && displayName == 'Jehan')
+        || (personId == 'malen' && displayName == 'Malen')
+        || (personId == 'paul' && displayName == 'Paul')
+        || (personId == 'younous' && displayName == 'Younous')
+      );
+    }
+
+    function validVehicleId(vehicleId) {
+      return vehicleId == null
+        || vehicleId == 'hugodouard'
+        || vehicleId == 'paul-pot';
+    }
+
+    function validAssignment(mode, vehicleId) {
+      return validVehicleId(vehicleId) && (
+        (mode == 'vehicle' && vehicleId != null)
+        || ((mode == 'independent' || mode == 'paused') && vehicleId == null)
+      );
+    }
+
+    function validMovingAssignment(mode, vehicleId) {
+      return validVehicleId(vehicleId) && (
+        (mode == 'vehicle' && vehicleId != null)
+        || (mode == 'independent' && vehicleId == null)
+      );
+    }
+
     function validLatLng(data) {
       return num(data.lat) && num(data.lng)
         && data.lat >= -90 && data.lat <= 90
         && data.lng >= -180 && data.lng <= 180;
     }
 
+    function validAccuracy(value) {
+      return value == null || (num(value) && value >= 0 && value <= 250);
+    }
+
+    function validSpeed(value) {
+      return value == null || (num(value) && value >= 0 && value <= 200);
+    }
+
+    function validHeading(value) {
+      return value == null || (num(value) && value >= 0 && value < 360);
+    }
+
+    function validTimestampPair(at, atMs) {
+      return at is timestamp
+        && atMs is int
+        && at.toMillis() == atMs
+        && at >= timestamp.date(2025, 1, 1)
+        // Une petite tolerance couvre une horloge de telephone mal reglee,
+        // tout en refusant les points dates arbitrairement dans le futur.
+        && at <= request.time + duration.value(10, 'm');
+    }
+
+    function validPointFields(data) {
+      return data.keys().hasAll([
+        'pointId', 'tripId', 'personId', 'displayName', 'vehicleId', 'mode',
+        'assignmentId', 'sessionId', 'deviceId', 'lat', 'lng',
+        'capturedAt', 'capturedAtMs', 'accuracyM', 'speedMps', 'headingDeg'
+      ]) && data.keys().hasOnly([
+        'pointId', 'tripId', 'personId', 'displayName', 'vehicleId', 'mode',
+        'assignmentId', 'sessionId', 'deviceId', 'lat', 'lng',
+        'capturedAt', 'capturedAtMs', 'accuracyM', 'speedMps', 'headingDeg'
+      ]);
+    }
+
+    function validPointValues(data, tripId) {
+      return data.tripId == tripId
+        && validIdentity(data.personId, data.displayName)
+        && validMovingAssignment(data.mode, data.vehicleId)
+        && shortString(data.pointId, 160)
+        && shortString(data.assignmentId, 160)
+        && shortString(data.sessionId, 160)
+        && shortString(data.deviceId, 160)
+        && validLatLng(data)
+        && validTimestampPair(data.capturedAt, data.capturedAtMs)
+        && validAccuracy(data.accuracyM)
+        && validSpeed(data.speedMps)
+        && validHeading(data.headingDeg);
+    }
+
+    function validPoint(data, tripId) {
+      return data is map
+        && validPointFields(data)
+        && validPointValues(data, tripId);
+    }
+
+    // ---------------------------------------------------------------------
+    // Compatibilite v1 : le site actuel continue de lire ces collections.
+
+    function validLegacyCar(car) {
+      return car == 1 || car == 2 || car == 'obs';
+    }
+
+    function validDisplayName(name) {
+      return name in [
+        'Arthur', 'Dorvan', 'Edouard', 'Gal', 'Giordano',
+        'Hugo', 'Jehan', 'Malen', 'Paul', 'Younous'
+      ];
+    }
+
+    function carMatchesAssignment(car, mode, vehicleId) {
+      return (mode == 'vehicle' && (
+          (vehicleId == 'hugodouard' && car == 1)
+          || (vehicleId == 'paul-pot' && car == 2)
+        ))
+        || ((mode == 'independent' || mode == 'paused') && car == 'obs');
+    }
+
+    function validLegacyPosition(data, name) {
+      return data.keys().hasAll(['name', 'car', 'lat', 'lng', 'at'])
+        && data.keys().hasOnly(['name', 'car', 'lat', 'lng', 'at'])
+        && data.name == name
+        && validDisplayName(data.name)
+        && validLegacyCar(data.car)
+        && validLatLng(data)
+        && data.at is timestamp;
+    }
+
+    function validV2Position(data, name) {
+      return data.keys().hasAll([
+        'name', 'car', 'lat', 'lng', 'at', 'tripId', 'personId',
+        'vehicleId', 'mode', 'assignmentId', 'sessionId', 'deviceId',
+        'capturedAt', 'capturedAtMs', 'accuracyM', 'speedMps', 'headingDeg'
+      ]) && data.keys().hasOnly([
+        'name', 'car', 'lat', 'lng', 'at', 'tripId', 'personId',
+        'vehicleId', 'mode', 'assignmentId', 'sessionId', 'deviceId',
+        'capturedAt', 'capturedAtMs', 'accuracyM', 'speedMps', 'headingDeg'
+      ])
+        && data.name == name
+        && data.tripId == 'africa-trip-01'
+        && validIdentity(data.personId, data.name)
+        && validLegacyCar(data.car)
+        && validMovingAssignment(data.mode, data.vehicleId)
+        && carMatchesAssignment(data.car, data.mode, data.vehicleId)
+        && shortString(data.assignmentId, 160)
+        && shortString(data.sessionId, 160)
+        && shortString(data.deviceId, 160)
+        && validLatLng(data)
+        && validTimestampPair(data.capturedAt, data.capturedAtMs)
+        && data.at is timestamp
+        && data.at == data.capturedAt
+        && validAccuracy(data.accuracyM)
+        && validSpeed(data.speedMps)
+        && validHeading(data.headingDeg);
+    }
+
     match /positions/{name} {
       allow read: if true;
-      allow write: if signed()
-        && num(request.resource.data.lat) && num(request.resource.data.lng);
+      allow create, update: if signed()
+        && (validLegacyPosition(request.resource.data, name)
+          || validV2Position(request.resource.data, name));
+      allow delete: if false;
     }
-    match /tracks/{name}/points/{pt} {
+
+    match /tracks/{name}/points/{pointId} {
       allow read: if true;
-      allow create: if signed()
-        && num(request.resource.data.lat) && num(request.resource.data.lng);
+      allow create: if signed() && validDisplayName(name)
+        && request.resource.data.keys().hasAll(['lat', 'lng', 'at'])
+        && request.resource.data.keys().hasOnly(['lat', 'lng', 'at'])
+        && validLatLng(request.resource.data)
+        && request.resource.data.at is timestamp;
       allow update, delete: if false;
     }
+
     match /crew/{name} {
       allow read: if true;
-      allow write: if signed();
+      // Les anciennes versions peuvent encore contenir xp/skill : ne pas
+      // casser leurs set(..., {merge:true}) tant que la migration est active.
+      allow create, update: if signed() && validDisplayName(name);
+      allow delete: if false;
     }
+
+    // Les champs enrichis sont optionnels ensemble, afin que les APK/PWA v1
+    // puissent encore creer un media pendant le deploiement progressif.
+    function hasAnyV2MediaField(data) {
+      return data.keys().hasAny([
+        'tripId', 'personId', 'displayName', 'vehicleIdAtCapture', 'mode',
+        'assignmentId', 'capturedAt', 'locationSource'
+      ]);
+    }
+
+    function hasAllV2MediaFields(data) {
+      return data.keys().hasAll([
+        'tripId', 'personId', 'displayName', 'vehicleIdAtCapture', 'mode',
+        'assignmentId', 'capturedAt', 'locationSource'
+      ]);
+    }
+
+    function validMediaLocation(data) {
+      return (
+        data.lat == null && data.lng == null
+        && data.gps == false && data.manual == false
+      ) || (
+        validLatLng(data)
+        && ((data.gps == true && data.manual == false)
+          || (data.gps == false && data.manual == true))
+      );
+    }
+
+    function validV2Media(data) {
+      return hasAllV2MediaFields(data)
+        && data.tripId == 'africa-trip-01'
+        && validIdentity(data.personId, data.displayName)
+        && data.name == data.displayName
+        && validAssignment(data.mode, data.vehicleIdAtCapture)
+        && carMatchesAssignment(data.car, data.mode, data.vehicleIdAtCapture)
+        && shortString(data.assignmentId, 160)
+        && data.capturedAt is timestamp
+        && data.locationSource in ['media-gps', 'manual', 'none']
+        && ((data.locationSource == 'media-gps'
+            && validLatLng(data) && data.gps == true && data.manual == false)
+          || (data.locationSource == 'manual'
+            && validLatLng(data) && data.gps == false && data.manual == true)
+          || (data.locationSource == 'none'
+            && data.lat == null && data.lng == null
+            && data.gps == false && data.manual == false));
+    }
+
+    function validMediaCreate(data) {
+      return data.keys().hasAll([
+        'name', 'car', 'url', 'type', 'lat', 'lng', 'gps', 'manual',
+        'date', 'at'
+      ]) && data.keys().hasOnly([
+        'name', 'car', 'url', 'type', 'lat', 'lng', 'gps', 'manual',
+        'caption', 'date', 'at',
+        'tripId', 'personId', 'displayName', 'vehicleIdAtCapture', 'mode',
+        'assignmentId', 'capturedAt', 'locationSource'
+      ])
+        && validDisplayName(data.name)
+        && validLegacyCar(data.car)
+        && data.url is string
+        && data.url.size() >= 8 && data.url.size() <= 2048
+        && data.url.matches('^https://.*')
+        && data.type in ['image', 'video']
+        && data.gps is bool && data.manual is bool
+        && validMediaLocation(data)
+        && data.date is string && data.date.size() > 0 && data.date.size() <= 40
+        && data.at is timestamp
+        && data.get('caption', '') is string
+        && data.get('caption', '').size() <= 140
+        && ((!hasAnyV2MediaField(data)) || validV2Media(data));
+    }
+
     match /photos/{id} {
       allow read: if true;
-      allow create: if signed() && request.resource.data.url is string;
-      allow delete: if signed();   // l'app permet de retirer ses photos
-      // Deux éditions étroites depuis le détail du média :
-      // - légende seule ;
-      // - lieu seul, nécessairement marqué comme choix manuel.
-      // url/auteur/date/type restent toujours immuables.
+      allow create: if signed() && validMediaCreate(request.resource.data);
+      allow delete: if signed();
+
+      // Editions etroites du detail media : legende seule, ou lieu manuel.
+      // url/auteur/date/type et contexte de trajet restent immuables.
       allow update: if signed() && (
         (
           request.resource.data.diff(resource.data).affectedKeys()
@@ -56,14 +300,150 @@ service cloud.firestore {
         )
         || (
           request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['lat', 'lng', 'gps', 'manual'])
+            .hasOnly(['lat', 'lng', 'gps', 'manual', 'locationSource'])
           && request.resource.data.diff(resource.data).affectedKeys()
-            .hasAny(['lat', 'lng', 'gps', 'manual'])
+            .hasAny(['lat', 'lng', 'gps', 'manual', 'locationSource'])
           && validLatLng(request.resource.data)
           && request.resource.data.gps == false
           && request.resource.data.manual == true
+          // Une fiche v1 ne possede pas locationSource ; sa mise a jour
+          // historique a quatre champs reste donc acceptee. Sur une fiche v2,
+          // le champ existe deja, ne peut pas etre supprime, et doit devenir
+          // "manual" avec les nouvelles coordonnees.
+          && (
+            (!('locationSource' in resource.data)
+              && !('locationSource' in request.resource.data))
+            || request.resource.data.get('locationSource', '') == 'manual'
+          )
         )
       );
+    }
+
+    // ---------------------------------------------------------------------
+    // Schema v2 : affectations et traces reelles, separees par voyage.
+
+    function validAssignmentEvent(data, tripId, assignmentId) {
+      return data.keys().hasAll([
+        'schemaVersion', 'tripId', 'assignmentId', 'personId', 'displayName',
+        'vehicleId', 'mode', 'effectiveAt', 'effectiveAtMs', 'sessionId',
+        'deviceId', 'reason'
+      ]) && data.keys().hasOnly([
+        'schemaVersion', 'tripId', 'assignmentId', 'personId', 'displayName',
+        'vehicleId', 'mode', 'effectiveAt', 'effectiveAtMs', 'sessionId',
+        'deviceId', 'reason'
+      ])
+        && data.schemaVersion == 2
+        && data.tripId == tripId
+        && data.assignmentId == assignmentId
+        && validIdentity(data.personId, data.displayName)
+        && validAssignment(data.mode, data.vehicleId)
+        && validTimestampPair(data.effectiveAt, data.effectiveAtMs)
+        && shortString(data.sessionId, 160)
+        && shortString(data.deviceId, 160)
+        && data.reason in ['session-start', 'user-change'];
+    }
+
+    function validLatest(data, tripId, personId) {
+      return data.keys().hasAll([
+        'schemaVersion', 'pointId', 'tripId', 'personId', 'displayName',
+        'vehicleId', 'mode', 'assignmentId', 'sessionId', 'deviceId',
+        'lat', 'lng', 'capturedAt', 'capturedAtMs', 'accuracyM',
+        'speedMps', 'headingDeg'
+      ]) && data.keys().hasOnly([
+        'schemaVersion', 'pointId', 'tripId', 'personId', 'displayName',
+        'vehicleId', 'mode', 'assignmentId', 'sessionId', 'deviceId',
+        'lat', 'lng', 'capturedAt', 'capturedAtMs', 'accuracyM',
+        'speedMps', 'headingDeg'
+      ])
+        && data.schemaVersion == 2
+        && data.personId == personId
+        && validPointValues(data, tripId);
+    }
+
+    function validChunk(data, tripId) {
+      return data.keys().hasAll([
+        'schemaVersion', 'tripId', 'personId', 'displayName', 'sessionId',
+        'deviceId', 'assignmentId', 'vehicleId', 'mode', 'bucketStartAt',
+        'bucketStartMs', 'lastPointId', 'points'
+      ]) && data.keys().hasOnly([
+        'schemaVersion', 'tripId', 'personId', 'displayName', 'sessionId',
+        'deviceId', 'assignmentId', 'vehicleId', 'mode', 'bucketStartAt',
+        'bucketStartMs', 'lastPointId', 'points'
+      ])
+        && data.schemaVersion == 2
+        && data.tripId == tripId
+        && validIdentity(data.personId, data.displayName)
+        && shortString(data.sessionId, 160)
+        && shortString(data.deviceId, 160)
+        && shortString(data.assignmentId, 160)
+        && validMovingAssignment(data.mode, data.vehicleId)
+        && validTimestampPair(data.bucketStartAt, data.bucketStartMs)
+        && data.points is map
+        && data.points.size() > 0 && data.points.size() <= 160
+        && shortString(data.lastPointId, 160)
+        && data.lastPointId in data.points
+        && validPoint(data.points[data.lastPointId], tripId)
+        && data.points[data.lastPointId].pointId == data.lastPointId
+        && data.points[data.lastPointId].personId == data.personId
+        && data.points[data.lastPointId].displayName == data.displayName
+        && data.points[data.lastPointId].sessionId == data.sessionId
+        && data.points[data.lastPointId].deviceId == data.deviceId
+        && data.points[data.lastPointId].assignmentId == data.assignmentId
+        && data.points[data.lastPointId].vehicleId == data.vehicleId
+        && data.points[data.lastPointId].mode == data.mode
+        && data.points[data.lastPointId].capturedAtMs >= data.bucketStartMs
+        // L'app regroupe par deux heures ET par affectation. Un changement
+        // ouvre donc un autre chunk ; 120 points max gardent une marge sous 160.
+        && data.points[data.lastPointId].capturedAtMs < data.bucketStartMs + 7200000;
+    }
+
+    function validChunkCreate(data, tripId) {
+      return validChunk(data, tripId)
+        && data.points.size() == 1
+        && data.points.keys().hasOnly([data.lastPointId]);
+    }
+
+    function validChunkAppend(before, after, tripId) {
+      return validChunk(after, tripId)
+        && after.diff(before).affectedKeys().hasOnly(['lastPointId', 'points'])
+        && after.points.diff(before.points).addedKeys()
+          .hasOnly([after.lastPointId])
+        && after.points.diff(before.points).addedKeys().size() == 1
+        && after.points.diff(before.points).changedKeys().size() == 0
+        && after.points.diff(before.points).removedKeys().size() == 0;
+    }
+
+    match /trips/{tripId}/assignmentEvents/{assignmentId} {
+      // Les affectations nominatives ne sont pas necessaires au site public.
+      allow read: if targetTrip(tripId) && signed();
+      allow create: if targetTrip(tripId) && signed()
+        && validAssignmentEvent(request.resource.data, tripId, assignmentId);
+      // Uniquement le retry idempotent du meme evenement immuable.
+      allow update: if targetTrip(tripId) && signed()
+        && request.resource.data == resource.data;
+      allow delete: if false;
+    }
+
+    match /trips/{tripId}/trackChunks/{chunkId} {
+      allow read: if targetTrip(tripId);
+      allow create: if targetTrip(tripId) && signed()
+        && validChunkCreate(request.resource.data, tripId);
+      allow update: if targetTrip(tripId) && signed() && (
+        request.resource.data == resource.data
+        || validChunkAppend(resource.data, request.resource.data, tripId)
+      );
+      allow delete: if false;
+    }
+
+    match /trips/{tripId}/latest/{personId} {
+      allow read: if targetTrip(tripId);
+      allow create: if targetTrip(tripId) && signed()
+        && validLatest(request.resource.data, tripId, personId);
+      allow update: if targetTrip(tripId) && signed()
+        && validLatest(request.resource.data, tripId, personId)
+        && (request.resource.data == resource.data
+          || request.resource.data.capturedAtMs > resource.data.capturedAtMs);
+      allow delete: if false;
     }
   }
 }

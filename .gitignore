@@ -8,6 +8,12 @@
 __pycache__/
 *.pyc
 
+# Firebase CLI / Emulator local logs and cache
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
 # fichier local chiffré — ne jamais publier
 photos/gal.enc
 

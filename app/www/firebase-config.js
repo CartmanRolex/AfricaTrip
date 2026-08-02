@@ -32,6 +32,6 @@ export const AUTH_EMAIL = "equipage@expedition-afrique.app";
 // "obs" = observateur). Sert au choix du prénom et à colorer les marqueurs.
 export const CREW = {
   Gal: 1, Hugo: 1, Malen: 1, Arthur: 1, Edouard: 1, Younous: 1,
-  Paul: 2, Thomas: 2, Jehan: 2, Dorvan: 2,
+  Paul: 2, Jehan: 2, Dorvan: 2,
   Giordano: "obs",
 };

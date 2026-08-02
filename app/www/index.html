@@ -49,7 +49,20 @@
       <button id="switch" class="ghost" title="Changer de personne">⇄</button>
     </header>
 
-    <!-- position (toujours active tant que l'app est ouverte) -->
+    <!-- affectation réelle, persistée séparément pour chaque personne -->
+    <div class="card assignment-card">
+      <span class="label">Je suis dans :</span>
+      <div id="assignment-choices" class="assignment-choices" role="group"
+           aria-label="Mode de déplacement actuel">
+        <button type="button" data-assignment="hugodouard" aria-pressed="false">🚗 Hugodouard</button>
+        <button type="button" data-assignment="paul-pot" aria-pressed="false">🚙 Paul Pot</button>
+        <button type="button" data-assignment="independent" aria-pressed="false">🥾 À pied / autre</button>
+        <button type="button" data-assignment="paused" aria-pressed="false">⏸ Pause</button>
+      </div>
+      <div id="assignment-status" class="assignment-status" role="status" aria-live="polite"></div>
+    </div>
+
+    <!-- position (active tant que le mode n'est pas Pause) -->
     <div class="card live-card waiting" id="live-card">
       <span class="live-orb"><i></i></span>
       <div class="live-txt">

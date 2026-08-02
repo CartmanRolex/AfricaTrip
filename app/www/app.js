@@ -12,6 +12,225 @@ import { FACES } from "./faces.js";
 const $ = id => document.getElementById(id);
 const CAR_COLOR = { 1: "#E8924A", 2: "#4FB7B3", obs: "#8E8066" };
 const V = "10.12.2", CDN = n => `https://www.gstatic.com/firebasejs/${V}/firebase-${n}.js`;
+const TRIP_ID = "africa-trip-01";
+const TRACK_SCHEMA_VERSION = 2;
+// Deux heures × un point/minute = 120 points maximum, sous le cap Firestore
+// de 160 tout en évitant de multiplier les documents à relire sur le site.
+const TRACK_BUCKET_MS = 2 * 60 * 60 * 1000;
+const DEVICE_KEY = `${TRIP_ID}:device-id`;
+const DEVICE_COOKIE = "crew-device-v2";
+const ASSIGNMENT_KEY = `${TRIP_ID}:assignment:`;
+const ASSIGNMENT_COOKIE = "crew-mode-v2-";
+const OUTBOX_DB = `${TRIP_ID}-outbox-v2`;
+const OUTBOX_STORE = "events";
+
+const ASSIGNMENT_CHOICES = {
+  hugodouard: { mode: "vehicle", vehicleId: "hugodouard", label: "Hugodouard", car: 1 },
+  "paul-pot": { mode: "vehicle", vehicleId: "paul-pot", label: "Paul Pot", car: 2 },
+  independent: { mode: "independent", vehicleId: null, label: "À pied / autre", car: "obs" },
+  paused: { mode: "paused", vehicleId: null, label: "Pause", car: "obs" },
+};
+
+function personIdFor(name) {
+  return (name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+function randomToken() {
+  if (window.crypto && typeof window.crypto.randomUUID === "function") {
+    return window.crypto.randomUUID();
+  }
+  const bytes = new Uint8Array(16);
+  if (window.crypto && typeof window.crypto.getRandomValues === "function") {
+    window.crypto.getRandomValues(bytes);
+    return [...bytes].map(x => x.toString(16).padStart(2, "0")).join("");
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+function storedValue(key) {
+  try { return localStorage.getItem(key); } catch (_) { return null; }
+}
+function storeValue(key, value) {
+  try { localStorage.setItem(key, value); return true; } catch (_) { return false; }
+}
+function readCookieValue(name) {
+  const prefix = `${name}=`;
+  const part = document.cookie.split(";").map(x => x.trim()).find(x => x.startsWith(prefix));
+  if (!part) return null;
+  try { return decodeURIComponent(part.slice(prefix.length)); } catch (_) { return part.slice(prefix.length); }
+}
+function writeCookieValue(name, value) {
+  document.cookie = `${name}=${encodeURIComponent(value)}; Max-Age=${60 * 60 * 24 * 400}; Path=/; SameSite=Lax`;
+}
+function loadDeviceId() {
+  const saved = readCookieValue(DEVICE_COOKIE) || storedValue(DEVICE_KEY);
+  if (saved && /^[a-z0-9-]{8,80}$/i.test(saved)) {
+    storeValue(DEVICE_KEY, saved);
+    writeCookieValue(DEVICE_COOKIE, saved);
+    return saved;
+  }
+  const id = `dev-${randomToken()}`;
+  storeValue(DEVICE_KEY, id);
+  writeCookieValue(DEVICE_COOKIE, id);
+  return id;
+}
+const DEVICE_ID = loadDeviceId();
+
+function choiceKey(mode, vehicleId) {
+  if (mode === "vehicle" && ASSIGNMENT_CHOICES[vehicleId]) return vehicleId;
+  if (mode === "independent") return "independent";
+  if (mode === "paused") return "paused";
+  return "paused";
+}
+function loadAssignmentChoice(personId) {
+  try {
+    const cookieKey = readCookieValue(ASSIGNMENT_COOKIE + personId);
+    if (cookieKey && ASSIGNMENT_CHOICES[cookieKey]) return ASSIGNMENT_CHOICES[cookieKey];
+    const saved = JSON.parse(storedValue(ASSIGNMENT_KEY + personId) || "null");
+    if (!saved) return ASSIGNMENT_CHOICES.paused;
+    const key = choiceKey(saved && saved.mode, saved && saved.vehicleId);
+    return ASSIGNMENT_CHOICES[key];
+  } catch (_) { return ASSIGNMENT_CHOICES.paused; }
+}
+function saveAssignmentChoice(personId, assignment) {
+  storeValue(ASSIGNMENT_KEY + personId, JSON.stringify({
+    mode: assignment.mode, vehicleId: assignment.vehicleId,
+  }));
+  writeCookieValue(ASSIGNMENT_COOKIE + personId,
+    choiceKey(assignment.mode, assignment.vehicleId));
+}
+function makeAssignment(person, sessionId, choice, reason) {
+  const personId = personIdFor(person), effectiveAtMs = Date.now();
+  return {
+    schemaVersion: TRACK_SCHEMA_VERSION,
+    tripId: TRIP_ID,
+    assignmentId: `asn-${personId}-${effectiveAtMs}-${randomToken()}`,
+    personId,
+    displayName: person,
+    vehicleId: choice.vehicleId,
+    mode: choice.mode,
+    effectiveAtMs,
+    sessionId,
+    deviceId: DEVICE_ID,
+    reason,
+  };
+}
+function legacyCar(assignment) {
+  return assignment.vehicleId === "hugodouard" ? 1
+    : assignment.vehicleId === "paul-pot" ? 2 : "obs";
+}
+
+// ---- file d'envoi locale -------------------------------------------------
+// IndexedDB garde les points hors ligne sans la petite limite de localStorage.
+// Chaque entrée a un identifiant déterministe et ne quitte la file qu'après une
+// transaction Firestore réussie. localStorage reste un secours pour les rares
+// WebViews où IndexedDB ne peut pas être ouvert.
+let outboxDbP = null;
+let outboxSeq = 0;
+let outboxFlushing = false;
+let outboxFlushRequested = false;
+let outboxRetryTimer = null;
+let outboxRetryMs = 2000;
+const OUTBOX_FALLBACK_KEY = `${TRIP_ID}:outbox-fallback-v2`;
+
+function openOutbox() {
+  if (outboxDbP) return outboxDbP;
+  if (!window.indexedDB) return Promise.reject(new Error("IndexedDB indisponible"));
+  outboxDbP = new Promise((resolve, reject) => {
+    const request = window.indexedDB.open(OUTBOX_DB, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(OUTBOX_STORE)) {
+        const store = db.createObjectStore(OUTBOX_STORE, { keyPath: "id" });
+        store.createIndex("orderKey", "orderKey", { unique: false });
+      }
+    };
+    request.onsuccess = () => {
+      const db = request.result;
+      db.onversionchange = () => { db.close(); outboxDbP = null; };
+      resolve(db);
+    };
+    request.onerror = () => { outboxDbP = null; reject(request.error || new Error("IndexedDB")); };
+    request.onblocked = () => { outboxDbP = null; reject(new Error("IndexedDB bloquée")); };
+  });
+  return outboxDbP;
+}
+function txDone(tx) {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error || new Error("IndexedDB"));
+    tx.onabort = () => reject(tx.error || new Error("IndexedDB interrompue"));
+  });
+}
+function fallbackEntries() {
+  try {
+    const parsed = JSON.parse(storedValue(OUTBOX_FALLBACK_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed.filter(x => x && x.id && x.orderKey) : [];
+  } catch (_) { return []; }
+}
+function saveFallback(entries) {
+  if (!storeValue(OUTBOX_FALLBACK_KEY, JSON.stringify(entries))) {
+    throw new Error("Stockage local plein");
+  }
+}
+async function outboxPut(item) {
+  try {
+    const db = await openOutbox();
+    const tx = db.transaction(OUTBOX_STORE, "readwrite");
+    tx.objectStore(OUTBOX_STORE).put(item);
+    await txDone(tx);
+  } catch (_) {
+    const entries = fallbackEntries();
+    const i = entries.findIndex(x => x.id === item.id);
+    if (i >= 0) entries[i] = item; else entries.push(item);
+    entries.sort((a, b) => a.orderKey.localeCompare(b.orderKey));
+    saveFallback(entries);
+  }
+}
+async function firstIndexedEntry() {
+  try {
+    const db = await openOutbox();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(OUTBOX_STORE, "readonly");
+      const request = tx.objectStore(OUTBOX_STORE).index("orderKey").openCursor();
+      request.onsuccess = () => resolve(request.result ? request.result.value : null);
+      request.onerror = () => reject(request.error || new Error("IndexedDB"));
+    });
+  } catch (_) { return null; }
+}
+async function outboxFirst() {
+  const indexed = await firstIndexedEntry();
+  const fallback = fallbackEntries()[0] || null;
+  if (!indexed) return fallback ? { backend: "fallback", item: fallback } : null;
+  if (!fallback || indexed.orderKey <= fallback.orderKey) return { backend: "indexed", item: indexed };
+  return { backend: "fallback", item: fallback };
+}
+async function outboxDelete(ref) {
+  if (ref.backend === "fallback") {
+    saveFallback(fallbackEntries().filter(x => x.id !== ref.item.id));
+    return;
+  }
+  const db = await openOutbox();
+  const tx = db.transaction(OUTBOX_STORE, "readwrite");
+  tx.objectStore(OUTBOX_STORE).delete(ref.item.id);
+  await txDone(tx);
+}
+function queuedItem(item) {
+  const now = Date.now();
+  return {
+    ...item,
+    queuedAtMs: now,
+    orderKey: `${String(now).padStart(13, "0")}-${String(++outboxSeq).padStart(6, "0")}-${item.id}`,
+  };
+}
+async function enqueueOutbox(item) {
+  await outboxPut(queuedItem(item));
+  scheduleOutboxFlush(0);
+}
+function scheduleOutboxFlush(delay = 0) {
+  outboxFlushRequested = true;
+  clearTimeout(outboxRetryTimer);
+  outboxRetryTimer = setTimeout(flushOutbox, delay);
+}
 
 // ---- perso mémorisé : COOKIE (fiable sur iPhone « écran d'accueil », où le
 // localStorage d'une PWA peut être vidé) + miroir localStorage. On relit le
@@ -223,54 +442,188 @@ async function askLocation({ initial = null, editing = false } = {}) {
 
 // ---- Firebase à la demande -----------------------------------------------
 let _fb = null;
+let _fbP = null;
 async function fb() {
   if (_fb) return _fb;
-  const [a, au, fs] = await Promise.all([
-    import(CDN("app")), import(CDN("auth")), import(CDN("firestore"))]);
-  const app = a.initializeApp(FIREBASE_CONFIG);
-  const auth = au.getAuth(app);
-  _fb = { auth,
-          signIn: pw => au.signInWithEmailAndPassword(auth, AUTH_EMAIL, pw),
-          onAuth: cb => au.onAuthStateChanged(auth, cb),
-          db: fs.getFirestore(app),
-          doc: fs.doc, getDoc: fs.getDoc, setDoc: fs.setDoc,
-          addDoc: fs.addDoc, deleteDoc: fs.deleteDoc, updateDoc: fs.updateDoc,
-          collection: fs.collection, query: fs.query, where: fs.where,
-          onSnapshot: fs.onSnapshot, ts: fs.serverTimestamp };
-  return _fb;
+  if (_fbP) return _fbP;
+  _fbP = (async () => {
+    const [a, au, fs] = await Promise.all([
+      import(CDN("app")), import(CDN("auth")), import(CDN("firestore"))]);
+    const app = a.initializeApp(FIREBASE_CONFIG);
+    const auth = au.getAuth(app);
+    _fb = { auth,
+            signIn: pw => au.signInWithEmailAndPassword(auth, AUTH_EMAIL, pw),
+            onAuth: cb => au.onAuthStateChanged(auth, cb),
+            db: fs.getFirestore(app),
+            doc: fs.doc, getDoc: fs.getDoc, setDoc: fs.setDoc,
+            addDoc: fs.addDoc, deleteDoc: fs.deleteDoc, updateDoc: fs.updateDoc,
+            collection: fs.collection, query: fs.query, where: fs.where,
+            onSnapshot: fs.onSnapshot, runTransaction: fs.runTransaction,
+            ts: fs.serverTimestamp };
+    return _fb;
+  })();
+  try { return await _fbP; }
+  catch (e) { _fbP = null; throw e; }
 }
+
+function firestoreAssignment(item) {
+  const a = item.assignment;
+  return { ...a, effectiveAt: new Date(a.effectiveAtMs) };
+}
+function firestorePoint(point) {
+  return { ...point, capturedAt: new Date(point.capturedAtMs) };
+}
+async function deliverOutbox(item) {
+  const { db, doc, setDoc, runTransaction } = await fb();
+  if (item.kind === "assignment") {
+    const a = item.assignment;
+    await setDoc(doc(db, "trips", TRIP_ID, "assignmentEvents", a.assignmentId),
+      firestoreAssignment(item));
+    return;
+  }
+  if (item.kind !== "point") throw new Error("Événement local inconnu");
+
+  const point = item.point;
+  const pointData = firestorePoint(point);
+  const bucketStartMs = Math.floor(point.capturedAtMs / TRACK_BUCKET_MS) * TRACK_BUCKET_MS;
+  // Une affectation par chunk évite de mélanger deux voitures et garantit
+  // une marge sous le cap de 160, même après plusieurs changements.
+  const chunkId = `${point.personId}_${point.sessionId}_${point.assignmentId}_${bucketStartMs}`;
+  const chunkRef = doc(db, "trips", TRIP_ID, "trackChunks", chunkId);
+  const latestRef = doc(db, "trips", TRIP_ID, "latest", point.personId);
+
+  await runTransaction(db, async transaction => {
+    const latestSnap = await transaction.get(latestRef);
+    const old = latestSnap.exists() ? latestSnap.data() : null;
+    const isExactRetry = !!old && point.capturedAtMs === old.capturedAtMs
+      && point.pointId === old.pointId;
+    const isNewer = !old || !Number.isFinite(old.capturedAtMs)
+      || point.capturedAtMs > old.capturedAtMs || isExactRetry;
+
+    transaction.set(chunkRef, {
+      schemaVersion: TRACK_SCHEMA_VERSION,
+      tripId: TRIP_ID,
+      personId: point.personId,
+      displayName: point.displayName,
+      sessionId: point.sessionId,
+      deviceId: point.deviceId,
+      assignmentId: point.assignmentId,
+      vehicleId: point.vehicleId,
+      mode: point.mode,
+      bucketStartAt: new Date(bucketStartMs),
+      bucketStartMs,
+      lastPointId: point.pointId,
+      points: { [point.pointId]: pointData },
+    }, { merge: true });
+
+    if (isNewer) {
+      transaction.set(latestRef, { schemaVersion: TRACK_SCHEMA_VERSION, ...pointData });
+    }
+  });
+}
+
+async function flushOutbox() {
+  if (outboxFlushing) {
+    outboxFlushRequested = true;
+    return;
+  }
+  outboxFlushing = true;
+  outboxFlushRequested = false;
+  clearTimeout(outboxRetryTimer);
+  let failed = false;
+  try {
+    let ref;
+    while ((ref = await outboxFirst())) {
+      await deliverOutbox(ref.item);
+      await outboxDelete(ref);
+      outboxRetryMs = 2000;
+      if (ref.item.kind === "point" && activeDashboard
+          && activeDashboard.active && activeDashboard.position) {
+        activeDashboard.position.markSent(ref.item.point);
+      }
+    }
+  } catch (e) {
+    failed = true;
+    if (activeDashboard && activeDashboard.active && activeDashboard.position) {
+      activeDashboard.position.markQueued(e);
+    }
+  } finally {
+    const pending = !failed && !!(await outboxFirst());
+    const requested = outboxFlushRequested;
+    outboxFlushing = false;
+    if (failed) {
+      scheduleOutboxFlush(outboxRetryMs);
+      outboxRetryMs = Math.min(outboxRetryMs * 2, 60000);
+    } else if (requested || pending) {
+      scheduleOutboxFlush(0);
+    }
+  }
+}
+window.addEventListener("online", () => scheduleOutboxFlush(0));
 
 // ---- porte d'entrée : mot de passe partagé (une seule fois) ----------------
 // L'équipage partage UN mot de passe (compte Firebase unique). Firebase garde
 // la session, donc on ne le retape qu'au 1er lancement (ou nouveau tel). Le
 // site, lui, lit tout en public : aucune de ces vérifs ne le concerne.
-function requireAuth() {
-  return new Promise(async resolve => {
-    const { onAuth } = await fb();
+let pendingAuthGate = null;
+function cancelPendingAuth() {
+  const gate = pendingAuthGate;
+  pendingAuthGate = null;
+  if (!gate) return;
+  gate.finished = true;
+  if (gate.unsubscribe) gate.unsubscribe();
+  gate.resolve(false);
+}
+async function requireAuth(generation) {
+  cancelPendingAuth();
+  const { onAuth } = await fb();
+  if (generation !== startGeneration) return false;
+  return new Promise(resolve => {
     let shown = false;
-    onAuth(user => {
+    const gate = { unsubscribe: null, resolve, finished: false };
+    const finish = value => {
+      if (gate.finished) return;
+      gate.finished = true;
+      if (pendingAuthGate === gate) pendingAuthGate = null;
+      if (gate.unsubscribe) gate.unsubscribe();
+      resolve(value);
+    };
+    pendingAuthGate = gate;
+    gate.unsubscribe = onAuth(user => {
+      if (generation !== startGeneration) return finish(false);
       // on n'accepte QUE le compte équipage : une session laissée par une
       // ancienne version (anonyme, email nul) ne doit PAS ouvrir sans mot de
       // passe -> sinon on tombe sur le dashboard sans jamais le demander
-      if (user && user.email === AUTH_EMAIL) resolve();
-      else if (!shown) { shown = true; showLogin(); }
+      if (user && user.email === AUTH_EMAIL) {
+        finish(true);
+      } else if (!shown) { shown = true; showLogin(generation); }
     });
+    // Garde-fou si un mock appelle le callback de façon synchrone.
+    if (gate.finished && gate.unsubscribe) gate.unsubscribe();
   });
 }
-function showLogin() {
+function showLogin(generation) {
   $("pick").classList.add("hidden");
   $("dash").classList.add("hidden");
   $("login").classList.remove("hidden");
   const input = $("pw-input"), err = $("pw-err"), go = $("pw-go");
+  go.disabled = false;
+  err.textContent = "un seul mot de passe pour toute l'équipe";
   input.focus();
   const submit = async () => {
+    if (generation !== startGeneration) return;
     if (!input.value.trim()) return;
     go.disabled = true; err.textContent = "connexion…";
     try {
+      const authGateAtSubmit = pendingAuthGate;
       const { signIn } = await fb();
       await signIn(input.value.trim());
       // succès -> onAuth(user) déclenche resolve() de requireAuth -> start()
+      // Si l'import Firebase avait échoué avant la création de cette gate,
+      // relancer explicitement le démarrage après une connexion réussie.
+      if (!authGateAtSubmit && !pendingAuthGate && generation === startGeneration) start();
     } catch (e) {
+      if (generation !== startGeneration) return;
       err.innerHTML = `<span class="err">mot de passe incorrect</span>`;
       go.disabled = false; input.select();
     }
@@ -292,82 +645,363 @@ function renderPick() {
 }
 
 // ---- dashboard ------------------------------------------------------------
-async function start() {
-  $("pick").classList.add("hidden");   // pas de flash de l'écran des prénoms
-  await requireAuth();                 // mot de passe équipage (une fois)
-  $("login").classList.add("hidden");
-  $("dash").classList.remove("hidden");
-  $("me-name").textContent = me;
-  const face = FACES[me];
-  if (face) $("me-face").src = face; else $("me-face").removeAttribute("src");
-  const car = CREW[me];
-  $("me-car").textContent = car === 1 ? "🚗 Hugodouard"
-    : car === 2 ? "🚙 Paul Pot" : "🛰️ Observateur";
-  $("switch").onclick = () => {
-    clearMe(); me = null;
-    $("dash").classList.add("hidden"); $("pick").classList.remove("hidden");
-  };
-  initPosition();
-  initStats();
-  initPhotos();
-  watchMyPhotos();
+let activeDashboard = null;
+let startGeneration = 0;
+
+function cleanupDashboard() {
+  const lifecycle = activeDashboard;
+  activeDashboard = null;
+  if (!lifecycle) return;
+  lifecycle.active = false;
+  clearTimeout(lifecycle.statsTimer);
+  clearInterval(lifecycle.ageTimer);
+  if (lifecycle.photoUnsub) {
+    try { lifecycle.photoUnsub(); } catch (_) {}
+    lifecycle.photoUnsub = null;
+  }
+  if (lifecycle.position) lifecycle.position.stop();
+  if (editingId) closeMedia();
+  myDocs = [];
+  renderMyPhotos();
 }
 
-// ---- position : TOUJOURS active tant que l'app est ouverte (pas de bouton) --
-function initPosition() {
-  let lastAt = 0, lastPt = null, sentAt = 0;
+function assignmentLabel(assignment) {
+  if (assignment.mode === "paused") return "⏸️ Pause";
+  if (assignment.vehicleId === "hugodouard") return "🚗 Hugodouard";
+  if (assignment.vehicleId === "paul-pot") return "🚙 Paul Pot";
+  return "🥾 À pied / autre";
+}
+function renderAssignment(lifecycle, status = null, error = false) {
+  const current = choiceKey(lifecycle.assignment.mode, lifecycle.assignment.vehicleId);
+  document.querySelectorAll("#assignment-choices button").forEach(button => {
+    const selected = button.dataset.assignment === current;
+    button.classList.toggle("on", selected);
+    button.setAttribute("aria-pressed", selected ? "true" : "false");
+  });
+  $("me-car").textContent = assignmentLabel(lifecycle.assignment);
+  if (status != null) {
+    $("assignment-status").textContent = status;
+    $("assignment-status").classList.toggle("err", error);
+    $("assignment-status").classList.toggle("ok", !!status && !error);
+  }
+}
+function setAssignmentButtonsDisabled(disabled) {
+  document.querySelectorAll("#assignment-choices button").forEach(button => {
+    button.disabled = disabled;
+  });
+}
+async function changeAssignment(lifecycle, person, key) {
+  if (!lifecycle.active || activeDashboard !== lifecycle) return;
+  const choice = ASSIGNMENT_CHOICES[key];
+  const sameChoice = choiceKey(lifecycle.assignment.mode, lifecycle.assignment.vehicleId) === key;
+  if (!choice || (sameChoice && lifecycle.assignmentReady)) return;
+
+  // Aucun point ne doit être associé pendant la petite fenêtre où l'événement
+  // d'affectation n'est pas encore durablement rangé dans la file locale.
+  lifecycle.assignmentReady = false;
+  lifecycle.position.suspend();
+  $("add-photos").disabled = true;
+  setAssignmentButtonsDisabled(true);
+  renderAssignment(lifecycle, "enregistrement du choix…");
+  const next = makeAssignment(person, lifecycle.sessionId, choice, "user-change");
+  try {
+    await enqueueOutbox({
+      id: `assignment:${next.assignmentId}`,
+      kind: "assignment",
+      assignment: next,
+    });
+    if (!lifecycle.active || activeDashboard !== lifecycle) return;
+    lifecycle.assignment = next;
+    lifecycle.assignmentReady = true;
+    saveAssignmentChoice(lifecycle.personId, next);
+    renderAssignment(lifecycle, next.mode === "paused"
+      ? "GPS en pause — aucun point n'est enregistré"
+      : "choix mémorisé jusqu'à ton prochain changement");
+    lifecycle.position.assignmentChanged();
+  } catch (e) {
+    if (!lifecycle.active || activeDashboard !== lifecycle) return;
+    renderAssignment(lifecycle,
+      `choix non enregistré — GPS arrêté : ${e.message || e}`, true);
+  } finally {
+    if (lifecycle.active && activeDashboard === lifecycle) {
+      setAssignmentButtonsDisabled(false);
+      $("add-photos").disabled = !lifecycle.assignmentReady;
+    }
+  }
+}
+function initAssignmentButtons(lifecycle, person) {
+  // Un changement de personne peut interrompre un enqueue pendant que les
+  // boutons de l'ancien dashboard sont désactivés : toujours repartir propre.
+  setAssignmentButtonsDisabled(false);
+  document.querySelectorAll("#assignment-choices button").forEach(button => {
+    button.onclick = () => changeAssignment(lifecycle, person, button.dataset.assignment);
+  });
+  renderAssignment(lifecycle);
+}
+
+async function start() {
+  cleanupDashboard();
+  const generation = ++startGeneration;
+  const person = me;
+  $("pick").classList.add("hidden");   // pas de flash de l'écran des prénoms
+  let authenticated = false;
+  try { authenticated = await requireAuth(generation); } // mot de passe équipage (une fois)
+  catch (e) {
+    if (generation === startGeneration) {
+      showLogin(generation);
+      $("pw-err").innerHTML = `<span class="err">Firebase indisponible — vérifie la connexion</span>`;
+    }
+    return;
+  }
+  if (!authenticated || generation !== startGeneration || me !== person || !CREW[person]) return;
+
+  const personId = personIdFor(person);
+  const sessionId = `ses-${personId}-${Date.now()}-${randomToken()}`;
+  const choice = loadAssignmentChoice(personId);
+  const lifecycle = {
+    active: true,
+    person,
+    personId,
+    sessionId,
+    assignment: makeAssignment(person, sessionId, choice, "session-start"),
+    assignmentReady: false,
+    pointSeq: 0,
+    statsTimer: null,
+    ageTimer: null,
+    photoUnsub: null,
+    position: null,
+  };
+  activeDashboard = lifecycle;
+
+  $("login").classList.add("hidden");
+  $("dash").classList.remove("hidden");
+  $("assignment-status").textContent = "";
+  $("assignment-status").className = "assignment-status";
+  $("up-status").textContent = "";
+  $("add-photos").disabled = true;
+  $("live-card").className = "card live-card waiting";
+  $("pos-title").textContent = "Préparation du GPS…";
+  $("pos-sub").textContent = "ton choix de déplacement décide du partage";
+  $("me-name").textContent = person;
+  const face = FACES[person];
+  if (face) $("me-face").src = face; else $("me-face").removeAttribute("src");
+  $("switch").onclick = () => {
+    ++startGeneration;
+    cleanupDashboard();
+    clearMe(); me = null;
+    renderPick();
+    $("dash").classList.add("hidden"); $("pick").classList.remove("hidden");
+  };
+  initAssignmentButtons(lifecycle, person);
+  lifecycle.position = initPosition(lifecycle, person);
+  initStats(lifecycle, person);
+  initPhotos(lifecycle, person);
+  watchMyPhotos(lifecycle, person);
+
+  try {
+    await enqueueOutbox({
+      id: `assignment:${lifecycle.assignment.assignmentId}`,
+      kind: "assignment",
+      assignment: lifecycle.assignment,
+    });
+    if (!lifecycle.active || activeDashboard !== lifecycle) return;
+    lifecycle.assignmentReady = true;
+    $("add-photos").disabled = false;
+    saveAssignmentChoice(personId, lifecycle.assignment);
+    renderAssignment(lifecycle, lifecycle.assignment.mode === "paused"
+      ? "GPS en pause — choisis une voiture ou À pied / autre"
+      : "choix restauré et mémorisé");
+    lifecycle.position.assignmentChanged();
+    scheduleOutboxFlush(0);
+  } catch (e) {
+    if (lifecycle.active && activeDashboard === lifecycle) {
+      renderAssignment(lifecycle, `stockage local indisponible : ${e.message || e}`, true);
+      lifecycle.position.showError("Trajet non démarré", "impossible de sécuriser les points hors ligne");
+    }
+  }
+}
+
+// ---- position v2 : active sauf en Pause -----------------------------------
+function optionalMetric(value, min, max) {
+  return typeof value === "number" && Number.isFinite(value)
+    && value >= min && value <= max ? value : null;
+}
+function optionalHeading(value) {
+  if (value === 360) return 0;
+  return typeof value === "number" && Number.isFinite(value)
+    && value >= 0 && value < 360 ? value : null;
+}
+function initPosition(lifecycle, person) {
+  let lastQueuedAt = 0;
+  let lastQueuedPoint = null;
+  let queueInFlight = false;
+  let lastSentPoint = null;
+  let sentAt = 0;
+  let webWatchId = null;
+  let nativeWatchId = null;
+  let nativeGeo = null;
+  let watchGeneration = 0;
   const card = $("live-card");
   const setState = (cls, title, sub) => {
+    if (!lifecycle.active || activeDashboard !== lifecycle) return;
     card.className = "card live-card " + cls;
     $("pos-title").textContent = title;
     if (sub != null) $("pos-sub").innerHTML = sub;
   };
   // rafraîchit le "envoyée il y a X" toutes les 10 s
-  setInterval(() => {
-    if (!sentAt) return;
+  lifecycle.ageTimer = setInterval(() => {
+    if (!sentAt || lifecycle.assignment.mode === "paused" || !lastSentPoint) return;
     const s = Math.round((Date.now() - sentAt) / 1000);
     const t = s < 60 ? `${s}s` : `${Math.round(s / 60)} min`;
-    $("pos-sub").innerHTML = `envoyée il y a ${t} · ${lastPt[0].toFixed(4)}, ${lastPt[1].toFixed(4)}`;
+    $("pos-sub").textContent = `capturée il y a ${t} · ${lastSentPoint.lat.toFixed(4)}, ${lastSentPoint.lng.toFixed(4)}`;
   }, 10000);
 
-  const send = async (lat, lng) => {
-    try {
-      const { db, doc, setDoc, addDoc, collection, ts } = await fb();
-      await setDoc(doc(db, "positions", me),
-        { name: me, car: CREW[me], lat, lng, at: ts() });
-      await addDoc(collection(db, "tracks", me, "points"), { lat, lng, at: ts() });
-      sentAt = Date.now();
-      setState("live", "Position à jour ✓",
-        `envoyée à l'instant · ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-    } catch (e) { setState("err", "Envoi impossible", `${e.code || e}`); }
-  };
-
-  const onPos = (lat, lng) => {
+  const queuePosition = async position => {
+    if (!lifecycle.active || activeDashboard !== lifecycle || !lifecycle.assignmentReady) return;
+    const assignment = lifecycle.assignment;
+    if (assignment.mode === "paused") return;
+    const coords = position && position.coords;
+    if (!coords || !validCoords(coords.latitude, coords.longitude)) {
+      setState("err", "GPS incohérent", "coordonnées ignorées");
+      return;
+    }
+    const lat = coords.latitude, lng = coords.longitude;
+    const rawAccuracyM = typeof coords.accuracy === "number" && Number.isFinite(coords.accuracy)
+      ? coords.accuracy : null;
+    if (rawAccuracyM != null && rawAccuracyM > 250) {
+      setState("waiting", "Signal GPS trop imprécis",
+        `${Math.round(rawAccuracyM)} m de précision · attente d'un meilleur signal`);
+      return;
+    }
+    const accuracyM = optionalMetric(rawAccuracyM, 0, 250);
+    if (queueInFlight) return;
     const now = Date.now();
-    const moved = !lastPt || dist(lastPt, [lat, lng]) > 25; // ~25 m
-    lastPt = [lat, lng];
-    if (now - lastAt < 20000 && !moved) return;             // ou 20 s
-    lastAt = now;
-    send(lat, lng);
+    const elapsed = now - lastQueuedAt;
+    // Comparer au dernier point ENREGISTRÉ, pas au callback précédent : sinon
+    // une marche faite de petits deltas serait prise à tort pour de l'immobilité.
+    const moved = !lastQueuedPoint || dist(lastQueuedPoint, [lat, lng]) > 25;
+    // Minimum ABSOLU de 60 s : avec neuf téléphones et une journée de route
+    // réaliste, les deux écritures v2 par point gardent une marge de quota.
+    // À l'arrêt, un point de rappel toutes les cinq minutes suffit.
+    if (lastQueuedAt && (elapsed < 60000 || (!moved && elapsed < 300000))) return;
+
+    const capturedAtMs = Number.isFinite(position.timestamp) && position.timestamp > 0
+      ? Math.round(position.timestamp) : now;
+    const pointId = `${lifecycle.sessionId}-${String(++lifecycle.pointSeq).padStart(6, "0")}-${capturedAtMs}`;
+    const point = {
+      pointId,
+      tripId: TRIP_ID,
+      personId: lifecycle.personId,
+      displayName: person,
+      vehicleId: assignment.vehicleId,
+      mode: assignment.mode,
+      assignmentId: assignment.assignmentId,
+      sessionId: lifecycle.sessionId,
+      deviceId: DEVICE_ID,
+      lat,
+      lng,
+      capturedAtMs,
+      accuracyM,
+      speedMps: optionalMetric(coords.speed, 0, 200),
+      headingDeg: optionalHeading(coords.heading),
+    };
+    queueInFlight = true;
+    try {
+      await enqueueOutbox({ id: `point:${pointId}`, kind: "point", point });
+      if (lifecycle.assignment.assignmentId === assignment.assignmentId) {
+        lastQueuedAt = now;
+        lastQueuedPoint = [lat, lng];
+        setState("waiting", "Position sécurisée localement",
+          `envoi en cours · ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+      }
+    } catch (e) {
+      setState("err", "Position non sauvegardée", `${e.message || e}`);
+    } finally { queueInFlight = false; }
   };
 
-  (async () => {
+  const clearWatcher = () => {
+    ++watchGeneration;
+    if (webWatchId != null && navigator.geolocation) {
+      navigator.geolocation.clearWatch(webWatchId);
+      webWatchId = null;
+    }
+    if (nativeWatchId != null && nativeGeo) {
+      const id = nativeWatchId;
+      nativeWatchId = null;
+      Promise.resolve(nativeGeo.clearWatch({ id })).catch(() => {});
+    }
+  };
+  const startWatcher = async () => {
+    clearWatcher();
+    if (!lifecycle.active || !lifecycle.assignmentReady
+        || lifecycle.assignment.mode === "paused") return;
+    const myWatchGeneration = watchGeneration;
     setState("waiting", "Activation du GPS…",
       "ta position est partagée pendant que l'app est ouverte");
     if (native) {
-      const Geo = plugin("Geolocation");
-      try { await Geo.requestPermissions(); } catch (_) {}
-      await Geo.watchPosition({ enableHighAccuracy: true }, (pos, err) => {
-        if (err || !pos) return setState("err", "GPS indisponible", (err && err.message) || "autorise la localisation");
-        onPos(pos.coords.latitude, pos.coords.longitude);
-      });
+      nativeGeo = plugin("Geolocation");
+      if (!nativeGeo) return setState("err", "GPS non disponible", "plugin natif absent");
+      try { await nativeGeo.requestPermissions(); } catch (_) {}
+      if (!lifecycle.active || myWatchGeneration !== watchGeneration
+          || lifecycle.assignment.mode === "paused") return;
+      try {
+        // Après un changement de voiture, ne jamais ré-étiqueter un fix mis en
+        // cache sous l'ancienne affectation : le premier point doit être frais.
+        const id = await nativeGeo.watchPosition({ enableHighAccuracy: true, maximumAge: 0,
+          timeout: 20000 }, (pos, err) => {
+          if (!lifecycle.active || myWatchGeneration !== watchGeneration) return;
+          if (err || !pos) return setState("err", "GPS indisponible",
+            (err && err.message) || "autorise la localisation");
+          queuePosition(pos);
+        });
+        if (!lifecycle.active || myWatchGeneration !== watchGeneration
+            || lifecycle.assignment.mode === "paused") {
+          Promise.resolve(nativeGeo.clearWatch({ id })).catch(() => {});
+        } else nativeWatchId = id;
+      } catch (e) {
+        if (myWatchGeneration === watchGeneration) {
+          setState("err", "GPS indisponible", e.message || "autorise la localisation");
+        }
+      }
     } else if (navigator.geolocation) {
-      navigator.geolocation.watchPosition(
-        p => onPos(p.coords.latitude, p.coords.longitude),
-        e => setState("err", "GPS refusé", `autorise la localisation (${e.code})`),
-        { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 });
+      webWatchId = navigator.geolocation.watchPosition(
+        position => {
+          if (lifecycle.active && myWatchGeneration === watchGeneration) queuePosition(position);
+        },
+        e => {
+          if (myWatchGeneration === watchGeneration) {
+            setState("err", "GPS refusé", `autorise la localisation (${e.code})`);
+          }
+        },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
     } else setState("err", "GPS non disponible", "");
-  })();
+  };
+
+  return {
+    stop: clearWatcher,
+    suspend: clearWatcher,
+    assignmentChanged() {
+      lastQueuedAt = 0;
+      lastQueuedPoint = null;
+      if (lifecycle.assignment.mode === "paused") {
+        clearWatcher();
+        setState("paused", "Partage en pause", "aucun point GPS n'est enregistré");
+      } else startWatcher();
+    },
+    markSent(point) {
+      if (point.personId !== lifecycle.personId || point.sessionId !== lifecycle.sessionId) return;
+      sentAt = point.capturedAtMs;
+      lastSentPoint = point;
+      setState("live", "Position à jour ✓",
+        `envoyée · ${point.lat.toFixed(4)}, ${point.lng.toFixed(4)}`);
+    },
+    markQueued(error) {
+      if (lifecycle.assignment.mode === "paused") return;
+      setState("waiting", "Envoi en attente",
+        `trajet gardé sur ce téléphone · ${error.code || error.message || error}`);
+    },
+    showError(title, sub) { setState("err", title, sub); },
+  };
 }
 
 function dist(a, b) { // mètres, approx équirectangulaire
@@ -377,20 +1011,28 @@ function dist(a, b) { // mètres, approx équirectangulaire
 }
 
 // ---- PV / XP (sauvegarde automatique à chaque modification) ----------------
-function initStats() {
+function initStats(lifecycle, person) {
   const pv = $("pv"), pvVal = $("pv-val");
-  let t = null;
+  pv.value = 5;
+  pvVal.textContent = "5";
+  $("stats-status").textContent = "chargement…";
   pv.oninput = () => {
     pvVal.textContent = pv.value;
-    clearTimeout(t);
+    clearTimeout(lifecycle.statsTimer);
     $("stats-status").textContent = "…";
-    t = setTimeout(async () => {
+    const value = +pv.value;
+    lifecycle.statsTimer = setTimeout(async () => {
       try {
         const { db, doc, setDoc, ts } = await fb();
-        await setDoc(doc(db, "crew", me),
-          { name: me, car: CREW[me], pv: +pv.value, at: ts() }, { merge: true });
+        await setDoc(doc(db, "crew", person),
+          { name: person, car: CREW[person], pv: value, at: ts() }, { merge: true });
+        if (!lifecycle.active || activeDashboard !== lifecycle) return;
         $("stats-status").innerHTML = `<span class="ok">enregistré ✓</span>`;
-      } catch (e) { $("stats-status").innerHTML = `<span class="err">${e.code || e}</span>`; }
+      } catch (e) {
+        if (lifecycle.active && activeDashboard === lifecycle) {
+          $("stats-status").innerHTML = `<span class="err">${e.code || e}</span>`;
+        }
+      }
     }, 500);   // léger délai pour ne pas écrire à chaque cran du curseur
   };
 
@@ -398,7 +1040,8 @@ function initStats() {
   (async () => {
     try {
       const { db, doc, getDoc } = await fb();
-      const snap = await getDoc(doc(db, "crew", me));
+      const snap = await getDoc(doc(db, "crew", person));
+      if (!lifecycle.active || activeDashboard !== lifecycle) return;
       if (snap.exists() && snap.data().pv != null) {
         pv.value = snap.data().pv; pvVal.textContent = snap.data().pv;
         $("stats-status").textContent = "enregistré automatiquement";
@@ -408,33 +1051,80 @@ function initStats() {
 }
 
 // ---- photos (localisation gardée) -----------------------------------------
-function initPhotos() {
+function mediaCapturedAt(value, fallback = Date.now()) {
+  if (value instanceof Date && Number.isFinite(value.getTime())) return value.getTime();
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) return value;
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const midday = Date.parse(`${value}T12:00:00Z`);
+    if (Number.isFinite(midday)) return midday;
+  }
+  const parsed = typeof value === "string" ? Date.parse(value) : NaN;
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+function snapshotMediaContext(lifecycle, person, capturedAtMs = Date.now()) {
+  const assignment = lifecycle.assignment;
+  return {
+    lifecycle,
+    tripId: TRIP_ID,
+    personId: lifecycle.personId,
+    displayName: person,
+    vehicleId: assignment.vehicleId,
+    mode: assignment.mode,
+    assignmentId: assignment.assignmentId,
+    capturedAtMs,
+  };
+}
+function currentUploadStatus(context, html, asText = false) {
+  const lifecycle = context && context.lifecycle;
+  if (!lifecycle || !lifecycle.active || activeDashboard !== lifecycle) return;
+  if (asText) $("up-status").textContent = html;
+  else $("up-status").innerHTML = html;
+}
+function initPhotos(lifecycle, person) {
+  let pendingBrowserContext = null;
   $("add-photos").onclick = async () => {
+    if (!lifecycle.assignmentReady) {
+      $("up-status").innerHTML = '<span class="err">choisis d’abord ton mode de déplacement</span>';
+      return;
+    }
+    const baseContext = snapshotMediaContext(lifecycle, person);
     // natif (APK) : le plugin AfricaMedia lit le GPS EXIF grâce à
     // ACCESS_MEDIA_LOCATION. sinon (navigateur) : <input file> + EXIF en JS.
     if (native) {
       try {
-        const { items } = await plugin("AfricaMedia").pickWithLocation();
+        const mediaPlugin = plugin("AfricaMedia");
+        if (!mediaPlugin) throw new Error("sélecteur natif indisponible");
+        const { items } = await mediaPlugin.pickWithLocation();
         for (const it of (items || [])) {
           const lat = it.lat ?? null, lng = it.lng ?? null, date = it.date || null;
+          const context = {
+            ...baseContext,
+            capturedAtMs: mediaCapturedAt(it.capturedAt || date, baseContext.capturedAtMs),
+          };
           if (it.video && it.path) {
             // vidéo : le natif a copié le fichier en cache (pas de base64) ->
             // on le relit via la WebView (convertFileSrc) puis on l'uploade.
             const src = (CAP && CAP.convertFileSrc) ? CAP.convertFileSrc(it.path) : it.path;
             const blob = await (await fetch(src)).blob();
-            await uploadPhoto(blob, lat, lng, date, true);
+            await uploadPhoto(blob, lat, lng, date, true, context);
           } else {
-            await uploadPhoto(b64toBlob(it.base64), lat, lng, date, false);
+            await uploadPhoto(b64toBlob(it.base64), lat, lng, date, false, context);
           }
         }
-      } catch (e) { $("up-status").innerHTML = `<span class="err">erreur: ${e.message || e}</span>`; }
+      } catch (e) {
+        currentUploadStatus(baseContext, `<span class="err">erreur: ${e.message || e}</span>`);
+      }
     } else {
+      pendingBrowserContext = baseContext;
       $("fallback-input").click();
     }
   };
   $("fallback-input").onchange = async e => {
-    for (const f of e.target.files) {
+    const baseContext = pendingBrowserContext || snapshotMediaContext(lifecycle, person);
+    pendingBrowserContext = null;
+    for (const f of [...e.target.files]) {
       let lat = null, lng = null, date = null;
+      let capturedAtMs = mediaCapturedAt(f.lastModified, baseContext.capturedAtMs);
       const video = (f.type || "").startsWith("video/");
       if (video) {
         // Les vidéos n'ont pas d'EXIF ; leur GPS (atome QuickTime) n'est pas
@@ -446,20 +1136,27 @@ function initPhotos() {
           const g = await exifr.gps(f);
           if (g) { lat = g.latitude; lng = g.longitude; }
           const d = await exifr.parse(f, ["DateTimeOriginal"]);
-          if (d && d.DateTimeOriginal) date = d.DateTimeOriginal.toISOString().slice(0, 10);
+          if (d && d.DateTimeOriginal) {
+            capturedAtMs = mediaCapturedAt(d.DateTimeOriginal, capturedAtMs);
+            date = new Date(capturedAtMs).toISOString().slice(0, 10);
+          }
         } catch (_) {}
       }
-      await uploadPhoto(f, lat, lng, date, video);
+      await uploadPhoto(f, lat, lng, date, video,
+        { ...baseContext, capturedAtMs });
     }
     e.target.value = "";
   };
 }
 
-async function uploadPhoto(blob, lat, lng, date, video = isVideoBlob(blob)) {
-  const st = $("up-status");
+async function uploadPhoto(blob, lat, lng, date, video = isVideoBlob(blob), context) {
+  if (!context || !context.personId || !context.assignmentId) {
+    throw new Error("contexte du média absent");
+  }
   const noun = video ? "vidéo" : "photo";
   if (video && blob.size > MAX_VIDEO_BYTES) {
-    st.innerHTML = `<span class="err">vidéo trop lourde (${Math.round(blob.size / 1048576)} Mo, max 100) — filme plus court</span>`;
+    currentUploadStatus(context,
+      `<span class="err">vidéo trop lourde (${Math.round(blob.size / 1048576)} Mo, max 100) — filme plus court</span>`);
     return;
   }
   // pas de localisation détectée -> l'utilisateur la choisit sur une mini-carte
@@ -477,7 +1174,7 @@ async function uploadPhoto(blob, lat, lng, date, video = isVideoBlob(blob)) {
     if (picked) { lat = picked.lat; lng = picked.lng; manual = true; }
   }
   const located = validCoords(lat, lng);
-  st.textContent = "envoi…";
+  currentUploadStatus(context, "envoi…", true);
   try {
     // le FICHIER va sur Cloudinary (gratuit, sans carte) ; seules les
     // MÉTADONNÉES (nom, position, date, url, type) vont dans Firestore.
@@ -493,20 +1190,36 @@ async function uploadPhoto(blob, lat, lng, date, video = isVideoBlob(blob)) {
 
     const { db, addDoc, collection, ts } = await fb();
     await addDoc(collection(db, "photos"), {
-      name: me, car: CREW[me], url: link, type: video ? "video" : "image",
+      // Champs historiques conservés pour l'ancien site.
+      name: context.displayName,
+      car: legacyCar(context),
+      url: link,
+      type: video ? "video" : "image",
       lat: located ? lat : null, lng: located ? lng : null,
       gps: located && !manual, manual: located && manual,
-      date: date || new Date().toISOString().slice(0, 10), at: ts(),
+      date: date || new Date(context.capturedAtMs).toISOString().slice(0, 10),
+      at: ts(),
+      // Métadonnées v2 : identité stable et contexte réel au moment du média.
+      tripId: TRIP_ID,
+      personId: context.personId,
+      displayName: context.displayName,
+      vehicleIdAtCapture: context.vehicleId,
+      mode: context.mode,
+      assignmentId: context.assignmentId,
+      capturedAt: new Date(context.capturedAtMs),
+      locationSource: located ? (manual ? "manual" : "media-gps") : "none",
     });
     // la grille "mes photos" se met à jour toute seule (onSnapshot)
-    st.innerHTML = manual
+    currentUploadStatus(context, manual
       ? `<span class="ok">${noun} ajoutée à l'endroit choisi ✓</span>`
       : located
         ? `<span class="ok">${noun} ajoutée avec sa position ✓</span>`
         : locationError
           ? `<span class="ok">${noun} ajoutée</span> (carte indisponible → ajoute le lieu plus tard)`
-          : `<span class="ok">${noun} ajoutée</span> (sans lieu → n'apparaîtra pas sur la carte)`;
-  } catch (e) { st.innerHTML = `<span class="err">erreur: ${e.code || e}</span>`; }
+          : `<span class="ok">${noun} ajoutée</span> (sans lieu → n'apparaîtra pas sur la carte)`);
+  } catch (e) {
+    currentUploadStatus(context, `<span class="err">erreur: ${e.code || e}</span>`);
+  }
 }
 
 // ---- mes photos : grille live + suppression -------------------------------
@@ -689,6 +1402,9 @@ function initMediaModal() {
         lat: picked.lat, lng: picked.lng,
         gps: false, manual: true,
       };
+      // Ne crée pas un document « à moitié v2 » lors de l'édition d'un ancien
+      // média ; les médias v2 gardent en revanche leur provenance cohérente.
+      if (d.tripId === TRIP_ID && d.personId) patch.locationSource = "manual";
       writeSeq = ++locationWriteSeq;
       btn.disabled = true;
       btn.textContent = "…";
@@ -748,23 +1464,32 @@ function initMediaModal() {
   $("media-del").onclick = () => { const id = editingId; closeMedia(); if (id) delPhoto(id); };
 }
 
-async function watchMyPhotos() {
+async function watchMyPhotos(lifecycle, person) {
   const { db, collection, query, where, onSnapshot } = await fb();
+  if (!lifecycle.active || activeDashboard !== lifecycle) return;
   initMediaModal();
   document.querySelectorAll("#mediafilter button").forEach(b => {
     b.onclick = () => {
+      if (!lifecycle.active || activeDashboard !== lifecycle) return;
       mediaFilter = b.dataset.f;
       document.querySelectorAll("#mediafilter button").forEach(x => x.classList.toggle("on", x === b));
       renderMyPhotos();
     };
   });
-  onSnapshot(query(collection(db, "photos"), where("name", "==", me)), snap => {
+  const unsubscribe = onSnapshot(query(collection(db, "photos"), where("name", "==", person)), snap => {
+    if (!lifecycle.active || activeDashboard !== lifecycle) return;
     myDocs = [];
     snap.forEach(d => myDocs.push({ id: d.id, ...d.data() }));
     // récent d'abord : par date puis par horodatage d'envoi
     myDocs.sort((a, b) => (b.date || "").localeCompare(a.date || "") || atMs(b) - atMs(a));
     renderMyPhotos();
-  }, e => { $("up-status").innerHTML = `<span class="err">${e.code || e}</span>`; });
+  }, e => {
+    if (lifecycle.active && activeDashboard === lifecycle) {
+      $("up-status").innerHTML = `<span class="err">${e.code || e}</span>`;
+    }
+  });
+  if (!lifecycle.active || activeDashboard !== lifecycle) unsubscribe();
+  else lifecycle.photoUnsub = unsubscribe;
 }
 async function delPhoto(id) {
   // retire la fiche Firestore -> disparaît de la carte et de la grille.
@@ -779,4 +1504,11 @@ async function delPhoto(id) {
 // ---- go -------------------------------------------------------------------
 // on relance sur le même perso (cookie), tout en gardant le bouton ⇄ pour
 // changer ; ré-écriture = on repousse l'expiration du cookie à chaque ouverture
-if (me && CREW[me]) { saveMe(me); start(); } else renderPick();
+renderPick();
+if (me && CREW[me]) {
+  saveMe(me);
+  start();
+} else {
+  if (me) clearMe();
+  me = null;
+}

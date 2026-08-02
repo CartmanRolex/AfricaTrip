@@ -1,156 +1,146 @@
-# app/ — appli Android de l'équipage (Capacitor + Firebase)
+# app/ — application équipage (Capacitor + Firebase)
 
 > Rule: update this file in the same commit as any feature change here.
 
-Petite app Android pour que l'équipage alimente la carte du site : partage de
-position (appli ouverte), édition PV, et **upload de photos EN GARDANT leur
-localisation** — impossible via un navigateur sur Android depuis avril 2026
-(le sélecteur de photos expurge le GPS pour tout ce qui n'a pas la permission
-`ACCESS_MEDIA_LOCATION`, réservée aux apps installées). D'où une vraie app.
+Application utilisée par chaque membre de l'équipage pour déclarer son mode de
+déplacement, partager sa propre position, modifier ses PV et publier des
+photos/vidéos localisées. Il n'existe aucune balise dédiée aux voitures : le
+site reconstruit leurs trajets à partir des points des personnes qui avaient
+déclaré être dans la voiture au moment de la capture.
 
-## iPhone = PWA (pas d'app native iOS)
+Le même `www/` sert dans l'APK Android (Capacitor) et dans la PWA iPhone. Le
+suivi GPS est actif uniquement pendant que l'application est ouverte et que le
+mode n'est pas **Pause**.
 
-Compiler une app iOS native exige un Mac + Xcode + compte Apple : hors budget.
-Mais **iOS n'a pas le bug Android** (le sélecteur de photos garde le GPS EXIF),
-donc la même UI web `www/` suffit sur iPhone en **PWA** : `manifest.json` +
-balises `apple-mobile-web-app-*` + `apple-touch-icon` (icônes dans `icons/`).
-Les utilisateurs iPhone ouvrent l'URL Pages de `www/` dans Safari →
-« Partager » → « Sur l'écran d'accueil ». L'app s'ouvre alors plein écran, et
-l'ajout de photos passe par le fallback `<input file>` + `exifr` (GPS conservé
-sur iOS). Le plugin natif `AfricaMedia` n'existe que côté Android (APK).
+## Parcours utilisateur v2
 
-## Pourquoi ces choix
+1. L'utilisateur choisit son prénom. Ce choix est gardé dans le cookie
+   `crew-me` (400 jours, expiration repoussée) avec un miroir `localStorage`.
+2. L'application exige le compte Firebase Email/Password partagé
+   `equipage@expedition-afrique.app`. Le mot de passe n'est jamais dans le
+   dépôt ; Firebase conserve ensuite la session. Le bouton **⇄** change de
+   personne sans déconnecter le compte partagé.
+3. Le dashboard propose quatre affectations persistantes, propres à chaque
+   personne : **Hugodouard**, **Paul Pot**, **À pied / autre**, **Pause**.
+   Le choix est conservé par cookie + `localStorage`. Sans choix mémorisé, le
+   mode sûr par défaut est Pause.
+4. Toute nouvelle session et tout changement créent un événement immuable dans
+   `assignmentEvents`. Le GPS ne démarre qu'après mise en file locale durable de
+   cet événement. Changer d'affectation arrête d'abord l'ancien watcher et
+   exige un premier fix frais (`maximumAge: 0`) pour ne pas ré-étiqueter une
+   position mise en cache sous l'ancienne voiture ; Pause n'enregistre aucun
+   point.
+5. Chaque point reste personnel et embarque un instantané de l'affectation
+   (`personId`, `vehicleId`, `mode`, `assignmentId`). Le site peut donc afficher
+   le trajet d'une personne sans le mélanger et dériver séparément celui de
+   chaque voiture.
 
-- **Capacitor** : UI web (`www/`, vanilla, thème désert) + couche native
-  minimale. Le natif ne sert qu'à une chose : lire la localisation NON expurgée
-  des médias (`ACCESS_MEDIA_LOCATION` + `setRequireOriginal()`). Photos : GPS
-  EXIF via `ExifInterface`, fichier renvoyé en `base64`. Vidéos : GPS = atome
-  ISO-6709 QuickTime via `MediaMetadataRetriever` (`METADATA_KEY_LOCATION`),
-  fichier PAS en base64 (trop lourd) mais copié en cache → `path` file:// que
-  le JS relit (`Capacitor.convertFileSrc`) puis uploade. Permission
-  `READ_MEDIA_VIDEO` ajoutée. Le sélecteur accepte `image/*` + `video/*`.
-- **Firebase** : Firestore (positions, PV, méta-photos). Serverless → rien à
-  héberger. Le site lira ces données en direct.
-- **Cloudinary** (fichiers photo) : Firebase Storage exige une carte (Blaze)
-  sur les projets récents, refusé. On envoie donc les images sur Cloudinary
-  via un **upload preset non signé** (gratuit, sans carte) ; seule l'URL
-  `secure_url` retournée est stockée dans `photos/{id}` de Firestore.
-- **Login = néant** : on choisit son prénom une fois, puis on retombe toujours
-  dessus. Persistance = **cookie `crew-me`** (Max-Age 400 j, ré-écrit à chaque
-  ouverture = fenêtre glissante) **+ miroir `localStorage`** ; on relit le
-  cookie en priorité (`saveMe`/`loadMe`/`clearMe` dans `app.js`). Le cookie est
-  là pour l'iPhone en PWA (« écran d'accueil »), où le localStorage peut être
-  vidé. Le bouton **⇄** du header appelle `clearMe()` pour changer de perso.
-- **Auth = UN mot de passe partagé** (Firebase Email/Password, un seul compte
-  `AUTH_EMAIL` pour toute l'équipe). Demandé une fois (écran `#login`,
-  `requireAuth()`/`showLogin()` dans `app.js`) ; Firebase garde la session, donc
-  jamais reretapé sauf nouveau tel / cache vidé. Le mot de passe n'est **jamais**
-  dans le code (tapé par l'user, haché par Firebase). Changer de perso (⇄) ne
-  déconnecte pas. Pas d'inscription (à désactiver côté console).
-- **Sécurité** : le site lit tout en public (aucune connexion), mais l'écriture
-  est réservée à ce compte via `signed()` dans `firestore.rules`
-  (`request.auth.token.email == AUTH_EMAIL`). Config Firebase publique = normal ;
-  ce qui protège la carte, c'est le mot de passe. Résiduel assumé : Cloudinary
-  reste en upload non signé, mais une image sans sa fiche Firestore
-  (écriture protégée) n'apparaît nulle part → sans impact sur le site.
+## Suivi GPS et file hors ligne
 
-## Fichiers
+- `watchPosition` utilise le plugin Capacitor Geolocation dans l'APK et
+  `navigator.geolocation` dans la PWA.
+- Les coordonnées invalides et les fixes d'une précision supérieure à 250 m
+  sont ignorés. Les métriques optionnelles conservées sont `accuracyM`,
+  `speedMps` et `headingDeg`.
+- Cadence maximale : un point par minute en mouvement ; à moins de 25 m du
+  dernier point mis en file, un rappel toutes les cinq minutes.
+- Les points et affectations passent d'abord dans une outbox IndexedDB
+  (`africa-trip-01-outbox-v2`). `localStorage` sert de secours si IndexedDB est
+  indisponible. Les identifiants sont stables, la livraison est FIFO et les
+  écritures Firestore sont idempotentes. Une entrée n'est retirée qu'après
+  succès ; les erreurs réseau ou de règles sont réessayées avec backoff jusqu'à
+  60 s, sans suppression silencieuse.
+- Les chunks sont séparés par personne, session, affectation et fenêtre de deux
+  heures. À la cadence client normale, ils contiennent au plus 120 points ; les
+  règles gardent un plafond de 160. `latest/{personId}` n'accepte qu'un point
+  plus récent ou un retry strictement identique.
+- Les watchers, timers et listeners Firestore sont nettoyés au changement de
+  personne. Les callbacks asynchrones capturent l'identité et la session pour
+  ne jamais attribuer un point au mauvais utilisateur.
 
-- `www/index.html` / `styles.css` — 2 écrans : choix du prénom, puis dashboard
-  (visage en haut, position, PV, mes photos). `<head>` porte le `manifest.json`
-  + les balises `apple-mobile-web-app-*` (installable en PWA sur iPhone). Lien
-  **retour au site** (`https://cartmanrolex.github.io/AfricaTrip/`, `target=_blank`)
-  à deux endroits : bouton 🗺️ dans le header du dashboard + lien en pied des
-  deux écrans (`.foot-link`).
-- `www/manifest.json` + `www/icons/` — manifeste PWA + icônes (192/512 +
-  `icon-180.png` pour l'apple-touch-icon). Icônes générées par un petit script
-  Pillow (diamant orange sur fond désert), voir le commit d'origine.
-- `www/faces.js` — `FACES` = photos de visage (data URIs) générées depuis
-  `src/photos.json` ; affichées en haut du dashboard. Régénérer si les visages
-  changent : voir la commande dans le commit d'origine (extrait de photos.json).
-- `www/app.js` — Firebase (modular v10 via CDN gstatic), anon auth, `CREW`,
-  `watchPosition` throttlé (écrit `positions/{nom}` + `tracks/{nom}/points`).
-  **Position TOUJOURS active** tant que l'app est ouverte (pas de bouton) :
-  indicateur `.live-card` (orbe pulsante) waiting/live/err + "envoyée il y a X".
-  **PV auto-sauvegardés** dès qu'on les modifie (débounce 500ms → `crew/{nom}`
-  merge) — pas de bouton, pas de XP ni compétence dans l'app (retirés). Le site
-  lit `crew/{nom}.pv` en direct et **écrase** les PV du Sheet. **Mes
-  photos** : `onSnapshot(photos where name==moi)` → `myDocs` (trié récent
-  d'abord : date puis `at`), rendu par `renderMyPhotos()` : **sections par
-  jour** (`dayLabel` : « Aujourd'hui » / « Hier » / date) + **filtre**
-  `#mediafilter` (Tous / Photos / Vidéos, état `mediaFilter`) + compteur
-  `#media-count`. ✕ = `deleteDoc` (le fichier reste sur Cloudinary, la
-  suppression Cloudinary exigerait la clé secrète non embarquée). Tout est
-  client, aucun changement de schéma → tient la charge quand il y a beaucoup
-  de médias.
-  **Détail d'un média** : taper sur une tuile ouvre `#media-modal`
-  (`openMedia` → média en grand + `<input #media-caption>`). Enregistrer =
-  `updateDoc` du seul champ `caption` (`initMediaModal`). Un badge 💬 marque les
-  tuiles légendées. La même fenêtre indique aussi « Sans lieu », « GPS du
-  média », « Lieu choisi » ou « Lieu enregistré », avec **Ajouter un lieu /
-  Modifier**. Ce bouton réutilise `askLocation` en mode édition (lieu existant
-  comme centre, Annuler au lieu d'Ignorer) et enregistre immédiatement
-  `{lat,lng,gps:false,manual:true}` sans fermer le détail ni perdre une légende
-  en cours. Le badge `sans lieu` dépend de la validité de la paire lat/lng, pas
-  seulement des anciens flags. Les tuiles ouvrent aussi au clavier
-  (Entrée/Espace) ; les deux modals piègent le focus, rendent le fond inerte et
-  restaurent le focus à leur fermeture. Les handlers de lieu et légende
-  capturent l'id avant tout `await` pour qu'une réponse réseau lente ne vise
-  jamais le média ouvert ensuite. Le site affiche la légende dans la lightbox
-  et en infobulle de bulle.
-  ⚠️ Nécessite la règle Firestore `photos` en `allow update` : soit `caption`
-  seul (chaîne ≤ 140 caractères), soit les seuls champs de localisation avec
-  paire bornée et `gps:false/manual:true` (voir `firestore.rules`) — À PUBLIER
-  dans la console.
-  **Deux voies d'ajout** : plugin natif
-  `AfricaMedia.pickWithLocation()` (GPS fiable) sinon `<input file>` + `exifr`
-  (fallback navigateur ; sur Android réel le GPS y serait expurgé). Accès
-  plugins via helper `plugin()` (registerPlugin OU Capacitor.Plugins.X).
-  **Vidéos** (depuis 2026-07) : `<input accept="image/*,video/*">` accepte
-  aussi la vidéo. `uploadPhoto(blob, lat, lng, date, video)` route vers
-  l'endpoint Cloudinary `/video/upload` (vs `/image/upload`), cap
-  `MAX_VIDEO_BYTES` = 100 Mo (limite upload non signé), et écrit
-  `type:"video"` dans Firestore. Le GPS d'une vidéo n'est PAS lisible en
-  navigateur (pas d'EXIF ; l'atome QuickTime n'est accessible qu'en natif) →
-  vidéo sans position, placée par date (`file.lastModified`). La grille et la
-  carte du site montrent un **poster** (1re frame, `so_0` + `.jpg`, helper
-  `mediaThumb`) avec un badge ▶. Le preset Cloudinary non signé doit
-  autoriser la ressource vidéo (à vérifier côté dashboard si un upload est
-  rejeté).
-  **Localisation manuelle** : si `uploadPhoto` reçoit une paire lat/lng absente,
-  partielle ou invalide (média sans GPS — typiquement toute vidéo web, ou photo
-  dépouillée), un modal `#loc-modal` s'ouvre (`askLocation()`) : mini-carte
-  Leaflet chargée À LA DEMANDE
-  (`loadLeaflet`, CDN, rien au démarrage), on cadre sous une épingle centrale
-  fixe (Valider = `map.getCenter()`) ou bouton « ◉ Ma position »
-  (`navigator.geolocation`). Résout `{lat,lng}` → `manual:true`, ou `null`
-  (Ignorer) → média sans lieu. S'applique aussi au natif si une photo/vidéo
-  arrive sans GPS. Le dernier lieu validé pendant une série d'uploads est
-  mémorisé comme prochain centre ; le mode édition ne pollue pas ce centre. Un
-  échec de chargement Leaflet remet la promesse à zéro pour permettre Réessayer.
-- `www/firebase-config.js` — clés Firebase + `CLOUDINARY` (cloudName, preset)
-  + `CREW` (prénom → voiture). Clés non secrètes.
-- `firestore.rules` — à coller dans la console Firebase (pas de storage.rules :
-  on n'utilise pas Firebase Storage).
-- `README.md` — setup Firebase (Gal, 5 min) + build APK (sur Basement) + distrib.
+## Authentification et sécurité
 
-## Modèle de données Firestore
+- Auth active : **Firebase Email/Password**, avec un unique compte partagé dont
+  l'email est `AUTH_EMAIL` dans `www/firebase-config.js`.
+- Aucune inscription n'est exposée dans l'application.
+- `firestore.rules` autorise les écritures uniquement si le token porte cet
+  email exact. Les lectures nécessaires au site public restent anonymes.
+- Les règles v2 valident le voyage `africa-trip-01`, le roster, la cohérence
+  prénom/personId, l'affectation voiture/mode, les coordonnées, la précision,
+  les timestamps et les champs autorisés. Les événements sont immuables et un
+  chunk ne peut être enrichi que d'un nouveau point cohérent avec ses champs de
+  tête.
+- Les chemins historiques `positions`, `tracks` et les anciens formats de
+  `photos` restent autorisés pour la compatibilité des anciennes versions. Ils
+  ne sont plus le modèle écrit par l'application v2.
 
-- `positions/{nom}` : `{name, car, lat, lng, at}` — dernière position (marqueurs live).
-- `tracks/{nom}/points/{id}` : `{lat, lng, at}` — trace réelle parcourue.
-- `crew/{nom}` : `{name, car, pv, at}` — PV live (le site les lit et écrase le
-  Sheet). L'app n'écrit plus xp/skill.
-- `photos/{id}` : `{name, car, url, type, lat, lng, gps, manual, caption, date, at}`
-  — bulles carte (`url` = lien Cloudinary `secure_url` ; le fichier n'est pas dans
-  Firebase). `type` = `"image"` (défaut) ou `"video"` ; les anciens docs sans
-  `type` sont traités comme image (sniff de l'URL `/video/upload/` en secours).
-  `gps` = position issue du média (EXIF/atome) ; `manual` = position choisie à
-  la main quand le média n'avait pas de GPS (le site affiche « position
-  choisie » vs « estimée (convoi) »). Un média sans lat/lng n'apparaît PAS sur
-  la carte (le lecteur live ignore les entrées sans position).
+Publier les règles depuis la racine du dépôt, avant de distribuer l'app v2 :
 
-## À faire (voir README « État »)
+```bash
+firebase login
+firebase use africatrip-eea1a
+firebase deploy --only firestore:rules
+```
 
-Plugin natif `AfricaMedia` (Kotlin) + build APK ; puis lecture live côté site
-(`src/template.html`). Le build se fait sur **Basement** (le PC de Gal n'a pas
-la chaîne Android). `node_modules/`, `android/`, `*.apk` sont git-ignorés.
+La racine contient `firebase.json` (source `app/firestore.rules`) et
+`.firebaserc` (projet par défaut `africatrip-eea1a`). Vérifier le diff et les
+tests des règles avant tout déploiement.
+
+## Modèle Firestore actif
+
+- `trips/africa-trip-01/assignmentEvents/{assignmentId}` : événement
+  d'affectation immuable avec identité, `vehicleId`, `mode`, instant effectif,
+  session, appareil et raison (`session-start` ou `user-change`). Lecture
+  réservée au compte équipage.
+- `trips/africa-trip-01/trackChunks/{chunkId}` : document personnel homogène
+  pour une session + une affectation + une fenêtre de deux heures. Les points
+  sont une map indexée par `pointId`; les champs de tête incluent identité,
+  session, appareil, affectation, voiture, mode et début de fenêtre.
+- `trips/africa-trip-01/latest/{personId}` : dernier point v2 exact d'une
+  personne, lu publiquement par le site.
+- `crew/{nom}` : `{name, car, pv, at}`. L'app n'écrit plus XP/compétence ; le
+  site applique les PV Firestore par-dessus ceux du Sheet.
+- `photos/{id}` : champs historiques
+  `{name, car, url, type, lat, lng, gps, manual, caption?, date, at}` plus le
+  contexte v2 `{tripId, personId, displayName, vehicleIdAtCapture, mode,
+  assignmentId, capturedAt, locationSource}`. `locationSource` vaut
+  `media-gps`, `manual` ou `none`.
+
+## Médias
+
+- Les fichiers vont sur Cloudinary via le preset non signé `expedition` ; seul
+  le `secure_url` et les métadonnées vont dans Firestore. Firebase Storage n'est
+  pas utilisé.
+- Android : le plugin Java `native/AfricaMediaPlugin.java` récupère l'original
+  grâce à `ACCESS_MEDIA_LOCATION`. Il lit l'EXIF des images et l'atome de lieu
+  QuickTime des vidéos. Une vidéo est copiée en cache et relue via
+  `Capacitor.convertFileSrc` au lieu d'être renvoyée en base64.
+- PWA : `<input type=file>` + `exifr` pour les images. Le navigateur ne lit pas
+  la position QuickTime des vidéos.
+- Si le média n'a pas de lieu, `askLocation()` ouvre une carte Leaflet chargée
+  à la demande. L'utilisateur peut aussi ignorer puis ajouter/modifier le lieu
+  depuis le détail du média. L'édition ne change que la légende ou les champs de
+  lieu autorisés par les règles.
+- L'ajout est désactivé pendant une transition d'affectation. Le contexte
+  personne/voiture est capturé avant les opérations asynchrones afin qu'un
+  changement ultérieur ne réattribue pas le média.
+- Photos et vidéos partagent la galerie personnelle live. Les vidéos sont
+  limitées côté client à 100 Mo et utilisent un poster Cloudinary (`so_0`).
+
+## Fichiers importants
+
+- `www/index.html`, `www/styles.css` — login, choix du prénom, dashboard,
+  affectations, état GPS, PV, galerie et modals.
+- `www/app.js` — cycle de vie, auth, outbox, GPS v2, PV et médias.
+- `www/firebase-config.js` — configuration publique Firebase/Cloudinary,
+  `AUTH_EMAIL` et roster `CREW` (Thomas n'en fait plus partie).
+- `www/faces.js`, `www/icons/`, `www/manifest.json` — visages et PWA.
+- `native/AfricaMediaPlugin.java`, `native/MainActivity.java`,
+  `native/AndroidManifest.xml` — couche Android versionnée.
+- `build-android.sh` — injecte le natif, synchronise Capacitor et génère
+  `android/app/build/outputs/apk/debug/app-debug.apk`.
+- `firestore.rules` — compatibilité v1 + validation stricte v2.
+- `README.md` — configuration, publication des règles, build et distribution.
+
+Ne jamais versionner un mot de passe, un token Firebase CLI, un compte de
+service, `node_modules/`, un APK ou un secret Cloudinary.

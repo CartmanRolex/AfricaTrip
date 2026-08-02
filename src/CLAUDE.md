@@ -5,7 +5,7 @@
 
 ## Files
 
-### `template.html` — the entire app (HTML + CSS + JS, ~600 lines)
+### `template.html` — the entire app (HTML + CSS + JS, ~1,500 lines)
 Built into `index.html`/`voyage-afrique.html` by `build.py`, which replaces
 three literal tokens:
 - `__DATA__`    ← contents of `data.json`
@@ -24,6 +24,12 @@ hidden); the seats grid stays 2 columns but the seat cards compact
 (smaller padding/chip/fonts, 42 px HP bar). When zoomed out on mobile
 (`body.danger-far`) the danger stickers shrink to 38 % (vs 62 % desktop)
 and the deco camels hide entirely, so they don't bury the small map.
+The centered `.map-toolbar` overlays the top of the map on both breakpoints;
+its mode row always stays visible and its horizontally scrollable subject row
+appears only outside the planned view, leaving Leaflet's zoom control clear.
+On mobile the GPS status wraps onto one compact ellipsized line instead of
+being hidden, so an empty Réel view remains explained and `aria-live` stays
+available.
 
 Key JS structures (all near the top of the script):
 - `DATA.records` — one entry per day: `{date, iso, checkpoint, location,
@@ -132,51 +138,111 @@ Key JS structures (all near the top of the script):
   stay leg with the "open route" circle).
 - The Étapes list is a horizontal scroll-snap slider (`.legs`), ‹ › buttons
   (`#legs-prev/next`), and `render()` auto-scrolls the active card into view.
+  An Étape is planned data: clicking one from Réel first switches to Comparer,
+  making `plannedLayer` visible before `fitLeg()` moves the map.
 - **Clicking the route** jumps the timeline: `routeHit` is an invisible
   22 px-wide polyline over the whole route whose click handler finds the
   record index whose `posAt()` position is closest (equirectangular metric)
   and calls `setIndex()`. The numbered `cp-badge` circles are clickable too
   (jump to that checkpoint's arrival day; the name pill stays click-through).
-- `GALLERY` — shared Drive photos `[{id, name, date(iso), lat, lng,
-  gps(bool), thumb(dataURI), file}]` (see `fetch_photos.py`). Rendered by
-  `rebuildBubbles()` (rerun on every zoomend): photos within ~42 screen px
-  (30 when zoomed out) greedily merge into one `.bubble-wrap` pile — round
-  thumb (34 px, sand border, 22 px when `body.danger-far`), offset discs
-  behind (`.stacked`) and an orange `.bubble-count` badge. Clicking a pile
-  opens the `#lightbox` slideshow over the cluster: ‹ › buttons + arrow
-  keys navigate, caption shows date + "position estimée (convoi)" when
-  `gps` is false + `k/n`. Image is `photos/uploads/<id>.jpg` (relative;
-  `onerror` falls back to the embedded thumb so the standalone file
-  works). Esc/click closes.
+- **Three map truths** (`tripView`, `setTripView()`): the toolbar exposes
+  `Prévu | Réel | Comparer`, without ever overwriting the Sheet itinerary.
+  `plannedLayer` contains the interpolated route, active leg, checkpoints,
+  convoy, dangers/deco and planned fiche highlight. **Prévu** shows that layer
+  plus legacy/build-time media. **Réel** removes it and shows only reconstructed
+  GPS layers and v2 media. **Comparer** keeps the planned layer deliberately
+  faint underneath the real layers. `actualTrackPane` and
+  `actualMarkerPane` keep real polylines and current markers visually above the
+  comparison layer.
+- **Actual subject filters** (`trackSubject`, `setTrackSubject()`): `Convoi`
+  renders Hugodouard and Paul Pot as two independent coloured tracks — never a
+  mean line; either vehicle button renders only that derived vehicle track; a
+  person button renders only that person's own points. Person buttons come from
+  deduplicated `ACTIVE_NAMES` (both cars plus observers). The toolbar is native
+  buttons with `aria-pressed`, keyboard focus styles and horizontal overflow on
+  small screens. `Convoi` includes all v2 media (also photos taken while
+  independent), while vehicle/person selections filter media by
+  `vehicleIdAtCapture`/`personId` respectively.
+- **Actual GPS model** (`TRIP_ID = "africa-trip-01"`): stable person ids are
+  normalized to active display names by `slug()`/`NAME_BY_ID`; coordinates are
+  rejected before number coercion when null, blank, non-finite or outside
+  latitude/longitude bounds. `MAX_ACCURACY_M = 250` is shared by current
+  markers and track points. `normalisePoint()` accepts Firestore Timestamp,
+  ISO string or millisecond values and tolerates `trackChunks.points` as either
+  the current idempotent map `{pointId: point}` or an older array. A point keeps
+  its own `personId`, `vehicleId`, `mode`, time, coordinates and accuracy.
+- **Personal vs vehicle reconstruction**: `personPoints(name)` contains only
+  that person's raw accepted fixes across vehicle/independent periods; it is
+  never merged with another traveler. `vehiclePoints(vehicleId)` gathers only
+  points whose captured mode is `vehicle` and whose captured `vehicleId`
+  matches, buckets them into 60-second windows, then chooses one observation
+  using GPS accuracy plus median distance to the other occupants' observations.
+  `impossibleTransition()` rejects any jump farther than a 220 km/h travel
+  allowance plus a 120 m anti-jitter floor or 1.5× the two GPS accuracy radii.
+  Thus a sub-2 km teleport over a few seconds is caught without cutting two
+  noisy neighbouring fixes. After a gap over 20 minutes a new section may start
+  so one old bad fix cannot poison the rest of the trip. `trackSegments()`
+  skips non-monotonic/impossible isolated fixes (so one bad point cannot break
+  the link between two good neighbours) and starts a new section after gaps
+  over 20 minutes. Person/vehicle/all-point caches are invalidated only when
+  `latest` or a changed chunk arrives.
+- **Person click = real focus** (`openFicheFor()`): opening a traveler with
+  real data switches Prévu to Réel, selects that person, draws their own path
+  thick with a soft glow, pulses their portrait at the latest usable point and
+  `flyTo`s the exact coordinate (zoom ≥13). A usable current point is chosen in
+  order `latest v2 → last accepted personal track point → legacy position`;
+  points worse than 250 m or a short impossible latest jump are not used for the
+  marker/zoom. The fiche always prints coordinates/age from that same reliable
+  point and adds a separate `Dernier fix écarté` row for the rejected latest,
+  so it cannot disagree with the map. If only one old v1 position exists the
+  site shows a position without inventing a historical line; with no GPS at all
+  the planned fiche remains and says explicitly that no point was received.
+  The wording is historical (`Au dernier point GPS`), because a pause or
+  assignment change after that fix cannot be inferred from map data. Elements
+  with `data-live-at` are refreshed every 30 seconds by one visibility-aware
+  timer, stopped on `pagehide`, so ages continue changing without a snapshot or
+  timer leak.
+- `GALLERY` starts with shared Drive/build media `[{id, name, date, lat, lng,
+  gps, thumb, file}]` from `fetch_photos.py`. `refreshPhotos()` renders only the
+  indices allowed by the current view/subject into `photoCluster`; clicking a
+  marker opens the filtered `#lightbox` list, with image/video support,
+  captions, date, location provenance and thumbnail fallback. Firebase v2
+  media remain in the existing root `photos` collection for compatibility but
+  carry `tripId`, `personId`, `vehicleIdAtCapture`, `mode`, `assignmentId`,
+  `capturedAt` and `locationSource`. Only documents for this trip with a known
+  active person become `_v2` actual media. Legacy root photos and embedded Drive
+  photos have no v2 identity, therefore stay visible only in Prévu and never
+  contaminate a person/vehicle real filter. Media without valid coordinates are
+  omitted until their location is added.
+- **Live Firebase listeners** (dynamic import at the end of the classic
+  script):
 
-- **Live Firebase** (fin du script) : un `import()` dynamique (dans le script
-  classique, donc accès direct à `map`/`GALLERY`/`rebuildBubbles`) lit en
-  temps réel les données envoyées par l'appli équipage (`app/`) :
-  `onSnapshot("positions")` → un marqueur `.live-dot` par personne (couleur
-  voiture) + remplit `livePositions[nom]={lat,lng,at}` (la fiche aventurier
-  affiche « Dernière position » + `ago()` « vu il y a X »),
-  `onSnapshot("photos")` → entrées `GALLERY`,
-  `onSnapshot("crew")` → **PV live** : écrase `RPG[nom].pv` (les PV du Sheet)
-  puis `render()`/`renderObs()` — la barre de PV des sièges ET de la fiche
-  reflètent ce que l'équipier règle dans l'appli. **Rendu carte, 2 amas
-  INDÉPENDANTS** (`Leaflet.markercluster`, CDN, monte en charge) : `photoCluster`
-  = les PHOTOS (`refreshPhotos`, `.map-photo`, clic→lightbox), `faceCluster` =
-  les TÊTES à leur dernière position (`refreshFaces`, `.map-face` = crop visage
-  `PHOTOS.faces[nom]` background-size 140% + ring couleur voiture, clic→fiche).
-  Les têtes se stackent entre elles, les photos entre elles, jamais mélangées ;
-  chaque marqueur porte ses données de pile en options (`pileImg`/`pileFc`/
-  `pileInit`). `refreshFaces()` filtre explicitement sur `CAR1`/`CAR2`/
-  observateurs : une ancienne position Firestore d'un voyageur retiré (Thomas)
-  ne recrée pas sa tête sur la carte. **Amas = un EMPILEMENT, pas un chiffre** : `pileHTML()` dessine
-  jusqu'à 3 vraies vignettes/têtes en éventail (`.pile` / `.pile-item` /
-  `.pile-top|b1|b2`) + un petit compteur `.pile-n` (orange pour les photos,
-  sombre pour les têtes). Pour ne pas se chevaucher au même point, les amas sont
-  juste DÉCALÉS : photos ancrées sous le point (`iconAnchor [22,4]`), têtes
-  au-dessus (`[22,44]`, ajoutées après → par-dessus). (thumb =
-  URL Cloudinary transformée `w_96,h_96,c_fill`, file = URL pleine). Lecture
-  seule, échoue en silence hors-ligne (voyage-afrique.html autonome). Config
-  Firebase publique en dur (projet `africatrip-eea1a`). Ne marche qu'en
-  https (GitHub Pages) ou dans l'app : `file://` bloque l'import de module.
+  - `trips/africa-trip-01/latest/{personId}` contains the latest v2 Point plus
+    `schemaVersion`; the snapshot is rebuilt from scratch so deletions cannot
+    leave a stale current head.
+  - `trips/africa-trip-01/trackChunks/{chunkId}` contains
+    `{schemaVersion, tripId, personId, displayName, sessionId, deviceId,
+    bucketStartAt, bucketStartMs, points}`. `docChanges()` updates
+    `trackChunkDocs` incrementally (`removed` deletes the cached chunk); a full
+    snapshot fallback exists for non-standard clients.
+  - root `positions` is a read-only **legacy fallback** with no trip/vehicle
+    scope. It supplies at most a last-position marker when no usable v2/latest
+    personal point exists; it must never be treated as a car assignment or
+    historical trace. Removed roster names are ignored.
+  - root `photos` is rebuilt on each media snapshot after preserving the
+    build-time `GALLERY` prefix, which also handles deleted Firebase media.
+  - root `crew` remains the live PV source: numeric `pv` overwrites the Sheet
+    value in `RPG` and rerenders seats/fiches.
+
+  `livePositions` is rebuilt from the v2/track/legacy priority above and feeds
+  `faceCluster`; `photoCluster` and `faceCluster` remain independent
+  `Leaflet.markercluster` groups. `pileHTML()` draws up to three real
+  thumbnails/faces in a fan plus a small count, with photos anchored below and
+  faces above the same coordinate. Faces are still restricted to current
+  car/observer rosters, so stale data cannot resurrect a removed traveler.
+  Firebase access is read-only from this site, uses the public config for
+  project `africatrip-eea1a`, fails quietly offline, and requires HTTPS/the app
+  because `file://` blocks the dynamic module import.
 
 ### `build.py`
 Reads `template.html` + `data.json` + `photos.json` + `gallery.json`,
