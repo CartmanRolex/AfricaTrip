@@ -1316,7 +1316,10 @@ function refreshPhotos(){
 function refreshFaces(){
   faceCluster.clearLayers();
   const markers = [];
-  Object.entries(livePositions).forEach(([name, p]) => {
+  const baseTime = REC[idx] ? new Date(REC[idx].iso).getTime() : 0;
+  const maxTime = (idx === REC.length - 1) ? Infinity : baseTime + 24 * 3600 * 1000 - 1;
+
+  ACTIVE_NAMES.forEach(name => {
     // Ignore positions left by people no longer present in the current roster.
     if(!CAR1.includes(name)&&!CAR2.includes(name)&&!(CFG.observateurs||[]).includes(name))return;
     const subject=subjectParts();
@@ -1324,7 +1327,21 @@ function refreshFaces(){
       if(name!==NAME_BY_ID.get(subject.id))return;
       return; // le marqueur pulsant exact est déjà dans actualTrackLayer
     }
-    if(subject.kind==='vehicle'&&p.vehicleId!==subject.id)return;
+    if(subject.kind==='vehicle'){
+      const state = REC[idx] && REC[idx][`car${subject.id}`] ? REC[idx][`car${subject.id}`][name] : null;
+      if(state !== 'present' && state !== 'tentative') return;
+    }
+    
+    const allPts=personPoints(name);
+    const lastAll=currentForPerson(name, Infinity);
+    let p;
+    if(baseTime > (lastAll&&lastAll.at ? lastAll.at : 0)){
+      p = posAt(idx).pt;
+    }else{
+      p = currentForPerson(name, maxTime);
+    }
+    if(!p) return;
+
     const face = (PHOTOS.faces || {})[name];
     const html = face
       ? `<div class="map-face" style="--fc:${colorOf(name)};background-image:url('${face}')"></div>`
@@ -1842,8 +1859,8 @@ function render(){
   document.getElementById('s-pax').textContent=paxCount(rec);
   document.getElementById('s-day').textContent=`${idx+1} / ${REC.length}`;
   odoSet(document.getElementById('s-km'),traveledKm(P));
-  
   renderHybridTracks();
+  refreshFaces();
   carsEl.innerHTML=renderCar(1,rec)+'<div style="height:14px"></div>'+renderCar(2,rec);
   // active leg: highlight card + keep it visible in the slider
   const li=P.legIdx;
