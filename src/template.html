@@ -1061,17 +1061,32 @@ function plannedRangeForPerson(name){
   return {startKm:routeProgressAtRecord(onboard[0]),
     endKm:onboard.at(-1)===REC.length-1?totalKm:routeProgressAtRecord(onboard.at(-1))};
 }
+function currentTripProgressKm() {
+  let max = 0;
+  Object.keys(VEHICLES).forEach(id => {
+    const pts = vehiclePoints(id), last = lastTrackPoint(pts);
+    if(last) {
+      const proj = projectOnPlannedRoute(last);
+      if(proj && proj.progressKm > max) max = proj.progressKm;
+    }
+  });
+  return max;
+}
 function addPlannedFuture(last,color,{focused=false,dashOffset='0',startKm=0,endKm=totalKm}={}){
+  const globalProgress = currentTripProgressKm();
   const projection=last?projectOnPlannedRoute(last):null;
-  const start=Math.max(startKm,projection?projection.progressKm:startKm);
-  const end=Math.max(startKm,Math.min(totalKm,endKm));
+  const futureStartKm = Math.max(startKm, globalProgress);
+  if (futureStartKm >= endKm) return {projection,connectorTooFar:false,offRoute:false,hasFuture:false};
+  const start=Math.max(futureStartKm, projection?projection.progressKm:0);
+  if (start >= endKm) return {projection,connectorTooFar:false,offRoute:false,hasFuture:false};
+  const end=Math.max(start,Math.min(totalKm,endKm));
   const tail=routeSlice(start,end);
   const connectorTooFar=!!projection&&projection.distanceKm>MAX_PLAN_CONNECTOR_KM;
   const offRoute=!!projection&&projection.distanceKm>OFF_ROUTE_WARNING_KM;
   // Le raccord est une information de lecture, jamais un déplacement réel :
   // il reste fin et pointillé, et disparaît plutôt que créer une diagonale
   // trompeuse quand la position est très loin de l'itinéraire envisagé.
-  if(last&&projection&&!connectorTooFar&&start<=projection.progressKm+.001) {
+  if(last&&projection&&!connectorTooFar) {
     tail.unshift([last.lat, last.lng]);
   }
   if(tail.length>1)L.polyline(tail,{pane:'actualTrackPane',color,weight:focused?4:3.2,opacity:focused?.8:.66,
