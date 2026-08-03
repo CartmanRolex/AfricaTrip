@@ -108,9 +108,11 @@ Le preset doit autoriser les images et les vidéos. Il est public par nature ;
 ne jamais embarquer le secret API Cloudinary. Firebase Storage n'est pas
 utilisé.
 
-- Images : GPS EXIF natif sur Android, `exifr` dans la PWA.
-- Vidéos : atome de localisation QuickTime lisible par le plugin Android ; pas
-  par le fallback navigateur.
+- Images : GPS et heure de prise de vue EXIF natifs sur Android, `exifr` dans
+  la PWA.
+- Vidéos : atomes de localisation et de date QuickTime lisibles par le plugin
+  Android ; pas par le fallback navigateur. L'heure complète alimente l'ordre
+  chronologique du trajet au lieu d'être ramenée artificiellement à midi.
 - Média sans GPS : carte Leaflet manuelle, immédiatement ou plus tard depuis le
   détail du média.
 - Taille vidéo maximale côté client : 100 Mo.
@@ -130,6 +132,9 @@ bash app/build-android.sh
 
 Le script installe les dépendances si nécessaire, crée/synchronise le projet
 Capacitor, injecte les fichiers Java de `app/native/`, puis lance Gradle.
+Il fixe aussi la version Android courante (`versionCode 2`, `versionName
+2.1.0`) afin que cette APK puisse remplacer la précédente lors de
+l'installation.
 Résultat :
 
 ```text

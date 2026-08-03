@@ -55,21 +55,23 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
   because Android (since April 2026) strips EXIF location on normal uploads
   but not from photos inside a zip (see `COMMENT-UPLOADER.md`).
 - **The map is one hybrid planned/actual truth per subject.** The Sheet/
-  `DATA.route` remains the untouched editorial plan and the crew app writes GPS
-  history under `trips/africa-trip-01`. For each car, the public site draws the
-  accepted GPS history in a solid car-coloured line, then only the untravelled
-  suffix of `DATA.route` in complementary dashes; without GPS, the full planned
-  route remains dashed. The latest reliable point is projected geometrically
-  onto the planned route to find that suffix, independently of the conflicting
-  calendar-year metadata. A very distant point is never joined by a misleading
-  diagonal.
-  Every GPS point carries the person and declared context (`hugodouard`,
-  `paul-pot`, or independent), so personal routes never get mixed. Car routes
-  are derived from occupant points in one-minute windows with accuracy/speed/gap
-  rejection. The app starts in Pause for a person who has never chosen a mode,
-  queues offline in IndexedDB, samples at most once/minute (five minutes while
-  still), and groups immutable points by person/session/assignment in two-hour
-  Firestore chunks.
+  `DATA.route` remains the untouched editorial plan. The public site now merges
+  the v2 chunks/latest GPS, the readable v1 `tracks/{name}/points` history from
+  the first trip day onward, and genuinely GPS-geolocated media into a
+  chronological personal route. Manual media pins and Drive photos whose
+  position was estimated from the plan stay visible as photos but never become
+  “real” track points. For each car, only points with an explicit captured car
+  assignment are used; v1 points without one remain personal, so cars and people
+  cannot contaminate one another. Sparse points several hours apart stay joined
+  when the implied speed is plausible; short teleports are rejected and a long
+  impossible jump starts a separate section instead of drawing a diagonal.
+  The accepted history is solid and only the untravelled suffix of `DATA.route`
+  remains dashed. Its endpoint is projected geometrically onto the plan; a very
+  distant point is never joined by a misleading connector. The current face/
+  car marker still comes from GPS rather than from an old uploaded photo.
+  The app starts in Pause for a person who has never chosen a mode, queues
+  offline in IndexedDB, samples at most once/minute (five minutes while still),
+  and groups immutable points by person/session/assignment in two-hour chunks.
 - The site is **fully self-contained**: all images are embedded as data URIs
   so `voyage-afrique.html` opens from disk; only map tiles/fonts/Leaflet come
   from CDNs.

@@ -38,8 +38,8 @@ import java.util.regex.Pattern;
  * (via MediaStore.setRequireOriginal).
  *
  * Deux formes d'item renvoyées à JS :
- *   - photo : { base64, lat, lng, date }        (GPS EXIF, ExifInterface)
- *   - vidéo : { path, video:true, lat, lng, date } (GPS = atome ISO-6709
+ *   - photo : { base64, lat, lng, date, capturedAt } (GPS/date EXIF)
+ *   - vidéo : { path, video:true, lat, lng, date, capturedAt } (GPS = atome ISO-6709
  *             QuickTime, MediaMetadataRetriever ; le FICHIER n'est PAS mis en
  *             base64 — trop lourd — mais copié en cache, `path` = file:// à
  *             relire côté JS via Capacitor.convertFileSrc puis uploader).
@@ -59,6 +59,10 @@ public class AfricaMediaPlugin extends Plugin {
     // ISO-6709 : "+DD.dddd-DDD.dddd/" (lat puis lng, altitude optionnelle après)
     private static final Pattern ISO6709 =
         Pattern.compile("([+-]\\d+(?:\\.\\d+)?)([+-]\\d+(?:\\.\\d+)?)");
+    private static final Pattern EXIF_CAPTURED = Pattern.compile(
+        "^(\\d{4}):(\\d{2}):(\\d{2})[ T](\\d{2}):(\\d{2}):(\\d{2})");
+    private static final Pattern VIDEO_CAPTURED = Pattern.compile(
+        "^(\\d{4})(\\d{2})(\\d{2})[T ](\\d{2})(\\d{2})(\\d{2})(?:\\.(\\d+))?(Z|[+-]\\d{2}:?\\d{2})?.*$");
 
     @PluginMethod
     public void pickWithLocation(PluginCall call) {
@@ -125,13 +129,15 @@ public class AfricaMediaPlugin extends Plugin {
         byte[] bytes;
         try (InputStream is = cr.openInputStream(readUri)) { bytes = readAll(is); }
 
-        Double lat = null, lng = null; String date = null;
+        Double lat = null, lng = null; String date = null, capturedAt = null;
         try (InputStream es = cr.openInputStream(readUri)) {
             ExifInterface exif = new ExifInterface(es);
             double[] ll = exif.getLatLong();
             if (ll != null) { lat = ll[0]; lng = ll[1]; }
             String dt = exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL);
-            if (dt != null && dt.length() >= 10)
+            capturedAt = exifCapturedAt(exif, dt);
+            if (capturedAt != null) date = capturedAt.substring(0, 10);
+            else if (dt != null && dt.length() >= 10)
                 date = dt.substring(0, 10).replace(":", "-");
         } catch (Exception ignore) {}
 
@@ -139,6 +145,7 @@ public class AfricaMediaPlugin extends Plugin {
         o.put("base64", Base64.encodeToString(bytes, Base64.NO_WRAP));
         if (lat != null) { o.put("lat", lat); o.put("lng", lng); }
         if (date != null) o.put("date", date);
+        if (capturedAt != null) o.put("capturedAt", capturedAt);
         return o;
     }
 
@@ -152,7 +159,7 @@ public class AfricaMediaPlugin extends Plugin {
             while ((n = is.read(buf)) != -1) fos.write(buf, 0, n);
         }
 
-        Double lat = null, lng = null; String date = null;
+        Double lat = null, lng = null; String date = null, capturedAt = null;
         MediaMetadataRetriever mmr = new MediaMetadataRetriever();
         try {
             mmr.setDataSource(getContext(), readUri);
@@ -162,7 +169,9 @@ public class AfricaMediaPlugin extends Plugin {
                 if (m.find()) { lat = Double.parseDouble(m.group(1)); lng = Double.parseDouble(m.group(2)); }
             }
             String dt = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DATE);
-            if (dt != null && dt.length() >= 8 && dt.substring(0, 4).compareTo("2000") >= 0)
+            capturedAt = videoCapturedAt(dt);
+            if (capturedAt != null) date = capturedAt.substring(0, 10);
+            else if (dt != null && dt.length() >= 8 && dt.substring(0, 4).compareTo("2000") >= 0)
                 date = dt.substring(0, 4) + "-" + dt.substring(4, 6) + "-" + dt.substring(6, 8);
         } catch (Exception ignore) {
         } finally {
@@ -174,7 +183,37 @@ public class AfricaMediaPlugin extends Plugin {
         o.put("video", true);
         if (lat != null) { o.put("lat", lat); o.put("lng", lng); }
         if (date != null) o.put("date", date);
+        if (capturedAt != null) o.put("capturedAt", capturedAt);
         return o;
+    }
+
+    private static String exifCapturedAt(ExifInterface exif, String raw) {
+        if (raw == null) return null;
+        Matcher m = EXIF_CAPTURED.matcher(raw);
+        if (!m.find()) return null;
+        String iso = m.group(1) + "-" + m.group(2) + "-" + m.group(3)
+            + "T" + m.group(4) + ":" + m.group(5) + ":" + m.group(6);
+        String offset = exif.getAttribute(ExifInterface.TAG_OFFSET_TIME_ORIGINAL);
+        if (offset != null && offset.matches("[+-]\\d{2}:?\\d{2}")) {
+            if (offset.length() == 5) offset = offset.substring(0, 3) + ":" + offset.substring(3);
+            iso += offset;
+        }
+        return iso;
+    }
+
+    private static String videoCapturedAt(String raw) {
+        if (raw == null) return null;
+        Matcher m = VIDEO_CAPTURED.matcher(raw.trim());
+        if (!m.matches() || m.group(1).compareTo("2000") < 0) return null;
+        String iso = m.group(1) + "-" + m.group(2) + "-" + m.group(3)
+            + "T" + m.group(4) + ":" + m.group(5) + ":" + m.group(6);
+        if (m.group(7) != null) iso += "." + m.group(7).substring(0, Math.min(3, m.group(7).length()));
+        String offset = m.group(8);
+        if (offset != null) {
+            if (offset.matches("[+-]\\d{4}")) offset = offset.substring(0, 3) + ":" + offset.substring(3);
+            iso += offset;
+        }
+        return iso;
     }
 
     private static String extFor(String mime) {

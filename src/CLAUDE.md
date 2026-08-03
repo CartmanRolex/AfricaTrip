@@ -12,6 +12,9 @@ three literal tokens:
 - `__PHOTOS__`  ← contents of `photos.json`
 - `__GALLERY__` ← contents of `gallery.json` (`[]` if absent)
 
+The head carries a tiny inline SVG diamond favicon, so the self-contained page
+does not generate a stray `/favicon.ico` 404 during browser checks.
+
 Layout: CSS grid `header / map / panel`. The timeline section (`.sec-tl`)
 lives in the header on BOTH breakpoints (`header .sec-tl` compact grid:
 date + play left, full-width scrub over the ticks); the panel only holds
@@ -25,11 +28,13 @@ hidden); the seats grid stays 2 columns but the seat cards compact
 (`body.danger-far`) the danger stickers shrink to 38 % (vs 62 % desktop)
 and the deco camels hide entirely, so they don't bury the small map.
 The centered `.map-toolbar` overlays the top of the map on both breakpoints;
-there is deliberately no Prévu/Réel/Comparer switch. Its horizontally
-scrollable subject row always selects the convoy, one car or one person, and a
-permanent key explains solid = real / dashed = planned. On mobile the GPS
-status wraps onto one compact ellipsized line instead of being hidden, so an
-empty trace remains explained and `aria-live` stays available.
+there is deliberately no Prévu/Réel/Comparer switch. A compact **Trace
+affichée** picker replaces the former 720 px button rail: its popover groups
+Convoi, both cars and avatar-backed people, keeps one `aria-selected` choice,
+and closes after selection/outside/Escape. A permanent key explains solid =
+real / dashed = planned. On mobile the toolbar starts after Leaflet's zoom
+control and the status may wrap onto two readable lines without widening the
+page.
 
 Key JS structures (all near the top of the script):
 - `DATA.records` — one entry per day: `{date, iso, checkpoint, location,
@@ -64,8 +69,9 @@ Key JS structures (all near the top of the script):
   "route ouverte…" if still aboard at the end), plus Téléphone (`tel:` link)
   and Note rows when the sheet columns are filled, and a lien button.
   ✕ button or Escape closes (`closeFiche()`); the fiche survives day
-  changes. On mobile the click handler also smooth-scrolls the opened
-  `.fiche-card` to the center of the bottom sheet (it can open off-screen).
+  changes. On mobile `revealOpenFiche()` scrolls only `.panel-scroll` and
+  aligns the card's top with the bottom sheet, so its title and ✕ never open
+  clipped even when the card is taller than the viewport.
   Opening a fiche also selects that person in the map toolbar: their accepted
   GPS history and only their remaining planned presence range replace any
   previous subject. The chip click is captured (`capture:true`) so it beats the
@@ -96,13 +102,10 @@ Key JS structures (all near the top of the script):
   the wrapper `.live-wrap` scales ×3.2 instead); the fiche face plays it
   continuously (autoplay muted loop). `oncanplay` adds `.vid-ok` so a
   missing/unloadable video falls back to the static photo.
-- **Seat interaction** (`setPreview()`, `openFicheFor()`): clicking ANYWHERE
-  on a seat card opens that person's fiche. On touch (`canHover` =
-  `matchMedia('(hover:hover)')` is false) the chip alone is a two-step:
-  1st tap = preview (`.preview` class: enlarged + video playing), 2nd tap =
-  fiche; tapping outside cancels the preview. Hover CSS lives in
-  `@media (hover:hover)` so touch devices never get stuck hover states,
-  and the mouseover/mouseout handlers bail out when `canHover` is false.
+- **Seat interaction** (`openFicheFor()`): clicking ANYWHERE on a seat card,
+  including its portrait, opens that person's fiche in one click/tap. Desktop
+  keeps its hover portrait/video preview under `@media (hover:hover)`; touch no
+  longer needs the former two-tap `.preview` state.
 - **Zoom-out on a face** (`faceMarkup()`, `liveZoom()`): hovering ANY face —
   seat chip or fiche portrait — enlarges it AND widens the framing. Live
   portraits widen their video's inline w/l/t (`liveZoom()`, head kept
@@ -165,41 +168,51 @@ Key JS structures (all near the top of the script):
   either vehicle button renders only that derived vehicle hybrid; a person
   button renders only that person's own accepted points plus the remaining
   part of their planned presence range. Person buttons come from deduplicated
-  `ACTIVE_NAMES` (both cars plus observers). The toolbar uses native buttons
-  with `aria-pressed`, keyboard focus styles and horizontal overflow on small
-  screens. `Convoi` includes all located media (legacy/build and v2, including
-  independent captures), while vehicle/person selections show only reliably
-  attributed v2 media by `vehicleIdAtCapture`/`personId`.
-- **Actual GPS model** (`TRIP_ID = "africa-trip-01"`): stable person ids are
+  `ACTIVE_NAMES` (both cars plus observers). The picker uses native buttons,
+  focus styles and listbox semantics. Choosing a different picker subject
+  closes any stale fiche; opening a fiche selects the matching person.
+  `Convoi` includes all located media, while precise filters include v2 media
+  plus attributable v1 media from the trip period.
+- **Actual route model** (`TRIP_ID = "africa-trip-01"`): stable person ids are
   normalized to active display names by `slug()`/`NAME_BY_ID`; coordinates are
   rejected before number coercion when null, blank, non-finite or outside
   latitude/longitude bounds. `MAX_ACCURACY_M = 250` is shared by current
   markers and track points. `normalisePoint()` accepts Firestore Timestamp,
   ISO string or millisecond values and tolerates `trackChunks.points` as either
   the current idempotent map `{pointId: point}` or an older array. A point keeps
-  its own `personId`, `vehicleId`, `mode`, time, coordinates and accuracy.
+  its own `personId`, `vehicleId`, `mode`, time, coordinates, accuracy and
+  source. `allTrackPoints()` merges v2 chunks/latest, v1 personal tracks and
+  `mediaTrackPoint()` anchors, then excludes every source before
+  `TRIP_START_MS`. Only media with embedded
+  GPS (`gps`/`media-gps`) qualify; manual pins and planned+jittered Drive
+  positions do not. Near-duplicates are coalesced without losing an explicit
+  vehicle assignment.
 - **Personal vs vehicle reconstruction**: `personPoints(name)` contains only
-  that person's raw accepted fixes across vehicle/independent periods; it is
-  never merged with another traveler. `vehiclePoints(vehicleId)` gathers only
+  that person's accepted GPS/photo anchors across vehicle/independent periods;
+  it is never merged with another traveler. V1 track points carry no car and
+  deliberately remain personal. `vehiclePoints(vehicleId)` gathers only
   points whose captured mode is `vehicle` and whose captured `vehicleId`
   matches, buckets them into 60-second windows, then chooses one observation
   using GPS accuracy plus median distance to the other occupants' observations.
   `impossibleTransition()` rejects any jump farther than a 220 km/h travel
   allowance plus a 120 m anti-jitter floor or 1.5× the two GPS accuracy radii.
   Thus a sub-2 km teleport over a few seconds is caught without cutting two
-  noisy neighbouring fixes. After a gap over 20 minutes a new section may start
-  so one old bad fix cannot poison the rest of the trip. `trackSegments()`
-  skips non-monotonic/impossible isolated fixes (so one bad point cannot break
-  the link between two good neighbours) and starts a new section after gaps
-  over 20 minutes. Person/vehicle/all-point caches are invalidated only when
-  `latest` or a changed chunk arrives.
+  noisy neighbouring fixes. A time gap alone no longer cuts the route: sparse
+  plausible fixes hours apart remain joined. A short impossible jump is
+  discarded; after six hours an impossible jump starts a separate section.
+  Old Android media placed artificially at noon are evaluated with day-level
+  time uncertainty. `vehicleGpsPoints()`/`personGpsPoints()` remain separate
+  from media anchors so current markers never jump to an old photo. Caches are
+  also invalidated by v1-track and media snapshots.
 - **Person click = real focus** (`openFicheFor()`): opening any traveler
   selects that person. With real data, it draws only their own path thick with
-  a soft glow, pulses their portrait at the latest usable point and `flyTo`s
-  the exact coordinate (zoom ≥13); without GPS it fits that person's own
+  a soft glow, pulses their portrait at the latest usable GPS point and uses a
+  stable zoom 13 (vehicle 11), offset to the visible map area below the
+  toolbar; the previous zoom can no longer leave the next person stuck at zoom
+  18. Without GPS it fits that person's own
   confirmed/tentative planned range instead of borrowing another position. A
-  usable current point is chosen in
-  order `latest v2 → last accepted personal track point → legacy position`;
+  usable current point is chosen from accepted GPS evidence and the legacy
+  position fallback, never from a media anchor;
   points worse than 250 m or a short impossible latest jump are not used for the
   marker/zoom. The fiche always prints coordinates/age from that same reliable
   point and adds a separate `Dernier fix écarté` row for the rejected latest,
@@ -219,10 +232,11 @@ Key JS structures (all near the top of the script):
   media remain in the existing root `photos` collection for compatibility but
   carry `tripId`, `personId`, `vehicleIdAtCapture`, `mode`, `assignmentId`,
   `capturedAt` and `locationSource`. Only documents for this trip with a known
-  active person become `_v2` actual media. Legacy root photos and embedded Drive
-  photos have no v2 identity, therefore appear only for `Convoi` and never
-  contaminate a person/vehicle filter. Media without valid coordinates are
-  omitted until their location is added.
+  active person become `_v2` actual media. Attributable legacy root photos from
+  the trip period may also appear under their person/car; anonymous embedded
+  Drive files remain convoy-only. A GPS media point may bend the chronological
+  actual line, while manual/estimated positions remain markers only. Media
+  without valid coordinates are omitted until their location is added.
 - **Live Firebase listeners** (dynamic import at the end of the classic
   script):
 
@@ -238,6 +252,9 @@ Key JS structures (all near the top of the script):
     scope. It supplies at most a last-position marker when no usable v2/latest
     personal point exists; it must never be treated as a car assignment or
     historical trace. Removed roster names are ignored.
+  - each active roster member's `tracks/{name}/points` v1 subcollection is read
+    live and filtered from the first 2026 trip day. Its `{lat,lng,at}` points
+    enrich only that person's line because the old documents contain no car.
   - root `photos` is rebuilt on each media snapshot after preserving the
     build-time `GALLERY` prefix, which also handles deleted Firebase media.
   - root `crew` remains the live PV source: numeric `pv` overwrites the Sheet

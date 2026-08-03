@@ -113,7 +113,10 @@ tests des règles avant tout déploiement.
   pas utilisé.
 - Android : le plugin Java `native/AfricaMediaPlugin.java` récupère l'original
   grâce à `ACCESS_MEDIA_LOCATION`. Il lit l'EXIF des images et l'atome de lieu
-  QuickTime des vidéos. Une vidéo est copiée en cache et relue via
+  QuickTime des vidéos. Il transmet désormais `capturedAt` avec l'heure EXIF/
+  QuickTime complète (et l'offset quand il existe), au lieu de tronquer au jour
+  puis de faire classer chaque média à midi dans la reconstruction du trajet.
+  Une vidéo est copiée en cache et relue via
   `Capacitor.convertFileSrc` au lieu d'être renvoyée en base64.
 - PWA : `<input type=file>` + `exifr` pour les images. Le navigateur ne lit pas
   la position QuickTime des vidéos.
@@ -137,8 +140,10 @@ tests des règles avant tout déploiement.
 - `www/faces.js`, `www/icons/`, `www/manifest.json` — visages et PWA.
 - `native/AfricaMediaPlugin.java`, `native/MainActivity.java`,
   `native/AndroidManifest.xml` — couche Android versionnée.
-- `build-android.sh` — injecte le natif, synchronise Capacitor et génère
-  `android/app/build/outputs/apk/debug/app-debug.apk`.
+- `build-android.sh` — fixe actuellement Android `versionCode 2` /
+  `versionName 2.1.0`, injecte le natif, synchronise Capacitor et génère
+  `android/app/build/outputs/apk/debug/app-debug.apk`. Incrémenter le code à
+  chaque APK publiée pour permettre la mise à jour par-dessus l'ancienne.
 - `firestore.rules` — compatibilité v1 + validation stricte v2.
 - `README.md` — configuration, publication des règles, build et distribution,
   avec l'URL GitHub Releases stable de téléchargement de la dernière APK.
