@@ -1168,6 +1168,22 @@ function renderHybridTracks(){
       if(range)addPlannedFuture(routeEnd||current,v.color,maxTime,{focused:false,...range});
     });
   }
+
+  // Draw markers for all OTHER vehicles (if not in overview mode)
+  if (kind !== 'overview') {
+    Object.entries(VEHICLES).forEach(([vid,v])=>{
+      if (kind === 'vehicle' && vid === id) return; // already drawn
+      const allPts=vehiclePoints(vid);
+      const lastAll=lastCoherentPoint(allPts);
+      let current;
+      if(baseTime > (lastAll&&lastAll.at ? lastAll.at : 0)){
+        current = posAt(idx).pt;
+      }else{
+        current = lastCoherentPoint(allPts.filter(p=>p.at<=maxTime));
+      }
+      addActualMarker(current,v.color,v.label,null,false,v.face);
+    });
+  }
 }
 function photoVisible(g){
   return true;
@@ -1323,14 +1339,17 @@ function refreshFaces(){
     // Ignore positions left by people no longer present in the current roster.
     if(!CAR1.includes(name)&&!CAR2.includes(name)&&!(CFG.observateurs||[]).includes(name))return;
     const subject=subjectParts();
-    if(subject.kind==='person'){
-      if(name!==NAME_BY_ID.get(subject.id))return;
+    if(subject.kind==='person' && name===NAME_BY_ID.get(subject.id)){
       return; // le marqueur pulsant exact est déjà dans actualTrackLayer
     }
-    if(subject.kind==='vehicle'){
-      const state = REC[idx] && REC[idx][`car${subject.id}`] ? REC[idx][`car${subject.id}`][name] : null;
-      if(state !== 'present' && state !== 'tentative') return;
+    
+    // Check if the person is on the trip at all at this date
+    let isOnTrip = false;
+    if (REC[idx]) {
+      const s1 = REC[idx].car1[name], s2 = REC[idx].car2[name];
+      if (s1 === 'present' || s1 === 'tentative' || s2 === 'present' || s2 === 'tentative') isOnTrip = true;
     }
+    if (!isOnTrip && !(CFG.observateurs||[]).includes(name)) return;
     
     const allPts=personPoints(name);
     const lastAll=currentForPerson(name, Infinity);
