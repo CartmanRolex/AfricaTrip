@@ -1798,7 +1798,10 @@ window.addEventListener('pagehide',stopAgoRefresh);
 startAgoRefresh();
 // initial fit to whole route
 map.fitBounds(latlngs,{padding:[50,50]});
-setIndex(0);
+const localToday=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().split('T')[0];
+let initialIdx=0;
+for(let i=0;i<REC.length;i++){ if(REC[i].iso<=localToday)initialIdx=i; else break; }
+setIndex(initialIdx);
 window.addEventListener('resize',()=>map.invalidateSize());
 const handle=document.getElementById('panel-handle');
 if(handle){
