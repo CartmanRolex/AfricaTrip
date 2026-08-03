@@ -1771,9 +1771,6 @@ function render(){
   }
   legLine.setLatLngs(lpts);
   legLine.setStyle({color:DIFF_COLOR(legMeta(P.legIdx).diff)});
-  
-  // Update background route to only show future
-  routeLine.setLatLngs(routeSlice(currentTripProgressKm(), totalKm));
   updateLegChip(P.legIdx);
   setOpenZone(P.legIdx===LEGS.length-1);   // final leg = onward route undecided
   // panel
