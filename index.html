@@ -81,7 +81,12 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
 .track-menu[hidden]{display:none}
 .track-menu-label{margin:5px 5px 7px;font-family:var(--mono);font-size:7px;letter-spacing:.12em;
   text-transform:uppercase;color:var(--muted)}
-.track-vehicles-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin-bottom:10px}
+/* une colonne par voiture : le véhicule puis son équipage, pour choisir une
+   trace sans avoir à savoir qui roule avec qui. */
+.track-cars{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.track-car-col{min-width:0;display:flex;flex-direction:column;gap:5px}
+.track-car-col>.track-menu-label{margin:0 5px}
+.track-car-col>.track-menu-label~.track-menu-label{margin-top:6px}
 .track-people-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
 .track-choice{min-width:0;min-height:38px;display:flex;align-items:center;gap:8px;padding:5px 7px;
   color:var(--sand-dim);background:transparent;border:1px solid transparent;border-radius:9px;text-align:left;
@@ -202,6 +207,9 @@ body.danger-far .bubble-wrap{width:22px;height:22px}
 /* ---------- panel ---------- */
 .panel{grid-area:panel;background:var(--panel);border-left:1px solid var(--line);
   display:flex;flex-direction:column;overflow:hidden}
+/* la poignée de redimensionnement n'existe que dans la mise en page mobile
+   (bottom sheet) ; en desktop le panneau a sa largeur fixe. */
+.panel-handle{display:none}
 .panel-scroll{overflow-y:auto;padding:18px 18px 24px;display:flex;flex-direction:column;gap:18px}
 .panel-scroll::-webkit-scrollbar{width:9px}
 .panel-scroll::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
@@ -399,6 +407,9 @@ span.fiche-face{display:block;overflow:hidden}
   background-repeat:no-repeat;border:2.5px solid var(--fc,var(--c1));
   box-shadow:0 2px 8px rgba(0,0,0,.55);display:grid;place-items:center;
   font-family:var(--display);font-weight:700;font-size:14px;color:var(--sand)}
+/* même règle que .track-now.planned : une position interpolée sur le plan est
+   toujours reconnaissable (contour pointillé) d'un vrai point GPS. */
+.map-face.planned{border-style:dashed;opacity:.82}
 .track-now{position:relative;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;
   color:#15110d;background:var(--tc,var(--c1));border:3px solid var(--sand);
   box-shadow:0 3px 14px rgba(0,0,0,.72);font-family:var(--display);font-size:11px;font-weight:700}
@@ -407,6 +418,10 @@ span.fiche-face{display:block;overflow:hidden}
 .track-now.person{width:30px;height:30px;background-color:var(--panel2);background-size:140%;
   background-position:center;background-repeat:no-repeat;color:var(--sand)}
 .track-now.quiet::before{display:none}
+/* Position PRÉVUE (interpolée sur l'itinéraire) : jamais confondue avec un fix
+   GPS réel — bordure pointillée, pas de pulsation, léger retrait. */
+.track-now.planned{border-style:dashed;opacity:.82}
+.track-now.planned::before{display:none}
 @keyframes trackping{0%{transform:scale(.75);opacity:.9}100%{transform:scale(2.25);opacity:0}}
 @media (prefers-reduced-motion:reduce){.track-now::before{animation:none}.leg-flow{animation:none}}
 .map-photo{position:relative;width:30px;height:30px;border-radius:50%;overflow:hidden;border:2px solid var(--sand-dim);
@@ -520,7 +535,6 @@ GALLERY.forEach(g => { g._origin = 'build'; g._v2 = false; });
 // Les positions v2 prennent le pas sur le fallback historique `positions`.
 // Les deux sources restent séparées afin qu'une suppression Firebase v2 ne
 // laisse jamais un ancien document fantôme dans la carte.
-const livePositions = {};
 const legacyPositions = {};
 const latestPositions = {};
 const trackChunkDocs = new Map();
@@ -561,8 +575,10 @@ const personName = (...ids) => {
   return null;
 };
 const VEHICLES = {
-  'hugodouard': {label:(CARS[1]||{}).name||'Hugodouard', color:(CARS[1]||{}).color||'#E8924A', short:(CARS[1]||{}).emoji||'🚙', face:(PHOTOS.cars||{})[1]},
-  'paul-pot': {label:(CARS[2]||{}).name||'Paul Pot', color:(CARS[2]||{}).color||'#4FB7B3', short:(CARS[2]||{}).emoji||'🚙', face:(PHOTOS.cars||{})[2]},
+  'hugodouard': {label:(CARS[1]||{}).name||'Hugodouard', color:(CARS[1]||{}).color||'#E8924A',
+    short:(CARS[1]||{}).emoji||'🚙', face:(PHOTOS.cars||{})[1], roster:CAR1, car:1},
+  'paul-pot': {label:(CARS[2]||{}).name||'Paul Pot', color:(CARS[2]||{}).color||'#4FB7B3',
+    short:(CARS[2]||{}).emoji||'🚙', face:(PHOTOS.cars||{})[2], roster:CAR2, car:2},
 };
 function vehicleId(v){
   const id=slug(v);
@@ -927,7 +943,6 @@ function deriveVehiclePoints(id,includeMedia){
 }
 function vehiclePoints(id){return deriveVehiclePoints(id,true);}
 function vehicleGpsPoints(id){return deriveVehiclePoints(id,false);}
-function vehicleCurrentPoint(id){return lastCoherentPoint(vehicleGpsPoints(id));}
 function trackSegments(points){
   const segments=[]; let current=[];
   points.forEach(p=>{
@@ -964,21 +979,18 @@ function addActualPath(points,color,focused){
       lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
   });
 }
-function addActualMarker(point,color,label,name,pulse=true,faceUrl=null){
+function addActualMarker(point,color,label,name,{pulse=true,faceUrl=null,planned=false}={}){
   if(!point)return;
   const face=faceUrl || (name&&(PHOTOS.faces||{})[name]);
   const bg=face?`;background-image:url('${face}')`:'';
-  const isPerson=!!name;
-  const html=`<div class="track-now${isPerson?' person':''}${pulse?'':' quiet'}" style="--tc:${color}${bg}" aria-label="${esc(label)}">${face?'':esc(label.slice(0,1))}</div>`;
+  const cls=['track-now',name?'person':'',pulse&&!planned?'':'quiet',planned?'planned':''].filter(Boolean).join(' ');
+  const aria=planned?`${label} — position prévue`:label;
+  const html=`<div class="${cls}" style="--tc:${color}${bg}" aria-label="${esc(aria)}" title="${esc(aria)}">${face?'':esc(label.slice(0,1))}</div>`;
   const size=face?[30,30]:[24,24];
   const anchor=face?[15,15]:[12,12];
   const marker=L.marker([point.lat,point.lng],{pane:'actualMarkerPane',zIndexOffset:1600,icon:L.divIcon({className:'',iconSize:size,
     iconAnchor:anchor,html})}).addTo(actualTrackLayer);
   if(name)marker.on('click',()=>openFicheFor(name));
-}
-function reportedForPerson(name){
-  const candidates=[personGpsPoints(name).at(-1),legacyPositions[name]].filter(Boolean);
-  return candidates.sort((a,b)=>(a.at||0)-(b.at||0)).at(-1)||null;
 }
 function rejectedLatestForPerson(name){
   const latest=latestPositions[name];
@@ -993,9 +1005,12 @@ function rejectedLatestForPerson(name){
 function currentForPerson(name, maxTime = Infinity){
   const latest=latestPositions[name],rejected=rejectedLatestForPerson(name);
   const legacy=legacyPositions[name];
-  let validGpsPoints = personGpsPoints(name).filter(p=>(p.at||0)<=maxTime);
-  if(maxTime === Infinity && rejected) validGpsPoints = validGpsPoints.filter(p=>p.pointId!==latest.pointId);
-  const personal=lastCoherentPoint(validGpsPoints);
+  // Un fix écarté (précision insuffisante ou saut incohérent) le reste quelle
+  // que soit la fenêtre : le filtrer seulement « au présent » le ferait
+  // ressurgir comme marqueur dès qu'on recule dans la frise.
+  let usable=personGpsPoints(name).filter(p=>(p.at||0)<=maxTime);
+  if(rejected)usable=usable.filter(p=>p.pointId!==latest.pointId);
+  const personal=lastCoherentPoint(usable);
   const fallback=legacy&&(legacy.accuracyM==null||legacy.accuracyM<=MAX_ACCURACY_M)&&(legacy.at||0)<=maxTime?legacy:null;
   return [personal,fallback].filter(Boolean).sort((a,b)=>(a.at||0)-(b.at||0)).at(-1)||null;
 }
@@ -1056,55 +1071,74 @@ function routeProgressAtRecord(recordIndex){
   if(!P.partial)return ROUTE_KM[Math.min(P.upTo,ROUTE_KM.length-1)]||0;
   return (ROUTE_KM[P.upTo]||0)+hav(ROUTE[P.upTo],P.partial);
 }
-function currentTripProgressKm(maxTime = Infinity) {
-  let max = 0;
-  Object.keys(VEHICLES).forEach(id => {
-    const pts = vehiclePoints(id).filter(p=>p.at<=maxTime);
-    const last = lastTrackPoint(pts);
-    if(last) {
-      const proj = projectOnPlannedRoute(last);
-      if(proj && proj.progressKm > max) max = proj.progressKm;
-    }
-  });
-  return max;
+// ---- fenêtre temporelle pilotée par la frise ----------------------------
+// Faire glisser la frise fait voyager la carte dans le temps : seule la
+// réalité connue à la fin du jour affiché est dessinée. Le dernier jour reste
+// ouvert (Infinity) pour que les points reçus en direct apparaissent aussitôt.
+const TODAY_ISO=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
+function dayWindowEnd(){
+  if(idx>=REC.length-1)return Infinity;
+  const start=Date.parse(`${(REC[idx]||{}).iso}T00:00:00`);
+  return Number.isFinite(start)?start+86400000-1:Infinity;
 }
-function plannedRangeForPerson(name, maxTime = Infinity){
+function dayIsFuture(){ return ((REC[idx]||{}).iso||'')>TODAY_ISO; }
+function onboardAt(name,i){
+  const r=REC[i]; if(!r)return false;
+  const state=r.car1[name]||r.car2[name];
+  return state==='present'||state==='tentative';
+}
+// Où placer un sujet au jour affiché. Passé et présent = réalité GPS ; futur
+// (ou jour sans aucune réalité connue) = position PRÉVUE interpolée sur
+// l'itinéraire, renvoyée avec `planned:true` pour que le marqueur le dise. Un
+// sujet hors plan (observateur) n'est jamais inventé.
+function stateAtDay(realPoint,onPlan){
+  if(realPoint&&!dayIsFuture())return {point:realPoint,planned:false};
+  if(!onPlan)return {point:realPoint||null,planned:false};
+  return {point:posAt(idx).pt,planned:true};
+}
+function plannedRangeForPerson(name){
   const onboard=[];
   REC.forEach((r,i)=>{
     const state=r.car1[name]||r.car2[name];
     if(state==='present'||state==='tentative')onboard.push(i);
   });
   if(!onboard.length)return null;
-  const globalProgress = currentTripProgressKm(maxTime);
-  let futureOnboard = onboard.filter(i => routeProgressAtRecord(i) >= globalProgress - 50);
-  if (!futureOnboard.length) futureOnboard = [onboard.at(-1)];
-  return {startKm:Math.max(routeProgressAtRecord(futureOnboard[0]), globalProgress),
+  return {startKm:routeProgressAtRecord(onboard[0]),
     endKm:onboard.at(-1)===REC.length-1?totalKm:routeProgressAtRecord(onboard.at(-1))};
 }
-function plannedRangeForVehicle(id, maxTime = Infinity){
-  const name = VEHICLES[id].label;
-  return plannedRangeForPerson(name, maxTime);
+// Une voiture n'a pas de ligne de présence : sa fenêtre prévue est l'union de
+// celles de ses occupants du moment. (Utiliser son nom comme prénom, comme le
+// faisait la passe du 03/08, ne trouvait jamais rien et supprimait purement et
+// simplement le futur pointillé des deux voitures.)
+function plannedRangeForVehicle(id){
+  const ranges=((VEHICLES[id]||{}).roster||[]).map(plannedRangeForPerson).filter(Boolean);
+  if(!ranges.length)return {startKm:0,endKm:totalKm};
+  return {startKm:Math.min(...ranges.map(r=>r.startKm)),endKm:Math.max(...ranges.map(r=>r.endKm))};
 }
-function addPlannedFuture(last,color,maxTime=Infinity,{focused=false,dashOffset='0',startKm=0,endKm=totalKm}={}){
-  const globalProgress = currentTripProgressKm(maxTime);
+// Portion d'itinéraire déjà derrière le sujet AU JOUR AFFICHÉ. Chaque sujet a
+// sa propre progression : prendre le maximum des deux voitures amputerait le
+// futur de la plus lente de l'avance de la plus rapide.
+function coveredKm(point,planned){
+  if(planned)return routeProgressAtRecord(idx);
+  const projection=point&&projectOnPlannedRoute(point);
+  return projection?projection.progressKm:0;
+}
+function addPlannedFuture(last,color,{focused=false,dashOffset='0',startKm=0,endKm=totalKm,coveredFromKm=0}={}){
   const projection=last?projectOnPlannedRoute(last):null;
-  const futureStartKm = Math.max(startKm, globalProgress);
-  if (futureStartKm >= endKm) return {projection,connectorTooFar:false,offRoute:false,hasFuture:false};
-  const start=Math.max(futureStartKm, projection?projection.progressKm:0);
-  if (start >= endKm) return {projection,connectorTooFar:false,offRoute:false,hasFuture:false};
-  const end=Math.max(start,Math.min(totalKm,endKm));
+  const start=Math.max(startKm,coveredFromKm,projection?projection.progressKm:0);
+  const end=Math.min(totalKm,endKm);
+  if(start>=end)return;
   const tail=routeSlice(start,end);
   const connectorTooFar=!!projection&&projection.distanceKm>MAX_PLAN_CONNECTOR_KM;
-  const offRoute=!!projection&&projection.distanceKm>OFF_ROUTE_WARNING_KM;
   // Le raccord est une information de lecture, jamais un déplacement réel :
   // il reste fin et pointillé, et disparaît plutôt que créer une diagonale
   // trompeuse quand la position est très loin de l'itinéraire envisagé.
-  if(last&&projection) {
-    tail.unshift([last.lat, last.lng]);
-  }
+  if(last&&projection&&!connectorTooFar&&start<=projection.progressKm+.001&&projection.distanceKm>.08)
+    L.polyline([[last.lat,last.lng],[projection.point.lat,projection.point.lng]],{
+      pane:'actualTrackPane',color,weight:1.5,opacity:.48,dashArray:'1 7',lineCap:'round',interactive:false
+    }).addTo(actualTrackLayer);
   if(tail.length>1)L.polyline(tail,{pane:'actualTrackPane',color,weight:focused?4:3.2,opacity:focused?.8:.66,
     dashArray:'10 12',dashOffset,lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
-  return {projection,connectorTooFar,offRoute,hasFuture:tail.length>1};
 }
 function trackSummary(points){
   const accepted=trackSegments(points).flat(),count=accepted.length;
@@ -1113,90 +1147,70 @@ function trackSummary(points){
   const sources=[gps?`${gps} GPS`:'',media?`${media} photo${media>1?'s':''}`:''].filter(Boolean).join(' + ');
   return `${count} repère${count>1?'s':''} (${sources}), ${kmFmt(trackKm(points))} km réels`;
 }
+function drawVehicleTrack(vid,focused,end){
+  const meta=VEHICLES[vid]; if(!meta)return;
+  const pts=vehiclePoints(vid).filter(p=>p.at<=end);
+  // Le marqueur ne vient que du GPS : un média géolocalisé enrichit le tracé
+  // mais ne doit jamais devenir la position courante de la voiture.
+  const real=lastCoherentPoint(vehicleGpsPoints(vid).filter(p=>p.at<=end));
+  const {point,planned}=stateAtDay(real,true);
+  if(focused){
+    addActualPath(pts,meta.color,true);
+    addPlannedFuture(lastTrackPoint(pts)||real,meta.color,
+      {focused:true,...plannedRangeForVehicle(vid),coveredFromKm:coveredKm(point,planned)});
+  }
+  addActualMarker(point,meta.color,meta.label,null,{pulse:focused,faceUrl:meta.face,planned});
+}
 function renderHybridTracks(){
   actualTrackLayer.clearLayers();
   const {kind,id}=subjectParts();
-  const baseTime = new Date(REC[idx].iso).getTime();
-  const maxTime = (idx === REC.length - 1) ? Infinity : baseTime + 24 * 3600 * 1000 - 1;
-  if(kind==='vehicle'){
-    const meta=VEHICLES[id]; if(!meta)return;
-    const allPts=vehiclePoints(id);
-    const lastAll=lastCoherentPoint(allPts);
-    let current;
-    if(baseTime > (lastAll&&lastAll.at ? lastAll.at : 0)){
-      current = posAt(idx).pt;
-    }else{
-      current = lastCoherentPoint(allPts.filter(p=>p.at<=maxTime));
+  const end=dayWindowEnd();
+  if(kind==='person'){
+    const name=NAME_BY_ID.get(id);
+    if(name){
+      const pts=personPoints(name).filter(p=>p.at<=end);
+      const real=currentForPerson(name,end);
+      const {point,planned}=stateAtDay(real,onboardAt(name,idx));
+      const color=colorOf(name),range=plannedRangeForPerson(name);
+      addActualPath(pts,color,true);
+      if(range)addPlannedFuture(lastTrackPoint(pts)||real,color,
+        {focused:true,...range,coveredFromKm:coveredKm(point,planned)});
+      addActualMarker(point,color,name,name,{pulse:true,planned});
     }
-    const pts=allPts.filter(p=>p.at<=maxTime);
-    const routeEnd=lastTrackPoint(pts);
-    addActualPath(pts,meta.color,true);
-    addActualMarker(current,meta.color,meta.label,null,true,meta.face);
-    const range=plannedRangeForVehicle(id, maxTime);
-    if(range)addPlannedFuture(routeEnd||current,meta.color,maxTime,{focused:true,...range});
-  }else if(kind==='person'){
-    const name=NAME_BY_ID.get(id); if(!name)return;
-    const allPts=personPoints(name);
-    const lastAll=currentForPerson(name, Infinity);
-    let current;
-    if(baseTime > (lastAll&&lastAll.at ? lastAll.at : 0)){
-      current = posAt(idx).pt;
-    }else{
-      current = currentForPerson(name, maxTime);
-    }
-    const pts=allPts.filter(p=>p.at<=maxTime);
-    const routeEnd=lastTrackPoint(pts);
-    const color=colorOf(name);
-    addActualPath(pts,color,true); addActualMarker(current,color,name,name,true);
-    const range=plannedRangeForPerson(name, maxTime);
-    if(range)addPlannedFuture(routeEnd||current,color,maxTime,{focused:true,...range});
-  }else{
-    // overview
-    Object.entries(VEHICLES).forEach(([vid,v])=>{
-      const allPts=vehiclePoints(vid);
-      const lastAll=lastCoherentPoint(allPts);
-      let current;
-      if(baseTime > (lastAll&&lastAll.at ? lastAll.at : 0)){
-        current = posAt(idx).pt;
-      }else{
-        current = lastCoherentPoint(allPts.filter(p=>p.at<=maxTime));
-      }
-      const pts=allPts.filter(p=>p.at<=maxTime);
-      const routeEnd=lastTrackPoint(pts);
-      addActualPath(pts,v.color,false); 
-      addActualMarker(current,v.color,v.label,null,false,v.face);
-      const range=plannedRangeForVehicle(vid, maxTime);
-      if(range)addPlannedFuture(routeEnd||current,v.color,maxTime,{focused:false,...range});
-    });
+  }else if(kind==='vehicle'){
+    drawVehicleTrack(id,true,end);
   }
-
-  // Draw markers for all OTHER vehicles (if not in overview mode)
-  if (kind !== 'overview') {
-    Object.entries(VEHICLES).forEach(([vid,v])=>{
-      if (kind === 'vehicle' && vid === id) return; // already drawn
-      const allPts=vehiclePoints(vid);
-      const lastAll=lastCoherentPoint(allPts);
-      let current;
-      if(baseTime > (lastAll&&lastAll.at ? lastAll.at : 0)){
-        current = posAt(idx).pt;
-      }else{
-        current = lastCoherentPoint(allPts.filter(p=>p.at<=maxTime));
-      }
-      addActualMarker(current,v.color,v.label,null,false,v.face);
-    });
-  }
+  // Les autres voitures restent visibles, en discret : suivre un sujet ne doit
+  // pas faire perdre de vue où est l'autre équipage.
+  Object.keys(VEHICLES).forEach(vid=>{
+    if(kind==='vehicle'&&vid===id)return;
+    drawVehicleTrack(vid,false,end);
+  });
 }
 function photoVisible(g){
+  const {kind,id}=subjectParts();
+  const identity=mediaIdentity(g);
+  // Voyage dans le temps : un média pris après le jour affiché n'existe pas
+  // encore sur la carte.
+  if(identity.at&&identity.at>dayWindowEnd())return false;
+  // Un média sans identité (fichier Drive anonyme) ou antérieur au départ
+  // appartient au convoi : il reste visible quel que soit le sujet choisi,
+  // sinon plus aucune vue ne l'afficherait depuis la suppression de « Convoi ».
+  if(!identity.name||identity.at<TRIP_START_MS)return true;
+  if(kind==='vehicle')return identity.vehicleId===id;
+  if(kind==='person')return identity.name===NAME_BY_ID.get(id);
   return true;
 }
 function visibleGalleryIndices(){
   return GALLERY.map((g,i)=>({g,i})).filter(x=>x.g.lat!=null&&photoVisible(x.g)).map(x=>x.i);
 }
-function rebuildLivePositions(){
-  Object.keys(livePositions).forEach(k=>delete livePositions[k]);
-  ACTIVE_NAMES.forEach(name=>{const p=currentForPerson(name);if(p)livePositions[name]=p;});
-  refreshFaces(); renderHybridTracks();
-  if(ficheFor){render();renderObs();}
+// Point d'entrée des listeners Firebase : les positions sont recalculées à la
+// demande depuis les points acceptés, il n'y a plus de cache intermédiaire à
+// tenir à jour. `render()` redessine déjà traces et visages ; on ne l'appelle
+// qu'une fois pour ne pas reconstruire les couches Leaflet deux fois.
+function refreshLiveLayers(){
+  if(ficheFor){render();renderObs();return;}
+  renderHybridTracks(); refreshFaces();
 }
 function mapFocusInsets(){
   const mapRect=map.getContainer().getBoundingClientRect();
@@ -1217,31 +1231,29 @@ function focusBounds(bounds,maxZoom){
   map.flyToBounds(bounds,{paddingTopLeft:[insets.left,insets.top],paddingBottomRight:[insets.right,insets.bottom],
     maxZoom,duration:.75});
 }
+// Choisir un sujet cadre sur SA position au jour affiché, à un zoom stable
+// (13 pour une personne, 11 pour une voiture) : repartir du zoom courant
+// laissait le sujet suivant coincé au zoom 18 du précédent. Sans aucun point,
+// on cadre la portion d'itinéraire qui le concerne — jamais celle d'un autre.
 function focusTrackSubject(){
   const {kind,id}=subjectParts();
+  const end=dayWindowEnd();
   if(kind==='person'){
-    const name=NAME_BY_ID.get(id);
-    if(name){
-      const pts=personPoints(name);
-      if(pts.length>1) focusBounds(L.latLngBounds(pts.map(p=>[p.lat,p.lng])),10);
-      else if(pts.length===1) focusPoint(pts[0],10);
-      else{
-        const range=plannedRangeForPerson(name),ll=range&&routeSlice(range.startKm,range.endKm);
-        if(ll&&ll.length>1)focusBounds(ll,8);
-      }
-    }
+    const name=NAME_BY_ID.get(id); if(!name)return;
+    const {point}=stateAtDay(currentForPerson(name,end),onboardAt(name,idx));
+    if(point){focusPoint(point,13);return;}
+    const range=plannedRangeForPerson(name),ll=range&&routeSlice(range.startKm,range.endKm);
+    if(ll&&ll.length>1)focusBounds(ll,8);
     return;
   }
   if(kind==='vehicle'){
-    const pts=vehiclePoints(id);
-    if(pts.length>1) focusBounds(L.latLngBounds(pts.map(p=>[p.lat,p.lng])),10);
-    else if(pts.length===1) focusPoint(pts[0],10);
-    else focusBounds(latlngs,7);
+    const {point}=stateAtDay(lastCoherentPoint(vehicleGpsPoints(id).filter(p=>p.at<=end)),true);
+    if(point){focusPoint(point,11);return;}
+    const range=plannedRangeForVehicle(id),ll=range&&routeSlice(range.startKm,range.endKm);
+    focusBounds(ll&&ll.length>1?ll:latlngs,ll&&ll.length>1?8:7);
     return;
   }
-  const pts=[...vehiclePoints('hugodouard'),...vehiclePoints('paul-pot')];
-  if(pts.length)focusBounds(L.latLngBounds(pts.map(p=>[p.lat,p.lng])),10);
-  else focusBounds(latlngs,7);
+  focusBounds(latlngs,7);
 }
 function setTrackSubject(subject,focus=true){
   trackSubject=subject;
@@ -1277,32 +1289,24 @@ function setTrackMenu(open){
 }
 function setupTrackControls(){
   const el=document.getElementById('track-subjects');
-  const overview=[...Object.entries(VEHICLES).map(([id,v])=>({subject:`vehicle:${id}`,label:v.label,color:v.color,icon:v.short,face:v.face}))];
-  const people=ACTIVE_NAMES.map(name=>({subject:`person:${slug(name)}`,label:name,color:colorOf(name),icon:name[0],face:(PHOTOS.faces||{})[name]}));
-  const choice=(b)=>`<button class="track-choice" data-subject="${b.subject}"
+  const personChoice=name=>({subject:`person:${slug(name)}`,label:name,color:colorOf(name),
+    icon:name[0],face:(PHOTOS.faces||{})[name]});
+  const choice=b=>`<button class="track-choice" data-subject="${b.subject}"
     role="option" aria-selected="${b.subject===trackSubject}" style="--subject-color:${b.color}">${avatarMarkup(b,'track-choice-avatar')}<span class="track-choice-name">${esc(b.label)}</span></button>`;
+  const carColumn=([id,v])=>`<div class="track-car-col">
+      <div class="track-menu-label">Voiture ${v.car}</div>
+      ${choice({subject:`vehicle:${id}`,label:v.label,color:v.color,icon:v.short,face:v.face})}
+      <div class="track-menu-label">Personnes</div>
+      ${(v.roster||[]).filter(n=>ACTIVE_NAMES.includes(n)).map(n=>choice(personChoice(n))).join('')}
+    </div>`;
+  const obs=(CFG.observateurs||[]).filter(n=>ACTIVE_NAMES.includes(n));
   const initial=subjectDescriptor();
-  const c1peeps = people.filter(p => CAR1.includes(p.label));
-  const c2peeps = people.filter(p => CAR2.includes(p.label));
-  const obs = people.filter(p => (CFG.observateurs||[]).includes(p.label));
   el.innerHTML=`<button class="track-picker-toggle" id="track-picker-toggle" type="button" aria-haspopup="listbox" aria-expanded="false">
       ${avatarMarkup(initial,'track-picker-avatar')}<span class="track-picker-copy"><small>Trace affichée</small><span class="track-picker-current">${esc(initial.label)}</span></span><span class="track-picker-chevron">⌄</span></button>
     <div class="track-menu" id="track-menu" role="listbox" aria-label="Trace affichée" hidden>
-      <div style="display:flex; gap:10px;">
-        <div style="flex:1; display:flex; flex-direction:column; gap:5px;">
-          <div class="track-menu-label" style="margin-bottom:0; text-transform:uppercase;">Voiture 1</div>
-          ${overview[0] ? choice(overview[0]) : ''}
-          <div class="track-menu-label" style="margin-top:6px; margin-bottom:0; text-transform:uppercase;">Personnes</div>
-          ${c1peeps.map(choice).join('')}
-        </div>
-        <div style="flex:1; display:flex; flex-direction:column; gap:5px;">
-          <div class="track-menu-label" style="margin-bottom:0; text-transform:uppercase;">Voiture 2</div>
-          ${overview[1] ? choice(overview[1]) : ''}
-          <div class="track-menu-label" style="margin-top:6px; margin-bottom:0; text-transform:uppercase;">Personnes</div>
-          ${c2peeps.map(choice).join('')}
-        </div>
-      </div>
-      ${obs.length ? `<div class="track-menu-label" style="margin-top:10px; text-transform:uppercase;">Observateurs</div><div class="track-people-grid">${obs.map(choice).join('')}</div>` : ''}
+      <div class="track-cars">${Object.entries(VEHICLES).map(carColumn).join('')}</div>
+      ${obs.length?`<div class="track-menu-label">Observateurs</div>
+      <div class="track-people-grid">${obs.map(n=>choice(personChoice(n))).join('')}</div>`:''}
     </div>`;
   el.addEventListener('click',e=>{
     if(e.target.closest('#track-picker-toggle')){setTrackMenu(document.getElementById('track-menu').hidden);return;}
@@ -1333,39 +1337,25 @@ function refreshPhotos(){
 function refreshFaces(){
   faceCluster.clearLayers();
   const markers = [];
-  const baseTime = REC[idx] ? new Date(REC[idx].iso).getTime() : 0;
-  const maxTime = (idx === REC.length - 1) ? Infinity : baseTime + 24 * 3600 * 1000 - 1;
-
+  const end=dayWindowEnd();
+  const subject=subjectParts();
   ACTIVE_NAMES.forEach(name => {
     // Ignore positions left by people no longer present in the current roster.
     if(!CAR1.includes(name)&&!CAR2.includes(name)&&!(CFG.observateurs||[]).includes(name))return;
-    const subject=subjectParts();
-    if(subject.kind==='person' && name===NAME_BY_ID.get(subject.id)){
-      return; // le marqueur pulsant exact est déjà dans actualTrackLayer
-    }
-    
-    // Check if the person is on the trip at all at this date
-    let isOnTrip = false;
-    if (REC[idx]) {
-      const s1 = REC[idx].car1[name], s2 = REC[idx].car2[name];
-      if (s1 === 'present' || s1 === 'tentative' || s2 === 'present' || s2 === 'tentative') isOnTrip = true;
-    }
-    if (!isOnTrip && !(CFG.observateurs||[]).includes(name)) return;
-    
-    const allPts=personPoints(name);
-    const lastAll=currentForPerson(name, Infinity);
-    let p;
-    if(baseTime > (lastAll&&lastAll.at ? lastAll.at : 0)){
-      p = posAt(idx).pt;
-    }else{
-      p = currentForPerson(name, maxTime);
-    }
-    if(!p) return;
-
+    // Le marqueur pulsant exact du sujet suivi est déjà dans actualTrackLayer.
+    if(subject.kind==='person'&&name===NAME_BY_ID.get(subject.id))return;
+    // Un observateur n'est pas sur l'itinéraire : il n'apparaît que s'il a une
+    // vraie position, jamais interpolé sur le trajet du convoi.
+    const onboard=onboardAt(name,idx);
+    const {point:p,planned}=stateAtDay(currentForPerson(name,end),onboard);
+    if(!p)return;
+    if(!onboard&&!(CFG.observateurs||[]).includes(name))return;
     const face = (PHOTOS.faces || {})[name];
+    const cls=`map-face${planned?' planned':''}`;
+    const title=planned?`${name} — position prévue`:name;
     const html = face
-      ? `<div class="map-face" style="--fc:${colorOf(name)};background-image:url('${face}')"></div>`
-      : `<div class="map-face" style="--fc:${colorOf(name)}">${name[0] || '?'}</div>`;
+      ? `<div class="${cls}" style="--fc:${colorOf(name)};background-image:url('${face}')" title="${esc(title)}"></div>`
+      : `<div class="${cls}" style="--fc:${colorOf(name)}" title="${esc(title)}">${name[0] || '?'}</div>`;
     const m = L.marker([p.lat, p.lng], { pileImg: face, pileFc: colorOf(name), pileInit: name[0],
       icon: L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 37], html }) });
     m.on('click', () => openFicheFor(name));
@@ -1400,7 +1390,7 @@ refreshPhotos(); refreshFaces();
           accuracyM:d.accuracyM!=null&&Number.isFinite(Number(d.accuracyM))?Number(d.accuracyM):null,
           vehicleId:null,mode:'legacy',source:'legacy'};
       });
-      rebuildLivePositions();
+      refreshLiveLayers();
     },liveError('positions v1'));
 
     // Historique v1 : ces sous-collections ne portent que personne/lat/lng/at.
@@ -1415,7 +1405,7 @@ refreshPhotos(); refreshFaces();
           if(p&&p.at>=TRIP_START_MS)points.push(p);
         });
         legacyTrackDocs.set(name,points);
-        invalidateTracks();rebuildLivePositions();
+        invalidateTracks();refreshLiveLayers();
       },liveError(`traces v1 ${name}`));
     });
 
@@ -1427,7 +1417,7 @@ refreshPhotos(); refreshFaces();
         if(p&&p.at>=TRIP_START_MS)latestPositions[p.name]={...p,source:'gps-v2'};
       });
       invalidateTracks();
-      rebuildLivePositions();
+      refreshLiveLayers();
     },liveError('positions v2'));
     fs.onSnapshot(fs.collection(db,'trips',TRIP_ID,'trackChunks'),snap=>{
       const readChunk=doc=>{
@@ -1442,7 +1432,7 @@ refreshPhotos(); refreshFaces();
       invalidateTracks();
       // Un chunk peut arriver avant/à la place de `latest`; reconstruire aussi
       // les têtes courantes et le fallback personnel, pas seulement la ligne.
-      rebuildLivePositions();
+      refreshLiveLayers();
     },liveError('traces v2'));
 
     // La collection média reste compatible v1. Les nouveaux documents v2
@@ -1468,7 +1458,7 @@ refreshPhotos(); refreshFaces();
           capturedAtMs:captured,locationSource:d.locationSource||'',car:d.car,
           mode:d.mode||(capturedVehicle?'vehicle':'independent'),vehicleIdAtCapture:capturedVehicle});
       });
-      invalidateTracks();rebuildLivePositions();
+      invalidateTracks();refreshLiveLayers();
     },liveError('médias'));
 
     // PV live envoyés par l'appli -> écrasent les PV du Sheet (source unique)
@@ -1553,12 +1543,24 @@ function ficheHTML(name,color){
   }else rows.push(['Statut',isObs?'suit depuis la maison':'jamais à bord (pour l’instant)']);
   if(r.tel)rows.push(['Téléphone',`<a href="tel:${r.tel.replace(/[^+0-9]/g,'')}">${r.tel}</a>`]);
   if(r.note)rows.push(['Note',r.note]);
-  const lp=currentForPerson(name),real=personPoints(name),rejected=rejectedLatestForPerson(name);
+  // La fiche lit la même fenêtre temporelle que la carte : reculer dans la
+  // frise ne doit pas afficher une position que le marqueur ne montre pas.
+  const end=dayWindowEnd();
+  const lp=currentForPerson(name,end),real=personPoints(name).filter(p=>p.at<=end);
+  const rejected=end===Infinity?rejectedLatestForPerson(name):null;
+  const shown=stateAtDay(lp,onboardAt(name,idx));
+  if(shown.planned)rows.push(['Sur la carte',`position <b>prévue</b> le ${REC[idx].date} · pas de GPS ce jour-là`]);
   if(lp){
     const move=lp.vehicleId&&VEHICLES[lp.vehicleId]?`dans ${VEHICLES[lp.vehicleId].label}`:
       (lp.mode==='independent'?'à pied / autre':String(lp.mode).startsWith('legacy')?'ancienne application':'hors voiture');
     rows.push(['Au dernier point GPS',move]);
     rows.push(['Dernière position fiable',`${lp.lat.toFixed(4)}, ${lp.lng.toFixed(4)}${lp.at?` · ${ageMarkup(lp.at)}`:''}${lp.accuracyM!=null?` · ±${Math.round(lp.accuracyM)} m`:''}`]);
+    // L'alerte « hors itinéraire » vivait dans la barre de statut de la carte,
+    // supprimée avec la légende. Elle reste utile : la fiche est sa nouvelle
+    // place, sans réencombrer la carte.
+    const gap=projectOnPlannedRoute(lp);
+    if(gap&&gap.distanceKm>OFF_ROUTE_WARNING_KM)
+      rows.push(['Écart au plan',`${kmFmt(gap.distanceKm)} km de l’itinéraire prévu`]);
   }
   if(rejected){
     rows.push(['Dernier fix écarté',`${rejected.reason}${rejected.point.at?` · ${ageMarkup(rejected.point.at)}`:''} · non affiché`]);
@@ -1862,10 +1864,13 @@ function render(){
   const P=posAt(idx);
   const AL=LEGS[P.legIdx], lpts=[];
   if(!AL.stay){
-    const globalProgress = currentTripProgressKm();
-    const start = Math.max(ROUTE_KM[AL.ri0], globalProgress);
-    const end = ROUTE_KM[AL.ri1];
-    if (start < end) lpts.push(...routeSlice(start, end));
+    // On ne surligne que la portion de l'étape encore à parcourir AU JOUR
+    // AFFICHÉ. La borne vient du planning lui-même, pas du GPS : la frise est
+    // une lecture du prévu et ne doit pas dépendre de l'avance réelle d'une
+    // des deux voitures.
+    const start=Math.max(ROUTE_KM[AL.ri0],routeProgressAtRecord(idx));
+    const end=ROUTE_KM[AL.ri1];
+    if(start<end)lpts.push(...routeSlice(start,end));
   }
   legLine.setLatLngs(lpts);
   legLine.setStyle({color:DIFF_COLOR(legMeta(P.legIdx).diff)});
@@ -1879,8 +1884,8 @@ function render(){
   document.getElementById('s-pax').textContent=paxCount(rec);
   document.getElementById('s-day').textContent=`${idx+1} / ${REC.length}`;
   odoSet(document.getElementById('s-km'),traveledKm(P));
-  renderHybridTracks();
-  refreshFaces();
+  // La frise pilote la carte : traces, visages et médias suivent le jour choisi.
+  renderHybridTracks(); refreshFaces(); refreshPhotos();
   carsEl.innerHTML=renderCar(1,rec)+'<div style="height:14px"></div>'+renderCar(2,rec);
   // active leg: highlight card + keep it visible in the slider
   const li=P.legIdx;
@@ -1903,27 +1908,45 @@ window.addEventListener('pagehide',stopAgoRefresh);
 startAgoRefresh();
 // initial fit to whole route
 map.fitBounds(latlngs,{padding:[50,50]});
-const localToday=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().split('T')[0];
+// La frise s'ouvre sur aujourd'hui : le carnet sert d'abord à savoir où en est
+// le convoi maintenant. Avant le départ on reste au premier jour, après
+// l'arrivée au dernier.
 let initialIdx=0;
-for(let i=0;i<REC.length;i++){ if(REC[i].iso<=localToday)initialIdx=i; else break; }
+for(let i=0;i<REC.length;i++){ if(REC[i].iso<=TODAY_ISO)initialIdx=i; else break; }
 setIndex(initialIdx);
 window.addEventListener('resize',()=>map.invalidateSize());
-const handle=document.getElementById('panel-handle');
-if(handle){
-  let startY,startH;
-  handle.addEventListener('touchstart',e=>{
-    startY=e.touches[0].clientY;
-    let curr=document.querySelector('.app').style.getPropertyValue('--map-h');
-    startH=curr?parseFloat(curr):38;
-  },{passive:true});
-  handle.addEventListener('touchmove',e=>{
-    if(!startY)return;
-    const dy=e.touches[0].clientY-startY;
-    let newH=startH+(dy/window.innerHeight*100);
-    document.querySelector('.app').style.setProperty('--map-h',Math.max(15,Math.min(85,newH))+'vh');
+
+// ---- poignée du panneau mobile ------------------------------------------
+// Tirer la poignée règle la hauteur de la carte (`--map-h`). Pointer Events
+// couvrent doigt, stylet et souris d'un seul jeu d'écouteurs, et la capture
+// garde le geste même si le doigt sort de la poignée. `invalidateSize()` est
+// coûteux : on le reporte à la frame suivante plutôt qu'à chaque mouvement.
+const panelHandle=document.getElementById('panel-handle');
+if(panelHandle&&window.PointerEvent){
+  const app=document.querySelector('.app');
+  const MIN_VH=15,MAX_VH=85,DEFAULT_VH=38;
+  let pointerId=null,startY=0,startVh=DEFAULT_VH,frame=null;
+  const currentVh=()=>parseFloat(app.style.getPropertyValue('--map-h'))||DEFAULT_VH;
+  panelHandle.addEventListener('pointerdown',e=>{
+    if(pointerId!==null)return;
+    pointerId=e.pointerId; startY=e.clientY; startVh=currentVh();
+    panelHandle.setPointerCapture(pointerId);
+    panelHandle.style.cursor='grabbing';
+  });
+  panelHandle.addEventListener('pointermove',e=>{
+    if(e.pointerId!==pointerId)return;
+    const vh=startVh+(e.clientY-startY)/window.innerHeight*100;
+    app.style.setProperty('--map-h',Math.max(MIN_VH,Math.min(MAX_VH,vh))+'vh');
+    if(frame===null)frame=requestAnimationFrame(()=>{frame=null;map.invalidateSize();});
+  });
+  const release=e=>{
+    if(e.pointerId!==pointerId)return;
+    if(panelHandle.hasPointerCapture(pointerId))panelHandle.releasePointerCapture(pointerId);
+    pointerId=null; panelHandle.style.cursor='';
     map.invalidateSize();
-  },{passive:true});
-  handle.addEventListener('touchend',()=>startY=null);
+  };
+  panelHandle.addEventListener('pointerup',release);
+  panelHandle.addEventListener('pointercancel',release);
 }
 </script>
 </body>

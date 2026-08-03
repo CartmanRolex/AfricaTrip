@@ -13,10 +13,17 @@ CDNs, so it needs an internet connection to render the map.
 The map presents one hybrid route instead of separate planned/actual modes. For
 each car, the GPS path already covered is solid and only the remaining Sheet
 itinerary is dashed; a car with no GPS data keeps the full planned route. The
-two cars retain separate colours and can be filtered independently. Selecting
-a traveler highlights only that person's own route and flies to their latest
-reliable position; the timestamp remains visible so an old point is never
-presented as fresh.
+two cars retain separate colours and can be filtered independently, and the
+other car always keeps a discreet marker so you never lose sight of it.
+Selecting a traveler highlights only that person's own route and flies to their
+position for the displayed day; the timestamp remains visible so an old point is
+never presented as fresh.
+
+**Sliding the timeline moves the map through time.** Tracks, faces and photos
+are limited to what was known at the end of the selected day. Pick a day still
+to come and the site shows where each subject is *planned* to be — always drawn
+with a dashed outline and labelled "position prévue", never disguised as a real
+GPS fix.
 
 ## Download the Android app
 
@@ -165,10 +172,12 @@ layout, behaviour), edit `src/template.html` and re-run `build.py`.
   `location` (carried forward), `cap1`/`cap2`/`total`, and `car1`/`car2` maps of
   `person -> state`.
 - `state` is one of `present` (●), `unknown` (?), `tentative` (○), `absent` (blank).
-- `route[]` — ordered waypoints `{name, lat, lng}` from the Config tab. Nine
+- `route[]` — ordered waypoints `{name, lat, lng}` from the Config tab. Seven
   carry a `cp` field and are the official checkpoints matched against the sheet
-  (SUISSE, MALAGA, ALGECIRAS, DAKHLA, DAKAR, CONAKRY, ABIDJAN, ACCRA, LOMÉ);
-  the rest are intermediate points so the drawn line follows roads/coast.
+  (SUISSE, MALAGA, ALGECIRAS, DAKHLA, DAKAR, CONAKRY, FREETOWN); the rest are
+  intermediate points so the drawn line follows roads/coast. The Config tab
+  still lists the abandoned Abidjan/Accra/Lomé continuation — `terminus` in
+  `src/site-overrides.json` cuts the plan after Conakry at build time.
 - `car1`/`car2` — roster arrays. `cars` — display metadata (name, emoji, colour).
 - `config` — the parsed Config tab (`textes`, `checkpoints`, `route`, `couleurs`,
   `etapes`, `rpg`, `rpgVoitures`, `danger`), consumed by the front-end.
@@ -189,12 +198,14 @@ All logic is vanilla JS in one `<script>` at the bottom:
 ## Notes / assumptions to revisit
 
 - "SUISSE" was placed at Geneva; intermediate waypoints (Spain, Morocco,
-  Mauritania, Guinea, Côte d'Ivoire, Ghana) are plausible guesses, not confirmed
-  stops. Correct coordinates in the sheet's Config tab (`## route` section);
-  the `ROUTE` constant in `src/parse_csv.py` is only a fallback.
-- The October continuation (Dakar → Conakry → Abidjan → Accra → Lomé) is an
-  arbitrary scenario: dates, crew changes and difficulty levels are inventions
-  to be refined in the sheet.
+  Mauritania, Guinea) are plausible guesses, not confirmed stops. Correct
+  coordinates in the sheet's Config tab (`## route` section); the `ROUTE`
+  constant in `src/parse_csv.py` is only a fallback.
+- The September continuation (Dakar → Conakry → Freetown) is a scenario: dates,
+  crew changes and difficulty levels are still to be refined in the sheet. The
+  Conakry → Freetown segment is a single straight waypoint pair — add
+  intermediate points in the Config tab if the drawn line should follow the
+  coast like the rest of the route.
 - Crew composition changes *within* legs (e.g. Malen→Edouard around Dakhla,
   Arthur leaves at Dakar, several go unconfirmed in September), which is why the
   seats update per day rather than per leg.

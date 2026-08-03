@@ -27,13 +27,21 @@ hidden); the seats grid stays 2 columns but the seat cards compact
 (smaller padding/chip/fonts, 42 px HP bar). When zoomed out on mobile
 (`body.danger-far`) the danger stickers shrink to 38 % (vs 62 % desktop)
 and the deco camels hide entirely, so they don't bury the small map.
+On mobile the bottom sheet is **resizable**: `.panel-handle` (hidden on
+desktop by a base `display:none`) drags the `--map-h` custom property between
+15 vh and 85 vh. It uses Pointer Events with pointer capture, so the gesture
+survives the finger leaving the handle, and `map.invalidateSize()` is deferred
+to the next animation frame instead of firing on every move.
+
 The centered `.map-toolbar` overlays the top of the map on both breakpoints;
-there is deliberately no Prévu/Réel/Comparer switch. A compact **Trace
-affichée** picker replaces the former 720 px button rail: its popover groups
-both cars and avatar-backed people, keeps one `aria-selected` choice,
-and closes after selection/outside/Escape. On mobile the toolbar starts after Leaflet's zoom
-control and the status may wrap onto two readable lines without widening the
-page.
+there is deliberately no Prévu/Réel/Comparer switch, **no legend and no status
+line** (they were removed to give the small map back its room — the
+per-traveler details they carried now live in the fiche). A compact **Trace
+affichée** picker replaces the former 720 px button rail: the popover is a
+`.track-cars` two-column grid, one `.track-car-col` per vehicle holding that
+car's button then its own crew, followed by an Observateurs row. It keeps one
+`aria-selected` choice and closes after selection/outside/Escape. Styling is in
+the stylesheet, not inline on the generated markup.
 
 Key JS structures (all near the top of the script):
 - `DATA.records` — one entry per day: `{date, iso, checkpoint, location,
@@ -48,9 +56,11 @@ Key JS structures (all near the top of the script):
   Fallbacks are minimal — edit the sheet, not the JS.
 - `DATA.route` — polyline points `{lat,lng, cp?}` (Config `## route`);
   points with `cp` are checkpoints (SUISSE, MALAGA, ALGECIRAS, DAKHLA,
-  DAKAR, CONAKRY, ABIDJAN, ACCRA, LOMÉ).
+  DAKAR, CONAKRY, **FREETOWN**). The Sheet still carries the abandoned
+  Abidjan/Accra/Lomé continuation; `terminus` in `site-overrides.json` cuts it
+  after Conakry at build time.
 - `LEGS` — derived legs between checkpoints (`s`/`e` = record indices,
-  `ri0`/`ri1` = route indices; last leg is the open-ended stay at Lomé).
+  `ri0`/`ri1` = route indices; last leg is the open-ended stay at Freetown).
 - `LEG_META` — per-leg theme emoji + difficulty 1-5 + label (◆ pips,
   color-coded green/amber/red via `DIFF_COLOR`, hex on purpose: reused as
   SVG stroke on the map where `var()` doesn't work).
@@ -131,14 +141,29 @@ Key JS structures (all near the top of the script):
   `<span>`s inside `.stat`, so ALL THREE classes (`.odo-d`, `.odo-r`,
   `.odo-sep`) must override `.stat span` (9.5px, muted) — forgetting the
   reel alone silently shrinks everything it contains.
+- **The timeline drives the whole map** (`dayWindowEnd()`, `dayIsFuture()`,
+  `stateAtDay()`): scrubbing is time travel. `render()` calls
+  `renderHybridTracks()`, `refreshFaces()` and `refreshPhotos()`, and every one
+  of them only keeps what was known by the **end of the selected local day**
+  (the last record stays open-ended at `Infinity` so live points appear at
+  once). `stateAtDay(realPoint, onPlan)` is the single rule for "where is this
+  subject that day": past and present use the last accepted GPS point; a future
+  day — or a day with no reality at all — falls back to the **planned**
+  interpolated position and returns `planned:true`. That flag is what keeps the
+  promise that the site never passes an invented position off as a real one:
+  `.track-now.planned` / `.map-face.planned` draw a dashed outline, drop the
+  pulse and say "position prévue" in `title`/`aria-label`, and the fiche adds a
+  "Sur la carte" row. An observer is never placed on the route (`onPlan` false)
+  because they are not travelling.
 - Planning rendering in `render()`: the timeline is explicitly labelled
-  **prévu** and never moves a real marker or paints a fake travelled line.
-  `legLine` discreetly highlights only the selected planned leg (animated
-  dashes via `.leg-flow` CSS) with its difficulty colour; `leg-chip` shows the
-  label/pips at the leg midpoint. Numbered `cp-badge` milestones stay neutral
-  because two real cars may have different progress; name pills hide below
-  zoom 5 via `body.danger-far`. The final selected planning leg still shows the
-  editorial "open route" zone/label, without a synthetic convoy marker.
+  **prévu**. `legLine` highlights the selected leg (animated dashes via
+  `.leg-flow` CSS) with its difficulty colour, clipped to the part still ahead
+  **at the displayed day** — the bound comes from `routeProgressAtRecord(idx)`,
+  i.e. from the plan itself, never from one car's real GPS progress.
+  `leg-chip` shows the label/pips at the leg midpoint. Numbered `cp-badge`
+  milestones stay neutral because two real cars may have different progress;
+  name pills hide below zoom 5 via `body.danger-far`. The final selected
+  planning leg still shows the editorial "open route" zone/label.
 - The Étapes list is a horizontal scroll-snap slider (`.legs`), ‹ › buttons
   (`#legs-prev/next`), and `render()` auto-scrolls the active card into view.
   An Étape is always planned data: clicking one changes the planning timeline
@@ -148,29 +173,41 @@ Key JS structures (all near the top of the script):
   record index whose `posAt()` position is closest (equirectangular metric)
   and calls `setIndex()`. The numbered `cp-badge` circles are clickable too
   (jump to that checkpoint's arrival day; the name pill stays click-through).
-- **One hybrid map truth** (`renderHybridTracks()`): `plannedLayer` contains
-  only editorial context (selected leg, neutral checkpoints, dangers/deco,
-  clickable route and open-zone annotation). `actualTrackLayer` draws, for
-  each selected car, the accepted GPS history as a solid car-coloured line and
-  only the remaining planned suffix as a dashed line. With zero points the
-  whole plan is dashed. `projectOnPlannedRoute()` uses local equirectangular
-  projection plus cumulative-distance tie-breaking, not the inconsistent
-  calendar year, to find the suffix from the latest reliable point. The
-  dashed line now seamlessly starts from the last reliable GPS point to connect
-  to the planned route, creating a smooth visual interpolation. The
-  route data is sparse, so the explicit off-itinerary warning starts only at
-  150 km. Complementary `dashOffset`s keep both cars visible over their shared
-  future. `actualTrackPane` and
+- **One hybrid map truth** (`renderHybridTracks()`, `drawVehicleTrack()`):
+  `plannedLayer` contains only editorial context (selected leg, neutral
+  checkpoints, dangers/deco, clickable route and open-zone annotation).
+  `actualTrackLayer` draws the focused subject's accepted GPS history as a
+  solid coloured line plus the remaining planned suffix as a dashed line; with
+  zero points the whole plan is dashed. **Both cars always get a marker** —
+  the focused one pulses, the other stays `quiet` — so following one crew never
+  hides where the other is. A car's marker comes from `vehicleGpsPoints()`
+  only: a geolocated photo enriches the *line* but must never become the
+  vehicle's current position.
+  `addPlannedFuture()` starts the dashed tail at
+  `max(plannedRangeStart, coveredFromKm, projection)`; `coveredKm()` is
+  **per subject** (its own projection, or the day's planned progress when the
+  shown position is planned). Taking the max over both cars, as the 03/08 pass
+  did, amputated the slower car's future by the faster one's lead.
+  `projectOnPlannedRoute()` uses local equirectangular projection plus
+  cumulative-distance tie-breaking to find that suffix. The thin dotted
+  connector between a real point and the plan is drawn **only** when the point
+  is within `MAX_PLAN_CONNECTOR_KM`; beyond that it is dropped rather than
+  inventing a misleading diagonal. Route data is sparse, so the off-itinerary
+  warning starts at 150 km and is reported in the fiche ("Écart au plan"),
+  the toolbar status line being gone. Complementary `dashOffset`s keep both
+  cars visible over their shared future. `actualTrackPane` and
   `actualMarkerPane` keep hybrid lines and current markers above context.
-- **Subject filters** (`trackSubject`, `setTrackSubject()`): either
-  vehicle button renders only that derived vehicle hybrid; a person
-  button renders only that person's own accepted points plus the remaining
-  part of their planned presence range. Person buttons come from deduplicated
-  `ACTIVE_NAMES` (both cars plus observers). The picker uses native buttons,
-  focus styles and listbox semantics. Choosing a different picker subject
-  closes any stale fiche; opening a fiche selects the matching person.
-  Precise filters include v2 media plus attributable v1 media from the trip
-  period.
+- **Subject filters** (`trackSubject`, `setTrackSubject()`, default
+  `vehicle:hugodouard` — there is no "Convoi" subject any more): a vehicle
+  button renders that derived vehicle hybrid; a person button renders only that
+  person's own accepted points plus the remaining part of their planned
+  presence range. `plannedRangeForVehicle()` is the union of its roster's
+  ranges (`VEHICLES[id].roster`) — the 03/08 pass looked the car's *name* up as
+  a person, always found nothing, and silently deleted both cars' dashed
+  future. Person buttons come from deduplicated `ACTIVE_NAMES` (both cars plus
+  observers). The picker uses native buttons, focus styles and listbox
+  semantics. Choosing a different picker subject closes any stale fiche;
+  opening a fiche selects the matching person.
 - **Actual route model** (`TRIP_ID = "africa-trip-01"`): stable person ids are
   normalized to active display names by `slug()`/`NAME_BY_ID`; coordinates are
   rejected before number coercion when null, blank, non-finite or outside
@@ -202,19 +239,24 @@ Key JS structures (all near the top of the script):
   time uncertainty. `vehicleGpsPoints()`/`personGpsPoints()` remain separate
   from media anchors so current markers never jump to an old photo. Caches are
   also invalidated by v1-track and media snapshots.
-- **Person click = real focus** (`openFicheFor()`): opening any traveler
-  selects that person. With real data, it draws only their own path thick with
-  a soft glow, pulses their portrait at the latest usable GPS point and uses a
-  stable zoom 13 (vehicle 11), offset to the visible map area below the
-  toolbar; the previous zoom can no longer leave the next person stuck at zoom
-  18. Without GPS it fits that person's own
-  confirmed/tentative planned range instead of borrowing another position. A
+- **Person click = real focus** (`openFicheFor()`, `focusTrackSubject()`):
+  opening any traveler selects that person. It draws only their own path thick
+  with a soft glow, pulses their portrait at their position **for the displayed
+  day** (`stateAtDay()`, so the fly-to follows the timeline) and uses a stable
+  zoom 13 (vehicle 11), offset to the visible map area below the toolbar; the
+  previous zoom can no longer leave the next person stuck at zoom 18. Without
+  any position it fits that person's own confirmed/tentative planned range —
+  or, for a vehicle, its roster's range — instead of borrowing another
+  position. A
   usable current point is chosen from accepted GPS evidence and the legacy
   position fallback, never from a media anchor;
   points worse than 250 m or a short impossible latest jump are not used for the
-  marker/zoom. The fiche always prints coordinates/age from that same reliable
-  point and adds a separate `Dernier fix écarté` row for the rejected latest,
-  so it cannot disagree with the map. If only one old v1 position exists the
+  marker/zoom. The fiche reads the **same day window as the map** so the two can
+  never disagree: it prints coordinates/age from that reliable point, adds
+  `Sur la carte` when the shown position is planned, `Écart au plan` beyond
+  150 km, and a `Dernier fix écarté` row for a rejected latest — that last row
+  only at the present, since a rejected "latest" is meaningless in the past.
+  If only one old v1 position exists the
   site shows a position without inventing a historical line; with no GPS at all
   the planned fiche remains and says explicitly that no point was received.
   The wording is historical (`Au dernier point GPS`), because a pause or
@@ -223,8 +265,15 @@ Key JS structures (all near the top of the script):
   timer, stopped on `pagehide`, so ages continue changing without a snapshot or
   timer leak.
 - `GALLERY` starts with shared Drive/build media `[{id, name, date, lat, lng,
-  gps, thumb, file}]` from `fetch_photos.py`. `refreshPhotos()` renders only the
-  indices allowed by the current subject into `photoCluster`; clicking a
+  gps, thumb, file}]` from `fetch_photos.py`. `photoVisible()` keeps a medium
+  when it predates the end of the displayed day AND either belongs to the
+  selected subject or carries no identity at all. **Unattributed Drive files
+  and pre-departure test shots stay visible under every subject**: since the
+  "Convoi" view was removed there is no other place for them, and hiding them
+  everywhere would lose them. (The 03/08 pass solved that by making
+  `photoVisible()` `return true`, which dropped per-subject filtering
+  entirely.) `refreshPhotos()` renders only the allowed
+  indices into `photoCluster`; clicking a
   marker opens the filtered `#lightbox` list, with image/video support,
   captions, date, location provenance and thumbnail fallback. Firebase v2
   media remain in the existing root `photos` collection for compatibility but
@@ -258,9 +307,15 @@ Key JS structures (all near the top of the script):
   - root `crew` remains the live PV source: numeric `pv` overwrites the Sheet
     value in `RPG` and rerenders seats/fiches.
 
-  `livePositions` is rebuilt from the v2/track/legacy priority above and feeds
-  `faceCluster`; `photoCluster` and `faceCluster` remain independent
-  `Leaflet.markercluster` groups. `pileHTML()` draws up to three real
+  Every listener ends on `refreshLiveLayers()`, which simply redraws the map
+  layers (or delegates to `render()` when a fiche is open, so the layers are not
+  rebuilt twice). There is deliberately **no `livePositions` cache**: positions
+  are derived on demand from the accepted points through `currentForPerson()`,
+  so a cache can never disagree with the day window the timeline selected.
+  `refreshFaces()` places every roster member on the trip that day — real point
+  if there is one, planned position otherwise — which is why `photoCluster` and
+  `faceCluster` remain independent `Leaflet.markercluster` groups.
+  `pileHTML()` draws up to three real
   thumbnails/faces in a fan plus a small count, with photos anchored below and
   faces above the same coordinate. Faces are still restricted to current
   car/observer rosters, so stale data cannot resurrect a removed traveler.

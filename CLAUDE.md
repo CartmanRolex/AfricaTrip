@@ -1,10 +1,10 @@
 # Voyage en Afrique — Carnet de route
 
 Interactive one-page site tracking a friends' road trip from Switzerland to
-Dakar (Aug 2 – Sep 30, 2026): a Leaflet map with the route, a day-by-day
-timeline scrubber, and RPG-flavored dashboards for the two cars and their
-crews. Everything is tongue-in-cheek (XP, HP bars, skills, danger zones) —
-keep that tone when adding features.
+Dakar and on to **Freetown** (Aug 2 – Sep 30, 2026): a Leaflet map with the
+route, a day-by-day timeline scrubber, and RPG-flavored dashboards for the two
+cars and their crews. Everything is tongue-in-cheek (XP, HP bars, skills,
+danger zones) — keep that tone when adding features.
 
 ## Golden rules
 
@@ -17,7 +17,13 @@ keep that tone when adding features.
 3. **Never commit `photos/gal.enc`** (unknown encrypted local file,
    git-ignored). Beware of `git add -A photos` — it once picked it up.
 4. The two built HTML files at the root are **generated artifacts** — never
-   edit them by hand (see Build pipeline).
+   edit them by hand (see Build pipeline). Editing `src/template.html` without
+   rebuilding and committing them means the published site does not have your
+   change: that is the single most common way this repo goes stale.
+5. **The repo stays clean.** Never commit `node_modules/`, an APK (GitHub
+   Releases distributes it), a screenshot, or a throwaway script. Debug scripts
+   belong outside the repo — and never paste the private Sheet id/URL into one,
+   it is git-ignored in `.sheet-url` precisely so it never reaches GitHub.
 
 ## Build pipeline (all scripts in `src/`, run from repo root)
 
@@ -40,11 +46,15 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
 - `src/site-overrides.json` is a small, committed final layer applied after
   every Sheet download. It pins the confirmed 2026 trip year/tagline and
   recomputes weekday labels, removes Thomas from the published roster
-  (so car 2 exposes a fourth **Place disponible**) and supplies the formatted
-  phone numbers shown in traveler fiches. `parse_csv.py` also recomputes car
+  (so car 2 exposes a fourth **Place disponible**), supplies the formatted
+  phone numbers shown in traveler fiches, and ends the trip at **Freetown**
+  after Conakry (`terminus`) because the Sheet still describes the abandoned
+  Abidjan/Accra/Lomé continuation. `parse_csv.py` also recomputes car
   capacities/totals after a removal, so stale Sheet formulas cannot count the
   removed column. This exists because Sheet write credentials are not present
   on the build machine; a future `refresh.py` must not undo the published site.
+  Anything of this kind belongs here — **never hardcoded inside
+  `parse_csv.py`**, where a refresh would silently disagree with the docs.
 - `src/gallery.json` (shared trip photos shown as bubbles on the map) is
   produced by `python src/fetch_photos.py`, which pulls new images from the
   shared Google Drive folder (`.drive-folder`, git-ignored), geolocates them
@@ -67,10 +77,17 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
   impossible jump starts a separate section instead of drawing a diagonal.
   The accepted history is solid and only the untravelled suffix of `DATA.route`
   remains dashed. Its endpoint is projected geometrically onto the plan; a very
-  distant point is never joined by a misleading connector. The future dashed
-  line correctly interpolates from the current GPS position directly to the
-  *next scheduled checkpoint/presence* for that subject (ignoring the past road trip).
-  The current face/car marker still comes from GPS rather than from an old uploaded photo.
+  distant point is never joined by a misleading connector. Each subject is
+  clipped by **its own** progress, never by the other car's lead. The current
+  face/car marker still comes from GPS rather than from an old uploaded photo.
+- **The timeline is a time machine, and a planned position always says so.**
+  Scrubbing the frise restricts tracks, faces and photos to what was known by
+  the end of the selected day. For a future day — or a day with no reality at
+  all — the site interpolates the subject's *planned* position on the route and
+  marks it as such (dashed outline, no pulse, "position prévue" in the tooltip
+  and in the fiche). That flag is not optional: it is what keeps the promise
+  that the site never presents an invented position as a real one. Observers
+  are never placed on the route, since they are not travelling.
   The app starts in Pause for a person who has never chosen a mode, queues
   offline in IndexedDB, samples at most once/minute (five minutes while still),
   and groups immutable points by person/session/assignment in two-hour chunks.
@@ -95,28 +112,41 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
 | `COMMENT-UPLOADER.md` | Friend-facing note: how to upload photos keeping GPS (zip method) |
 | `app/`      | Crew Android app (Capacitor + Firebase): live position, PV/XP, photo & video upload keeping GPS. See `app/CLAUDE.md` |
 | `firebase.json`, `.firebaserc` | Reproducible Firebase Rules target (`app/firestore.rules`, project `africatrip-eea1a`) |
+| `package.json` | Headless-check tooling only (puppeteer/jsdom). `node_modules/` is git-ignored — never commit it |
 | `.sheet-url`| Local only, git-ignored: link to the live Google Sheet          |
 | `.drive-folder` | Local only, git-ignored: link to the shared Drive photo folder |
 
 ## Verifying changes (headless, no dev server needed)
 
-Screenshot with Edge headless (the repo has no test suite; visual checks):
+There is no test suite; checks are visual + runtime. Puppeteer is the tool on
+this machine (`npm install` at the root, `node_modules/` is git-ignored):
 
-```bash
-"/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" --headless \
-  --disable-gpu --window-size=1500,950 --screenshot=out.png \
-  --virtual-time-budget=10000 "file:///C:/Users/wachi/Documents/AfricaTrip/index.html"
+```js
+const puppeteer = require('puppeteer');
+const b = await puppeteer.launch({args:['--no-sandbox','--disable-setuid-sandbox']});
+const p = await b.newPage();
+p.on('pageerror', e => console.log('ERROR', e.message));   // ALWAYS listen
+await p.goto('file:///home/students/africa-build/index.html', {waitUntil:'load'});
+await new Promise(r => setTimeout(r, 3000));               // laisser Firebase répondre
+await p.evaluate(() => { setTrackSubject('person:gal', false); setIndex(35); });
+await p.screenshot({path:'/tmp/out.png'});
 ```
 
 Gotchas learned the hard way:
-- Edge headless clamps the window to ~500 px wide. To test mobile widths,
-  render the page inside an `<iframe style="width:360px">` wrapper file and
-  screenshot that.
-- To test a specific day/state, copy `index.html` to a scratch file and
-  patch it (e.g. replace `setIndex(0);` with `setIndex(12);`, or
-  `map.fitBounds(...)` with `map.setView([16.5,-3],5);`).
-- To debug JS, inject `window.onerror` writing to `document.title` and use
-  `--dump-dom`, or append a fixed-position debug `<div>`.
+- Never use `waitUntil:'networkidle0'` — map tiles keep streaming and the
+  navigation times out. Use `'load'` plus an explicit wait.
+- **Drive the page through its own functions** (`setIndex`, `setTrackSubject`,
+  `openFicheFor`, `setTrackMenu`) inside `page.evaluate`. Do not patch a copy
+  of `index.html`: it is a build artifact and the patch is lost on rebuild.
+- Always attach `pageerror`/`console` listeners. A silent screenshot hides a
+  ReferenceError that empties the whole map.
+- The page reads Firestore live, so a run on a connected machine exercises
+  real crew data; offline it must still render (it fails quietly).
+- For mobile, `page.setViewport({width:420, height:860, isMobile:true,
+  hasTouch:true})` works directly — no iframe wrapper needed.
+- Useful assertions: `document.querySelectorAll('.track-now').length` (subject
+  markers), `.track-now.planned` (planned positions), `legLine.getLatLngs()`
+  (highlighted leg), `visibleGalleryIndices().length` (media filtering).
 
 ## Data access
 
