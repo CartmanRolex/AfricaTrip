@@ -42,10 +42,10 @@ published.
 ```
 voyage-afrique.html          <- the deliverable (open this)
 data/
-  AfriqueCalendrier_-_Presences_Voyage.csv   <- source data (Google Sheets export)
-  Config.csv       <- export of the sheet's "Config" tab (route, textes, RPG…)
+  AfriqueCalendrier_-_Presences_Voyage.csv   <- presence grid (the trip data)
+  Config.csv       <- route, textes, RPG, danger zones… (the trip data)
 src/
-  refresh.py       <- pull the live Google Sheet + rebuild (one command)
+  site-overrides.json <- repo-side config: year, roster, phones, terminus
   parse_csv.py     <- CSV  -> src/data.json   (parses the presence grid)
   data.json        <- structured trip data, embedded into the site at build time
   template.html    <- the full HTML/CSS/JS with a literal __DATA__ token
@@ -77,88 +77,57 @@ Deploy only the rules (the site itself remains on GitHub Pages):
 firebase deploy --only firestore:rules
 ```
 
-## Refresh from the live Google Sheet
+## Editing the trip
 
-The trip data lives in a shared Google Sheet. To pull the latest version and
-regenerate the page in one step:
+**The Google Sheet is no longer the reference.** The trip data lives in this
+repo and is edited here:
 
-```bash
-python src/refresh.py
-```
+| What | Where |
+|------|-------|
+| Who is in which car, day by day | `data/AfriqueCalendrier_-_Presences_Voyage.csv` |
+| Route, checkpoints, legs, RPG stats, danger zones, texts | `data/Config.csv` |
+| Trip year, removed travelers, phone numbers, final checkpoint | `src/site-overrides.json` |
 
-This downloads the sheet as CSV (into `data/` — both the presence grid and the
-**Config** tab), re-parses it, and rebuilds `voyage-afrique.html`. It uses only
-the Python standard library, and the sheet must be shared as "anyone with the
-link can view".
-
-### The Config tab
-
-Everything "editorial" lives in the sheet's **Config** tab so it can be changed
-without touching code: route waypoints & checkpoint labels, per-leg emoji +
-difficulty, traveler and car RPG stats (XP/PV/compétences/malus), danger-zone
-stickers, car colours, and UI texts (tagline, footer, "itinéraire ouvert"…).
-The tab is a stack of sections — a `## nom` marker row, a header row, then data
-rows. Edit cells (or add rows) and run `python src/refresh.py`; new sections
-pass through `parse_csv.py` untouched, so add the sheet side first.
-
-**The sheet link is kept out of the repo on purpose** (so it isn't public on
-GitHub). `refresh.py` reads it from a local, git-ignored file at the repo root:
-
-```
-.sheet-url      <- one line: the Google Sheets URL or ID (never committed)
-```
-
-Create it once on each machine (it's listed in `.gitignore`):
+Then rebuild:
 
 ```bash
-echo "https://docs.google.com/spreadsheets/d/<ID>/edit" > .sheet-url
+python src/parse_csv.py && python src/build.py
 ```
 
-Or skip the file and pass the sheet on the command line:
+Or run `python src/sync.py` (double-click `sync.bat`) to rebuild, pull new Drive
+photos and publish in one go.
+
+### Config.csv
+
+Everything "editorial" lives here so it can be changed without touching code:
+route waypoints & checkpoint labels, per-leg emoji + difficulty, traveler and
+car RPG stats (XP/PV/compétences/malus), danger-zone stickers, car colours, and
+UI texts (tagline, footer, "itinéraire ouvert"…). The file is a stack of
+sections — a `## nom` marker row, a header row, then data rows. Edit cells or
+add rows; unknown sections pass through `parse_csv.py` untouched.
+
+### Importing from a Google Sheet (legacy)
+
+`src/refresh.py` and `src/sheet_edit.py` still exist for a one-off import from
+a sheet, but they are outside the build. `refresh.py` **overwrites**
+`data/*.csv`, so it refuses to run without an explicit flag:
 
 ```bash
-python src/refresh.py "https://docs.google.com/spreadsheets/d/<ID>/edit"
-python src/refresh.py "<ID>" --gid 123456
+python src/refresh.py --from-sheet                  # sheet URL/ID in .sheet-url
+python src/refresh.py --from-sheet "<url-or-id>" --gid 123456
 ```
 
-## Editing the Google Sheet
+The sheet link is kept out of the repo on purpose, in the git-ignored
+`.sheet-url` at the root; `sheet_edit.py` additionally needs a service-account
+key in the git-ignored `.sheet-credentials.json` and `pip install google-auth`.
 
-`src/sheet_edit.py` can read **and write** the live sheet through the Sheets
-API v4, so changes can be made at the source instead of the exported CSV:
+## Rebuild details
 
-```bash
-python src/sheet_edit.py tabs                         # list tabs (name + gid)
-python src/sheet_edit.py get  "A1:E5"                 # print a range
-python src/sheet_edit.py set  "B3" "new value"        # write one cell
-python src/sheet_edit.py set  "B3:D3" v1 v2 v3        # write one row
-python src/sheet_edit.py setrows "A10:C12" rows.json  # write a 2-D JSON block
-python src/sheet_edit.py clear "Z100"                 # clear a range
-```
-
-Ranges use A1 notation, optionally prefixed with a tab name (`"Feuille 1!B3"`).
-After editing, run `python src/refresh.py` so the site picks up the change.
-
-**One-time setup** — it authenticates as a Google Cloud *service account*:
-
-1. In [Google Cloud console](https://console.cloud.google.com), create/pick a
-   project and enable the **Google Sheets API**.
-2. IAM & Admin → Service Accounts → create one (no roles needed), then
-   Keys → Add key → **JSON** and download it.
-3. Save the key as **`.sheet-credentials.json`** in the repo root — like
-   `.sheet-url` it is git-ignored and never committed.
-4. Share the trip sheet with the service account's email
-   (`…@…iam.gserviceaccount.com`) as **Editor**.
-
-Requires `pip install google-auth` (only for signing the auth token; the API
-calls themselves are plain standard-library `urllib`).
-
-## Rebuild from the local CSV
-
-If you've edited `data/…csv` by hand and just want to rebuild without fetching:
+The two build steps:
 
 ```bash
-python src/parse_csv.py   # CSV  -> src/data.json
-python src/build.py       # JSON -> voyage-afrique.html
+python src/parse_csv.py   # CSV + site-overrides.json -> src/data.json
+python src/build.py       # JSON -> index.html + voyage-afrique.html
 ```
 
 `parse_csv.py` only needs the Python standard library and detects the grid
@@ -173,7 +142,7 @@ layout, behaviour), edit `src/template.html` and re-run `build.py`.
   `person -> state`.
 - `state` is one of `present` (●), `unknown` (?), `tentative` (○), `absent` (blank).
 - `route[]` — ordered waypoints `{name, lat, lng}` from the Config tab. Seven
-  carry a `cp` field and are the official checkpoints matched against the sheet
+  carry a `cp` field and are the official checkpoints matched against the grid
   (SUISSE, MALAGA, ALGECIRAS, DAKHLA, DAKAR, CONAKRY, FREETOWN); the rest are
   intermediate points so the drawn line follows roads/coast. The Config tab
   still lists the abandoned Abidjan/Accra/Lomé continuation — `terminus` in

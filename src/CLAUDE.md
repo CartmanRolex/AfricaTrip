@@ -47,16 +47,16 @@ Key JS structures (all near the top of the script):
 - `DATA.records` — one entry per day: `{date, iso, checkpoint, location,
   cap1, cap2, car1:{Name:state}, car2:{...}}`; states: `present | unknown |
   tentative | absent`.
-- `DATA.config` — the parsed Config sheet tab; editorial content normally
-  comes from it (`CFG` in the JS), then `site-overrides.json` applies the small
-  committed roster/phone exceptions that must survive a Sheet refresh:
+- `DATA.config` — the parsed `data/Config.csv`; editorial content normally
+  comes from it (`CFG` in the JS), then `site-overrides.json` applies the
+  repo-side trip config on top:
   `textes` (titre — site name in the header/tab, tagline, foot,
   open-route labels), `checkpoints` (display names), `etapes` → `LEG_META`, `rpg` →
   `RPG`, `rpgVoitures` → `CAR_RPG`, `danger` → `DANGER`, `deco` (decorative stickers), `couleurs`.
-  Fallbacks are minimal — edit the sheet, not the JS.
+  Fallbacks are minimal — edit `data/Config.csv`, not the JS.
 - `DATA.route` — polyline points `{lat,lng, cp?}` (Config `## route`);
   points with `cp` are checkpoints (SUISSE, MALAGA, ALGECIRAS, DAKHLA,
-  DAKAR, CONAKRY, **FREETOWN**). The Sheet still carries the abandoned
+  DAKAR, CONAKRY, **FREETOWN**). `data/Config.csv` still carries the abandoned
   Abidjan/Accra/Lomé continuation; `terminus` in `site-overrides.json` cuts it
   after Conakry at build time.
 - `LEGS` — derived legs between checkpoints (`s`/`e` = record indices,
@@ -65,7 +65,7 @@ Key JS structures (all near the top of the script):
   color-coded green/amber/red via `DIFF_COLOR`, hex on purpose: reused as
   SVG stroke on the map where `var()` doesn't work).
 - `RPG` — per-traveler `{xp, pv, skill, lien, tel, note}` (PV bar color
-  thresholds ≥7 green, ≥4 amber, else red), from the sheet's `## rpg`
+  thresholds ≥7 green, ≥4 amber, else red), from Config.csv's `## rpg`
   section (columns: nom, xp, pv, compétence, lien, téléphone, note).
   `lien` (optional URL) is NOT on the card any more — the card opens the
   fiche; the link lives there as the "Ouvrir le lien ↗" button.
@@ -86,7 +86,7 @@ Key JS structures (all near the top of the script):
   previous subject. The chip click is captured (`capture:true`) so it beats the
   card's `<a>`; hover-zoom stays desktop-only sugar, the tap IS the mobile
   gesture.
-- `OBS` — `CFG.observateurs` (sheet `## observateurs`, `nom` column): people
+- `OBS` — `CFG.observateurs` (Config.csv `## observateurs`, `nom` column): people
   following from home. Rendered ONCE into `#obs`/`.sec-obs` as a car-style
   box (🛰️, khaki accent) of seat cards with state `observer`; stats + lien
   come from their row in the `## rpg` section (Giordano).
@@ -183,11 +183,22 @@ Key JS structures (all near the top of the script):
   hides where the other is. A car's marker comes from `vehicleGpsPoints()`
   only: a geolocated photo enriches the *line* but must never become the
   vehicle's current position.
+  **Car markers are `.track-now.vehicle`**: a 46×34 rounded badge carrying the
+  cut-out car photo (`PHOTOS.cars`) with `background-size:82%` and the car's
+  colour as border. Without those background rules the 170×120 PNG rendered at
+  natural size, tiled and top-left inside a 30 px disc — only a corner of the
+  bodywork was visible. When two car markers land on the same spot — guaranteed
+  on a future day, since both are interpolated onto the *same* route point —
+  `spreadOffsets()` separates them by `MARKER_SPREAD_PX` through the icon
+  anchor. The collision test is done in **screen pixels**, not kilometres, and
+  `zoomend` re-renders so the spread appears and disappears with the zoom.
   `addPlannedFuture()` starts the dashed tail at
-  `max(plannedRangeStart, coveredFromKm, projection)`; `coveredKm()` is
-  **per subject** (its own projection, or the day's planned progress when the
-  shown position is planned). Taking the max over both cars, as the 03/08 pass
-  did, amputated the slower car's future by the faster one's lead.
+  `max(plannedRangeStart, projection of the last REAL point)` — that, and only
+  that, is what "hide the planned route already covered" means. Clipping it at
+  the *planned* progress of the displayed day (as an earlier attempt did) erases
+  a stretch that has not been driven yet and opens a hole between the solid real
+  track and the dashed tail on every future day. Taking the max over both cars
+  additionally amputated the slower car's future by the faster one's lead.
   `projectOnPlannedRoute()` uses local equirectangular projection plus
   cumulative-distance tie-breaking to find that suffix. The thin dotted
   connector between a real point and the plan is drawn **only** when the point
@@ -304,7 +315,7 @@ Key JS structures (all near the top of the script):
     enrich only that person's line because the old documents contain no car.
   - root `photos` is rebuilt on each media snapshot after preserving the
     build-time `GALLERY` prefix, which also handles deleted Firebase media.
-  - root `crew` remains the live PV source: numeric `pv` overwrites the Sheet
+  - root `crew` remains the live PV source: numeric `pv` overwrites the CSV
     value in `RPG` and rerenders seats/fiches.
 
   Every listener ends on `refreshLiveLayers()`, which simply redraws the map
@@ -331,9 +342,9 @@ so retired portraits are not embedded. Run after ANY change to template or
 JSON.
 
 ### `site-overrides.json`
-Committed post-Sheet exceptions. `trip_year: 2026` is the confirmed year and
+The committed repo-side trip config. `trip_year: 2026` is the confirmed year and
 drives every generated ISO date plus a recomputation of the French weekday
-token; `textes.titre`/`textes.tagline` pin both header strings so a future Sheet
+token; `textes.titre`/`textes.tagline` pin both header strings so a future CSV
 edit cannot recreate a year mismatch. `removed_travelers` removes names from
 the parsed rosters/RPG config; when a removed name still has a raw presence column,
 `parse_csv.py` recomputes both `X/4` capacities and the total from confirmed
@@ -347,39 +358,43 @@ terminus arrival, then **recomputes the carried-forward `location`** so the days
 in between still read the last checkpoint actually reached. The cut is derived
 from the `after` arrival record — no date is hardcoded. Current override removes
 Thomas, defines the eight requested numbers and ends the trip at **Freetown**
-after Conakry (the Sheet still describes the old Abidjan/Accra/Lomé
-continuation).
+after Conakry (`data/Config.csv` still describes the old Abidjan/Accra/Lomé
+continuation, inherited from the original export).
 
 ### `parse_csv.py`
 `data/AfriqueCalendrier_-_Presences_Voyage.csv` (+ `data/Config.csv`, the
 Config tab: `read_config()` parses its `## section` blocks) → `data.json`.
-`read_site_overrides()` applies `site-overrides.json` last, after the Sheet
-config and before records are emitted, so `refresh.py` cannot restore the stale
-2025 year/tagline, reintroduce a removed traveler, overwrite a corrected phone
-number or bring back the abandoned Abidjan/Accra/Lomé continuation
+`read_site_overrides()` applies `site-overrides.json` last, after the CSV
+config and before records are emitted, so the inherited 2025 year/tagline, the
+removed traveler, a stale phone number or the abandoned Abidjan/Accra/Lomé
+continuation cannot come back
 (`apply_terminus()`, `cp_norm()` compares checkpoints the way the front-end's
 `norm()` does, so a decorated cell like `ALGECIRAS⛴️` still matches).
 `parse_date()` parses the day/month from the raw cell, creates an
 ISO date with `trip_year`, and replaces the raw weekday with the correct French
 weekday for that year while preserving the cell's month spelling/punctuation.
 The `ROUTE`/`CAR_COLORS` constants are only fallbacks for a missing
-Config.csv. Only needs rerunning when the CSVs change (usually via
-`refresh.py`).
+Config.csv. Rerun it (then `build.py`) whenever you edit `data/*.csv` or
+`site-overrides.json` — that is now the normal way to change the trip.
 
-### `refresh.py`
-Downloads the live Google Sheet as CSV (URL/ID from git-ignored
-`.sheet-url`, or CLI arg) — both the presence grid and the Config tab
-(`CONFIG_GID`) — then runs parse_csv + build in-process. The sheet must be
-shared "anyone with link can view". Stdlib only.
+### `refresh.py` — legacy import, OUTSIDE the build
+The Google Sheet is no longer the reference: `data/*.csv` are. This script only
+re-imports from a sheet (presence grid + Config tab `CONFIG_GID`) and
+**overwrites both CSVs**, so it refuses to run without `--from-sheet`. It then
+runs parse_csv + build in-process. Stdlib only. Do not wire it back into
+`sync.py`: a double-click must never revert the repo's data to an abandoned
+sheet.
 
-### `sheet_edit.py`
-CLI to read and **write** the live Google Sheet (`tabs`, `get "A1:E5"`,
+### `sheet_edit.py` — legacy, OUTSIDE the build
+Kept for a one-off migration only; writing to the sheet no longer affects the
+site. CLI to read and **write** a Google Sheet (`tabs`, `get "A1:E5"`,
 `set "B3" value…`, `setrows "A10:C12" rows.json`, `clear "Z100"`; A1 ranges,
 optional `Tab!` prefix, first tab by default). Auth is a Google Cloud
 service account: JSON key in the git-ignored `.sheet-credentials.json` at
 the repo root, sheet shared with the service-account email as Editor
 (one-time setup steps in the docstring). Sheet ID comes from `.sheet-url`
-like `refresh.py`. After sheet writes, run `refresh.py` to sync the site.
+like `refresh.py`. Writing to a sheet no longer affects the site: the trip
+data is `data/*.csv` in this repo.
 
 ### `fetch_photos.py`
 Syncs the shared Drive photo folder onto the map (`--dry-run` to preview).
@@ -408,7 +423,7 @@ seeded by `entry_id`), then writes `photos/uploads/<safe>.jpg` (max 1600 px)
 
 ### `sync.py`
 The user-facing one-shot updater (`python src/sync.py`, or `sync.bat` at the
-root for double-click): refresh.py → fetch_photos.py → `git add` of an
+root for double-click): parse_csv.py → build.py → fetch_photos.py → `git add` of an
 explicit whitelist of pipeline inputs/outputs, including
 `site-overrides.json` (never `photos/gal.enc`) → commit → push. Exits
 without committing when nothing changed.

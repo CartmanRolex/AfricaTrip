@@ -27,13 +27,16 @@ danger zones) — keep that tone when adding features.
 
 ## Build pipeline (all scripts in `src/`, run from repo root)
 
+**The Google Sheet is no longer the reference.** The trip data lives in the
+repo and is edited there; nothing in the build reads the sheet any more.
+`src/refresh.py` survives only as a deliberate one-off import and refuses to
+run without `--from-sheet`, because it overwrites `data/*.csv`.
+
 ```
-Google Sheet (live, private link in .sheet-url, git-ignored)
-   │  python src/refresh.py        # downloads CSV export + runs the two steps below
-   ▼
-data/AfriqueCalendrier_-_Presences_Voyage.csv
-   + src/site-overrides.json       # confirmed year/text + roster/phone overrides
-   │  python src/parse_csv.py      # CSV + overrides -> src/data.json
+data/AfriqueCalendrier_-_Presences_Voyage.csv   (committed, hand-editable)
+data/Config.csv                                 (committed, hand-editable)
+   + src/site-overrides.json       # repo-side trip config (year, roster, phones, terminus)
+   │  python src/parse_csv.py      # CSV + config -> src/data.json
    ▼
 src/data.json ──┐
 src/photos.json ─┤ python src/build.py   # injects both into src/template.html
@@ -43,18 +46,16 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
 
 - `src/photos.json` (face/car/sticker images as data URIs) is produced by
   `python src/make_faces.py` from the images in `photos/`.
-- `src/site-overrides.json` is a small, committed final layer applied after
-  every Sheet download. It pins the confirmed 2026 trip year/tagline and
+- `src/site-overrides.json` is the committed repo-side trip config, applied
+  after the CSVs are parsed. It pins the confirmed 2026 trip year/tagline and
   recomputes weekday labels, removes Thomas from the published roster
   (so car 2 exposes a fourth **Place disponible**), supplies the formatted
   phone numbers shown in traveler fiches, and ends the trip at **Freetown**
-  after Conakry (`terminus`) because the Sheet still describes the abandoned
-  Abidjan/Accra/Lomé continuation. `parse_csv.py` also recomputes car
-  capacities/totals after a removal, so stale Sheet formulas cannot count the
-  removed column. This exists because Sheet write credentials are not present
-  on the build machine; a future `refresh.py` must not undo the published site.
-  Anything of this kind belongs here — **never hardcoded inside
-  `parse_csv.py`**, where a refresh would silently disagree with the docs.
+  after Conakry (`terminus`) because the imported CSV still describes the
+  abandoned Abidjan/Accra/Lomé continuation. `parse_csv.py` also recomputes car
+  capacities/totals after a removal, so stale CSV formulas cannot count the
+  removed column. Anything of this kind belongs here — **never hardcoded inside
+  `parse_csv.py`**, where it would silently disagree with the docs.
 - `src/gallery.json` (shared trip photos shown as bubbles on the map) is
   produced by `python src/fetch_photos.py`, which pulls new images from the
   shared Google Drive folder (`.drive-folder`, git-ignored), geolocates them
@@ -64,8 +65,8 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
   inside — this is the supported way for friends to upload with GPS intact,
   because Android (since April 2026) strips EXIF location on normal uploads
   but not from photos inside a zip (see `COMMENT-UPLOADER.md`).
-- **The map is one hybrid planned/actual truth per subject.** The Sheet/
-  `DATA.route` remains the untouched editorial plan. The public site now merges
+- **The map is one hybrid planned/actual truth per subject.** `DATA.route`
+  remains the untouched editorial plan. The public site now merges
   the v2 chunks/latest GPS, the readable v1 `tracks/{name}/points` history from
   the first trip day onward, and genuinely GPS-geolocated media into a
   chronological personal route. Manual media pins and Drive photos whose
@@ -95,17 +96,19 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
   so `voyage-afrique.html` opens from disk; only map tiles/fonts/Leaflet come
   from CDNs.
 - **One-shot update for the user**: `python src/sync.py` (or double-clicking
-  `sync.bat` at the root) chains refresh.py + fetch_photos.py, then commits
+  `sync.bat` at the root) chains parse_csv + build + fetch_photos, then commits
   and pushes ONLY the whitelisted pipeline inputs/outputs (including
   `src/site-overrides.json`, safe wrt `photos/gal.enc`). No-op if nothing
-  changed.
+  changed. It deliberately does **not** call `refresh.py` any more: a
+  double-click must never overwrite the repo's trip data with an abandoned
+  sheet.
 
 ## Folder map
 
 | Path        | Contents                                                        |
 |-------------|-----------------------------------------------------------------|
 | `src/`      | All source: pipeline scripts + `template.html` + persistent `site-overrides.json` |
-| `data/`     | CSV snapshot downloaded from the Google Sheet                   |
+| `data/`     | **The trip data** (presence grid + Config), committed and hand-editable |
 | `photos/`   | Source images (traveler photos, sticker sheets) + generated subfolders |
 | `index.html`, `voyage-afrique.html` | Generated site (do not edit)            |
 | `sync.bat`  | Double-click updater for the user (runs `src/sync.py`)         |
@@ -113,7 +116,7 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
 | `app/`      | Crew Android app (Capacitor + Firebase): live position, PV/XP, photo & video upload keeping GPS. See `app/CLAUDE.md` |
 | `firebase.json`, `.firebaserc` | Reproducible Firebase Rules target (`app/firestore.rules`, project `africatrip-eea1a`) |
 | `package.json` | Headless-check tooling only (puppeteer/jsdom). `node_modules/` is git-ignored — never commit it |
-| `.sheet-url`| Local only, git-ignored: link to the live Google Sheet          |
+| `.sheet-url`| Local only, git-ignored: sheet link, for the legacy import only |
 | `.drive-folder` | Local only, git-ignored: link to the shared Drive photo folder |
 
 ## Verifying changes (headless, no dev server needed)
@@ -150,18 +153,20 @@ Gotchas learned the hard way:
 
 ## Data access
 
-- **Read**: `python src/refresh.py` pulls the sheet's public CSV export and
-  rebuilds the site.
-- **Write**: `python src/sheet_edit.py` (tabs/get/set/setrows/clear) edits
-  the live sheet through the Sheets API using a service-account key stored
-  in the git-ignored `.sheet-credentials.json` (setup steps in its
-  docstring). After writing to the sheet, run `refresh.py` so the site
-  reflects the change.
+- **Trip data**: edit `data/AfriqueCalendrier_-_Presences_Voyage.csv` (presence
+  grid) or `data/Config.csv` (route, checkpoints, RPG, danger zones, texts)
+  directly, plus `src/site-overrides.json` for year/roster/phones/terminus,
+  then `python src/parse_csv.py && python src/build.py`. The repo is the
+  reference — there is no live source to sync back to.
+- **Legacy sheet tools**: `src/refresh.py --from-sheet` re-imports from a
+  Google Sheet and **overwrites** `data/*.csv`; `src/sheet_edit.py` writes to a
+  sheet through the Sheets API. Both are kept for a one-off migration only and
+  are outside the build path. Do not wire them back into `sync.py`.
 - **Shared photos**: friends upload images to a shared Drive folder;
   `python src/fetch_photos.py` syncs them onto the map (service account with
   `drive.readonly` scope; folder link in the git-ignored `.drive-folder`).
 - Google Drive MCP connector: read/search/copy/create only, no editing —
-  use `sheet_edit.py` / `fetch_photos.py` instead for scripted access.
+  use `fetch_photos.py` for scripted photo access.
 - **Firestore Rules**: authenticate the Firebase CLI, then run
   `firebase deploy --only firestore:rules`. The committed `.firebaserc` pins
   the project and `firebase.json` pins the rules file; never deploy Hosting

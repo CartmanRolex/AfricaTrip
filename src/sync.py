@@ -3,9 +3,15 @@ Met a jour le site en une seule commande.
 
 Usage:  python src/sync.py          (ou double-clic sur sync.bat a la racine)
 
-1. refresh.py      : re-telecharge le Google Sheet et reconstruit le site
-2. fetch_photos.py : rapatrie les nouvelles photos du Drive partage
-3. git commit+push : publie sur GitHub Pages
+1. parse_csv.py + build.py : reconstruit le site depuis les donnees du depot
+2. fetch_photos.py         : rapatrie les nouvelles photos du Drive partage
+3. git commit+push         : publie sur GitHub Pages
+
+Le Google Sheet n'est PLUS la reference : les donnees du voyage vivent dans le
+depot (data/*.csv + src/site-overrides.json). sync.py ne telecharge donc plus
+rien depuis le Sheet — sinon un double-clic ecraserait les donnees a jour par
+une feuille abandonnee. Pour reimporter volontairement depuis le Sheet :
+`python src/refresh.py --from-sheet`.
 
 Le commit n'ajoute QUE les fichiers produits par le pipeline (liste PUBLISH
 ci-dessous) — jamais photos/gal.enc ni les fichiers locaux git-ignores.
@@ -29,8 +35,10 @@ def run(*cmd):
 
 
 def main():
-    if run(sys.executable, os.path.join(HERE, "refresh.py")):
-        sys.exit("ERREUR pendant le refresh du Google Sheet.")
+    if run(sys.executable, os.path.join(HERE, "parse_csv.py")):
+        sys.exit("ERREUR pendant la lecture des donnees du voyage (data/*.csv).")
+    if run(sys.executable, os.path.join(HERE, "build.py")):
+        sys.exit("ERREUR pendant la generation du site.")
     if run(sys.executable, os.path.join(HERE, "fetch_photos.py")):
         sys.exit("ERREUR pendant la synchro des photos Drive.")
 
@@ -42,7 +50,7 @@ def main():
     print("\nChangements a publier :\n" + changed)
     if run("git", "add", "--", *PUBLISH):
         sys.exit("ERREUR git add.")
-    if run("git", "commit", "-m", "Sync du site (sheet + photos partagees)"):
+    if run("git", "commit", "-m", "Sync du site (donnees du depot + photos partagees)"):
         sys.exit("ERREUR git commit.")
     if run("git", "push"):
         sys.exit("ERREUR git push (reseau ? credentials ?).")

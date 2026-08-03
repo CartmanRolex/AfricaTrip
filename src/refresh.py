@@ -1,13 +1,21 @@
 """
-One-shot refresh: pull the live Google Sheet and rebuild the website.
+One-shot IMPORT from the live Google Sheet — no longer part of the build.
+
+The Google Sheet is NOT the reference any more: the trip data lives in the repo
+(`data/*.csv` + `src/site-overrides.json`) and is edited there. This script is
+kept only to re-import from a sheet on purpose, and it OVERWRITES `data/*.csv`,
+so it refuses to run without an explicit flag.
 
 Usage:
-    python src/refresh.py                       # use the sheet in .sheet-url
-    python src/refresh.py <sheet-url-or-id>     # use a different sheet
-    python src/refresh.py <url> --gid 123456    # a specific tab
+    python src/refresh.py --from-sheet                    # sheet in .sheet-url
+    python src/refresh.py --from-sheet <sheet-url-or-id>  # a different sheet
+    python src/refresh.py --from-sheet <url> --gid 123456 # a specific tab
+
+To rebuild the site from the repo data — the normal case — run instead:
+    python src/parse_csv.py && python src/build.py
 
 It downloads the sheet as CSV into data/, then runs the full pipeline
-(parse_csv -> build) so voyage-afrique.html reflects the latest sheet.
+(parse_csv -> build) so voyage-afrique.html reflects the imported sheet.
 
 The sheet link is NOT stored in this repo. Keep it in a local, git-ignored
 file at the repo root called `.sheet-url` (one line: the sheet URL or ID), or
@@ -79,11 +87,21 @@ def download_csv(url):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Refresh the trip site from the live Google Sheet.")
+    ap = argparse.ArgumentParser(
+        description="Import the trip data from a Google Sheet (overwrites data/*.csv).")
     ap.add_argument("sheet", nargs="?", default=None,
                     help="Google Sheets URL or ID (default: read from .sheet-url)")
     ap.add_argument("--gid", help="specific tab gid (optional)")
+    ap.add_argument("--from-sheet", action="store_true",
+                    help="required: confirm you really want to overwrite data/*.csv")
     args = ap.parse_args()
+
+    if not args.from_sheet:
+        ap.error(
+            "the Google Sheet is no longer the reference — the trip data lives in "
+            "data/*.csv and src/site-overrides.json.\n"
+            "  To rebuild the site:   python src/parse_csv.py && python src/build.py\n"
+            "  To really re-import and OVERWRITE data/*.csv:  add --from-sheet")
 
     sheet = args.sheet or configured_sheet()
     if not sheet:
