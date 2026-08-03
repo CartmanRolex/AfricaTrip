@@ -77,10 +77,19 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
   when the implied speed is plausible; short teleports are rejected and a long
   impossible jump starts a separate section instead of drawing a diagonal.
   The accepted history is solid and only the untravelled suffix of `DATA.route`
-  remains dashed. Its endpoint is projected geometrically onto the plan; a very
-  distant point is never joined by a misleading connector. Each subject is
-  clipped by **its own** progress, never by the other car's lead. The current
-  face/car marker still comes from GPS rather than from an old uploaded photo.
+  remains dashed. **The dashed line always starts at the most recent GPS point**
+  and runs from there to the next destination and beyond — the connection is
+  never conditional, so a subject far off the plan is still visibly heading
+  somewhere instead of floating detached from any road. It rejoins the plan at
+  the projection of that point, which keeps every bend of the drawn route.
+  Each subject is clipped by **its own** progress, never by the other car's
+  lead. The current marker still comes from GPS rather than from an old
+  uploaded photo.
+- **Cars are characters, not a special case.** They use the same round avatar
+  marker as people, and the same `faceCluster` handles their overlaps — no
+  bespoke shape, no bespoke spreading. Only the image framing differs
+  (`.wide-art`), because a car cut-out is landscape and would otherwise be
+  cropped to nothing in a circle.
 - **The timeline is a time machine, and a planned position always says so.**
   Scrubbing the frise restricts tracks, faces and photos to what was known by
   the end of the selected day. For a future day — or a day with no reality at

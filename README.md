@@ -11,10 +11,11 @@ it's a single file. It loads Leaflet, map tiles (CARTO), and Google Fonts from
 CDNs, so it needs an internet connection to render the map.
 
 The map presents one hybrid route instead of separate planned/actual modes. For
-each car, the GPS path already covered is solid and only the remaining Sheet
-itinerary is dashed; a car with no GPS data keeps the full planned route. The
-two cars retain separate colours and can be filtered independently, and the
-other car always keeps a discreet marker so you never lose sight of it.
+each subject, the GPS path already covered is solid and the rest is dashed —
+and the dashed line always starts at the most recent GPS point, so you can
+always see where someone is heading next. A subject with no GPS data keeps the
+full planned route. Cars are drawn exactly like people: same round marker, same
+clustering when several land on the same spot.
 Selecting a traveler highlights only that person's own route and flies to their
 position for the displayed day; the timestamp remains visible so an old point is
 never presented as fresh.
@@ -161,7 +162,8 @@ All logic is vanilla JS in one `<script>` at the bottom:
 - **Convoy position** (`posAt`) interpolates along the route by elapsed days
   between the surrounding checkpoints, using haversine segment distances.
 - **Car dashboards** (`renderCar`) draw a 4-seat layout; occupants fill seats
-  coloured by state, remaining seats show as empty, absent members listed below.
+  coloured by state and remaining seats show as empty. People not aboard that
+  day are simply not listed.
 - A timeline scrubber + play button drive everything off a single `idx`.
 
 ## Notes / assumptions to revisit

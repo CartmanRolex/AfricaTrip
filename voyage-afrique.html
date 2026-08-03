@@ -338,8 +338,6 @@ span.fiche-face{display:block;overflow:hidden}
 .hp-bar{display:block;width:52px;height:5px;border-radius:3px;background:var(--line);overflow:hidden}
 .hp-fill{display:block;height:100%;border-radius:3px}
 .seat-skill{font-style:italic;font-size:9.5px;color:var(--sand-dim);line-height:1.25}
-.bench{margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--muted)}
-.bench b{color:var(--sand-dim);font-weight:400}
 
 /* legend */
 .legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-family:var(--mono);font-size:10px;color:var(--sand-dim)}
@@ -415,19 +413,14 @@ span.fiche-face{display:block;overflow:hidden}
   box-shadow:0 3px 14px rgba(0,0,0,.72);font-family:var(--display);font-size:11px;font-weight:700}
 .track-now::before{content:"";position:absolute;inset:-4px;border:2px solid var(--tc,var(--c1));border-radius:50%;
   animation:trackping 1.8s ease-out infinite}
-.track-now.person{width:30px;height:30px;background-color:var(--panel2);background-size:140%;
+/* Tout marqueur porteur d'une image : même disque, personne ou voiture. */
+.track-now.avatar{width:30px;height:30px;background-color:var(--panel2);background-size:140%;
   background-position:center;background-repeat:no-repeat;color:var(--sand)}
+/* Les découpes de voiture sont en paysage (170×120) : seul le CADRAGE change,
+   pour montrer la voiture entière. La forme et l'anneau restent ceux des
+   personnages — une voiture est un personnage de plus sur la carte. */
+.track-now.avatar.wide-art,.map-face.wide-art{background-size:82%}
 .track-now.quiet::before{display:none}
-/* Marqueur voiture : la photo découpée de la voiture est en paysage (170×120),
-   donc PAS un disque — une pastille arrondie à son ratio, image `contain` pour
-   la montrer entière. Sans background-size/position, le PNG s'affichait en
-   taille réelle, répété et calé en haut à gauche : on ne voyait qu'un bout de
-   carrosserie. */
-.track-now.vehicle{width:46px;height:34px;border-radius:11px;border-width:2px;
-  border-color:var(--tc,var(--c1));  /* la couleur de la voiture reste son identité */
-  background-color:rgba(20,17,14,.86);background-size:82%;background-position:center;
-  background-repeat:no-repeat;box-shadow:0 3px 14px rgba(0,0,0,.72),0 0 0 1px rgba(0,0,0,.35)}
-.track-now.vehicle::before{inset:-5px;border-radius:14px}
 /* Position PRÉVUE (interpolée sur l'itinéraire) : jamais confondue avec un fix
    GPS réel — bordure pointillée, pas de pulsation, léger retrait. */
 .track-now.planned{border-style:dashed;opacity:.82}
@@ -750,10 +743,6 @@ DANGER.forEach(z=>{
 
 function dangerZoom(){document.body.classList.toggle('danger-far',map.getZoom()<5);}
 map.on('zoomend',dangerZoom); dangerZoom();
-// L'écartement des marqueurs voiture se mesure à l'écran : il doit être
-// réévalué quand le zoom change, sinon deux icônes restent séparées alors
-// qu'elles ne se recouvrent plus (ou l'inverse).
-map.on('zoomend',()=>{ if(typeof renderHybridTracks==='function')renderHybridTracks(); });
 
 // DEUX regroupements INDÉPENDANTS (Leaflet.markercluster) : les têtes se
 // stackent entre elles, les photos entre elles ; chacun se dé-stacke au zoom
@@ -993,24 +982,20 @@ function addActualPath(points,color,focused){
       lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
   });
 }
-// L'écart doit dépasser la largeur du marqueur (46 px) sinon les deux pastilles
-// se recouvrent et leurs bordures se lisent comme un seul cadre.
-const VEHICLE_MARKER_W=46, VEHICLE_MARKER_H=34, MARKER_SPREAD_PX=VEHICLE_MARKER_W+6;
-// `vehicle` change la forme du marqueur (pastille paysage à l'image de la
-// voiture) ; `shiftX` décale l'icône en pixels pour départager deux marqueurs
-// posés sur la même coordonnée — un décalage d'ancre reste constant à tous les
-// zooms, contrairement à un décalage en degrés.
+// Un seul marqueur pour tout le monde : une voiture est un personnage de plus.
+// `wideArt` ne change que le cadrage de l'image (découpe de voiture en
+// paysage), jamais la forme.
 function addActualMarker(point,color,label,name,{pulse=true,faceUrl=null,planned=false,
-    vehicle=false,shiftX=0}={}){
+    wideArt=false}={}){
   if(!point)return;
   const img=faceUrl || (name&&(PHOTOS.faces||{})[name]);
   const bg=img?`;background-image:url('${img}')`:'';
-  const cls=['track-now',vehicle?'vehicle':name?'person':'',pulse&&!planned?'':'quiet',
+  const cls=['track-now',img?'avatar':'',wideArt?'wide-art':'',pulse&&!planned?'':'quiet',
     planned?'planned':''].filter(Boolean).join(' ');
   const aria=planned?`${label} — position prévue`:label;
   const html=`<div class="${cls}" style="--tc:${color}${bg}" aria-label="${esc(aria)}" title="${esc(aria)}">${img?'':esc(label.slice(0,1))}</div>`;
-  const size=vehicle?[VEHICLE_MARKER_W,VEHICLE_MARKER_H]:img?[30,30]:[24,24];
-  const anchor=[size[0]/2-shiftX,size[1]/2];
+  const size=img?[30,30]:[24,24];
+  const anchor=[size[0]/2,size[1]/2];
   const marker=L.marker([point.lat,point.lng],{pane:'actualMarkerPane',zIndexOffset:1600,icon:L.divIcon({className:'',iconSize:size,
     iconAnchor:anchor,html})}).addTo(actualTrackLayer);
   if(name)marker.on('click',()=>openFicheFor(name));
@@ -1041,7 +1026,7 @@ const PROJECTION_TIE_KM=.05;
 // Un raccord n'est qu'un repère visuel : au-delà de 50 km il deviendrait une
 // grande diagonale trompeuse. La route éditoriale étant clairsemée, on ne
 // qualifie toutefois la position de réellement hors itinéraire qu'à 150 km.
-const MAX_PLAN_CONNECTOR_KM=50,OFF_ROUTE_WARNING_KM=150;
+const OFF_ROUTE_WARNING_KM=150;
 function projectOnPlannedRoute(point){
   if(!point||!ROUTE.length)return null;
   if(ROUTE.length===1)return {point:{lat:ROUTE[0].lat,lng:ROUTE[0].lng},segment:0,t:0,
@@ -1138,26 +1123,20 @@ function plannedRangeForVehicle(id){
   if(!ranges.length)return {startKm:0,endKm:totalKm};
   return {startKm:Math.min(...ranges.map(r=>r.startKm)),endKm:Math.max(...ranges.map(r=>r.endKm))};
 }
-// Le pointillé = ce qu'il RESTE à parcourir. Il démarre donc à la projection du
-// dernier point RÉEL sur l'itinéraire : c'est cela, « masquer la route prévue
-// déjà faite ». Il ne faut surtout pas le faire démarrer à la progression
-// PRÉVUE du jour affiché — sur une date future cela effacerait le tronçon
-// pourtant pas encore parcouru et ouvrirait un trou entre la trace réelle et
-// le pointillé.
+// Le pointillé = ce qu'il RESTE à parcourir. Il part TOUJOURS du dernier point
+// GPS connu, rejoint l'itinéraire et le suit jusqu'à la prochaine destination
+// puis au-delà : la ligne est donc continue depuis le marqueur, quoi qu'il
+// arrive. La continuité n'est plus conditionnelle — l'ancien raccord n'était
+// tracé que si la position tombait à moins de 50 km du plan, si bien qu'un
+// sujet vraiment écarté voyait son marqueur flotter, détaché de toute route.
+// La reprise se fait à la projection du point réel, ce qui conserve tous les
+// virages du tracé au lieu de couper droit vers le checkpoint suivant.
 function addPlannedFuture(last,color,{focused=false,dashOffset='0',startKm=0,endKm=totalKm}={}){
+  const end=Math.min(totalKm,endKm);
   const projection=last?projectOnPlannedRoute(last):null;
   const start=Math.max(startKm,projection?projection.progressKm:0);
-  const end=Math.min(totalKm,endKm);
-  if(start>=end)return;
-  const tail=routeSlice(start,end);
-  const connectorTooFar=!!projection&&projection.distanceKm>MAX_PLAN_CONNECTOR_KM;
-  // Le raccord est une information de lecture, jamais un déplacement réel :
-  // il reste fin et pointillé, et disparaît plutôt que créer une diagonale
-  // trompeuse quand la position est très loin de l'itinéraire envisagé.
-  if(last&&projection&&!connectorTooFar&&start<=projection.progressKm+.001&&projection.distanceKm>.08)
-    L.polyline([[last.lat,last.lng],[projection.point.lat,projection.point.lng]],{
-      pane:'actualTrackPane',color,weight:1.5,opacity:.48,dashArray:'1 7',lineCap:'round',interactive:false
-    }).addTo(actualTrackLayer);
+  const tail=start<end?routeSlice(start,end):[];
+  if(last)tail.unshift([last.lat,last.lng]);
   if(tail.length>1)L.polyline(tail,{pane:'actualTrackPane',color,weight:focused?4:3.2,opacity:focused?.8:.66,
     dashArray:'10 12',dashOffset,lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
 }
@@ -1176,43 +1155,24 @@ function vehicleStateAtDay(vid,end){
   const real=lastCoherentPoint(vehicleGpsPoints(vid).filter(p=>p.at<=end));
   return {meta:VEHICLES[vid],pts,real,...stateAtDay(real,true)};
 }
-// Deux voitures posées au même endroit (cas garanti sur un jour futur : elles
-// sont interpolées sur le MÊME point de l'itinéraire) donneraient deux icônes
-// exactement l'une sur l'autre. On les écarte alors symétriquement en pixels.
-// Le test est fait à l'écran, pas en kilomètres : deux positions distantes de
-// 50 m sont superposées au zoom 5 et bien séparées au zoom 16, et il serait
-// faux de décaler des marqueurs qui ne se touchent déjà plus.
-function spreadOffsets(states){
-  const shown=states.filter(s=>s.point);
-  if(shown.length<2)return new Map();
-  const px=shown.map(s=>map.latLngToLayerPoint([s.point.lat,s.point.lng]));
-  const out=new Map();
-  shown.forEach((s,i)=>{
-    const overlaps=shown.some((o,j)=>j!==i&&
-      Math.abs(px[i].x-px[j].x)<VEHICLE_MARKER_W&&Math.abs(px[i].y-px[j].y)<VEHICLE_MARKER_H);
-    if(overlaps)out.set(s,(i-(shown.length-1)/2)*MARKER_SPREAD_PX);
-  });
-  return out;
-}
 function renderHybridTracks(){
   actualTrackLayer.clearLayers();
   const {kind,id}=subjectParts();
   const end=dayWindowEnd();
-  // Les voitures sont toutes évaluées d'abord : la voiture suivie dessine en
-  // plus son tracé, mais l'écartement des icônes a besoin des deux positions.
-  const carStates=Object.keys(VEHICLES).map(vid=>({vid,...vehicleStateAtDay(vid,end)}));
-  const shifts=spreadOffsets(carStates);
-  carStates.forEach(s=>{
-    const focused=kind==='vehicle'&&s.vid===id;
-    if(focused){
-      addActualPath(s.pts,s.meta.color,true);
-      addPlannedFuture(lastTrackPoint(s.pts)||s.real,s.meta.color,
-        {focused:true,...plannedRangeForVehicle(s.vid)});
+  // Seul le sujet suivi dessine ici (tracé + futur + marqueur pulsant). Tous
+  // les autres — personnes ET voitures — sont des marqueurs de `faceCluster`,
+  // qui gère lui-même les superpositions : une voiture n'a pas de traitement
+  // particulier, c'est un personnage de plus sur la carte.
+  if(kind==='vehicle'){
+    const st=vehicleStateAtDay(id,end);
+    if(st.meta){
+      addActualPath(st.pts,st.meta.color,true);
+      addPlannedFuture(lastTrackPoint(st.pts)||st.real,st.meta.color,
+        {focused:true,...plannedRangeForVehicle(id)});
+      addActualMarker(st.point,st.meta.color,st.meta.label,null,
+        {pulse:true,faceUrl:st.meta.face,planned:st.planned,wideArt:true});
     }
-    addActualMarker(s.point,s.meta.color,s.meta.label,null,
-      {pulse:focused,faceUrl:s.meta.face,planned:s.planned,vehicle:true,shiftX:shifts.get(s)||0});
-  });
-  if(kind==='person'){
+  }else if(kind==='person'){
     const name=NAME_BY_ID.get(id);
     if(name){
       const pts=personPoints(name).filter(p=>p.at<=end);
@@ -1220,8 +1180,7 @@ function renderHybridTracks(){
       const {point,planned}=stateAtDay(real,onboardAt(name,idx));
       const color=colorOf(name),range=plannedRangeForPerson(name);
       addActualPath(pts,color,true);
-      if(range)addPlannedFuture(lastTrackPoint(pts)||real,color,
-        {focused:true,...range});
+      if(range)addPlannedFuture(lastTrackPoint(pts)||real,color,{focused:true,...range});
       addActualMarker(point,color,name,name,{pulse:true,planned});
     }
   }
@@ -1378,6 +1337,19 @@ function refreshFaces(){
   const markers = [];
   const end=dayWindowEnd();
   const subject=subjectParts();
+  // Un seul type de marqueur pour les personnes ET les voitures : c'est le
+  // cluster qui écarte ce qui se superpose, sans traitement particulier.
+  const push=(point,{img,color,initial,label,planned,wideArt,onClick})=>{
+    const cls=`map-face${planned?' planned':''}${wideArt?' wide-art':''}`;
+    const title=planned?`${label} — position prévue`:label;
+    const html=img
+      ? `<div class="${cls}" style="--fc:${color};background-image:url('${img}')" title="${esc(title)}"></div>`
+      : `<div class="${cls}" style="--fc:${color}" title="${esc(title)}">${esc(initial)}</div>`;
+    const m=L.marker([point.lat,point.lng],{pileImg:img,pileFc:color,pileInit:initial,
+      icon:L.divIcon({className:'',iconSize:[34,34],iconAnchor:[17,37],html})});
+    if(onClick)m.on('click',onClick);
+    markers.push(m);
+  };
   ACTIVE_NAMES.forEach(name => {
     // Ignore positions left by people no longer present in the current roster.
     if(!CAR1.includes(name)&&!CAR2.includes(name)&&!(CFG.observateurs||[]).includes(name))return;
@@ -1389,16 +1361,15 @@ function refreshFaces(){
     const {point:p,planned}=stateAtDay(currentForPerson(name,end),onboard);
     if(!p)return;
     if(!onboard&&!(CFG.observateurs||[]).includes(name))return;
-    const face = (PHOTOS.faces || {})[name];
-    const cls=`map-face${planned?' planned':''}`;
-    const title=planned?`${name} — position prévue`:name;
-    const html = face
-      ? `<div class="${cls}" style="--fc:${colorOf(name)};background-image:url('${face}')" title="${esc(title)}"></div>`
-      : `<div class="${cls}" style="--fc:${colorOf(name)}" title="${esc(title)}">${name[0] || '?'}</div>`;
-    const m = L.marker([p.lat, p.lng], { pileImg: face, pileFc: colorOf(name), pileInit: name[0],
-      icon: L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 37], html }) });
-    m.on('click', () => openFicheFor(name));
-    markers.push(m);
+    push(p,{img:(PHOTOS.faces||{})[name],color:colorOf(name),initial:name[0]||'?',
+      label:name,planned,onClick:()=>openFicheFor(name)});
+  });
+  Object.entries(VEHICLES).forEach(([vid,v])=>{
+    if(subject.kind==='vehicle'&&vid===subject.id)return;
+    const st=vehicleStateAtDay(vid,end);
+    if(!st.point)return;
+    push(st.point,{img:v.face,color:v.color,initial:v.short,label:v.label,
+      planned:st.planned,wideArt:true,onClick:()=>setTrackSubject(`vehicle:${vid}`,true)});
   });
   faceCluster.addLayers(markers);
 }
@@ -1872,7 +1843,6 @@ function renderCar(carNo,rec){
   // fiche ouverte pour un membre de cette voiture -> elle prend la place du bloc
   if(ficheFor&&roster.includes(ficheFor)) return ficheHTML(ficheFor,meta.color);
   const onboard = roster.filter(p=>states[p]!=='absent');
-  const absent  = roster.filter(p=>states[p]==='absent');
   let seats='';
   onboard.slice(0,4).forEach((p,k)=> seats+=seatHTML(p,states[p],k===0,meta.color));
   for(let k=onboard.length;k<4;k++) seats+=emptySeat();
@@ -1891,7 +1861,6 @@ function renderCar(carNo,rec){
       <span class="car-cap">${cap||'0/4'}</span></div>
     ${sheet}
     <div class="seats">${seats}</div>
-    ${absent.length?`<div class="bench">Pas à bord : <b>${absent.join(', ')}</b></div>`:''}
   </div>`;
 }
 

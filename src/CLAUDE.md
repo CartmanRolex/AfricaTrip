@@ -183,22 +183,24 @@ Key JS structures (all near the top of the script):
   hides where the other is. A car's marker comes from `vehicleGpsPoints()`
   only: a geolocated photo enriches the *line* but must never become the
   vehicle's current position.
-  **Car markers are `.track-now.vehicle`**: a 46×34 rounded badge carrying the
-  cut-out car photo (`PHOTOS.cars`) with `background-size:82%` and the car's
-  colour as border. Without those background rules the 170×120 PNG rendered at
-  natural size, tiled and top-left inside a 30 px disc — only a corner of the
-  bodywork was visible. When two car markers land on the same spot — guaranteed
-  on a future day, since both are interpolated onto the *same* route point —
-  `spreadOffsets()` separates them by `MARKER_SPREAD_PX` through the icon
-  anchor. The collision test is done in **screen pixels**, not kilometres, and
-  `zoomend` re-renders so the spread appears and disappears with the zoom.
-  `addPlannedFuture()` starts the dashed tail at
-  `max(plannedRangeStart, projection of the last REAL point)` — that, and only
-  that, is what "hide the planned route already covered" means. Clipping it at
-  the *planned* progress of the displayed day (as an earlier attempt did) erases
-  a stretch that has not been driven yet and opens a hole between the solid real
-  track and the dashed tail on every future day. Taking the max over both cars
-  additionally amputated the slower car's future by the faster one's lead.
+  **Only the selected subject is drawn here** (path + dashed future + pulsing
+  marker). Everyone else — people *and* cars — is a `faceCluster` marker built
+  by `refreshFaces()`, so cars get the same round avatar as travelers and the
+  cluster's own fan-out handles overlaps. There is deliberately no vehicle
+  shape and no bespoke spreading code: a car is one more character on the map.
+  The single concession is `.wide-art`, which only changes `background-size`
+  because a car cut-out is landscape (170×120) and 140 % would crop it to a
+  patch of bodywork. `addActualMarker()` picks the round avatar from the
+  presence of an image, not from the presence of a name.
+  `addPlannedFuture()` **always** begins the dashed tail at the most recent GPS
+  point (`tail.unshift`), then rejoins the plan at that point's projection and
+  follows the route to the end of the subject's range. The continuity is
+  unconditional: an earlier version only drew a thin connector when the point
+  was within 50 km of the plan, which left a far-off subject's marker floating
+  with no path at all. Rejoining at the projection (rather than cutting straight
+  to the next checkpoint) preserves the route's bends. The tail must not start
+  from the *planned* progress of the displayed day — that erases a stretch
+  nobody has driven yet and opens a hole on every future day.
   `projectOnPlannedRoute()` uses local equirectangular projection plus
   cumulative-distance tie-breaking to find that suffix. The thin dotted
   connector between a real point and the plan is drawn **only** when the point
@@ -324,8 +326,9 @@ Key JS structures (all near the top of the script):
   are derived on demand from the accepted points through `currentForPerson()`,
   so a cache can never disagree with the day window the timeline selected.
   `refreshFaces()` places every roster member on the trip that day — real point
-  if there is one, planned position otherwise — which is why `photoCluster` and
-  `faceCluster` remain independent `Leaflet.markercluster` groups.
+  if there is one, planned position otherwise — plus every non-selected vehicle,
+  which is why `photoCluster` and `faceCluster` remain independent
+  `Leaflet.markercluster` groups.
   `pileHTML()` draws up to three real
   thumbnails/faces in a fan plus a small count, with photos anchored below and
   faces above the same coordinate. Faces are still restricted to current
