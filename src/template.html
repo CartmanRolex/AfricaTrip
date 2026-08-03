@@ -81,7 +81,7 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
 .track-menu[hidden]{display:none}
 .track-menu-label{margin:5px 5px 7px;font-family:var(--mono);font-size:7px;letter-spacing:.12em;
   text-transform:uppercase;color:var(--muted)}
-.track-overview-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-bottom:10px}
+.track-vehicles-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin-bottom:10px}
 .track-people-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
 .track-choice{min-width:0;min-height:38px;display:flex;align-items:center;gap:8px;padding:5px 7px;
   color:var(--sand-dim);background:transparent;border:1px solid transparent;border-radius:9px;text-align:left;
@@ -91,8 +91,6 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
 .track-choice:focus-visible{outline:2px solid var(--sand);outline-offset:1px}
 .track-choice-avatar{width:24px;height:24px;font-size:10px;box-shadow:0 0 0 1.5px var(--subject-color,var(--c1))}
 .track-choice-name{min-width:0;font-size:10.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.track-choice.overview{justify-content:center;flex-direction:column;gap:2px;padding:6px 3px;font-family:var(--mono);font-size:8px;text-align:center}
-.track-choice.overview .track-choice-avatar{width:20px;height:20px;font-size:8px}
 .leaflet-tile-pane{filter:brightness(.92) sepia(.32) hue-rotate(-12deg) saturate(1.05);}
 .leaflet-container{background:#14110E;font-family:var(--mono)}
 .leaflet-control-attribution{background:rgba(20,17,14,.7)!important;color:#80735C!important}
@@ -1217,13 +1215,13 @@ function setupTrackControls(){
   const el=document.getElementById('track-subjects');
   const overview=[...Object.entries(VEHICLES).map(([id,v])=>({subject:`vehicle:${id}`,label:v.label,color:v.color,icon:v.short}))];
   const people=ACTIVE_NAMES.map(name=>({subject:`person:${slug(name)}`,label:name,color:colorOf(name),icon:name[0],face:(PHOTOS.faces||{})[name]}));
-  const choice=(b,overviewChoice=false)=>`<button class="track-choice${overviewChoice?' overview':''}" data-subject="${b.subject}"
+  const choice=(b)=>`<button class="track-choice" data-subject="${b.subject}"
     role="option" aria-selected="${b.subject===trackSubject}" style="--subject-color:${b.color}">${avatarMarkup(b,'track-choice-avatar')}<span class="track-choice-name">${esc(b.label)}</span></button>`;
   const initial=subjectDescriptor();
   el.innerHTML=`<button class="track-picker-toggle" id="track-picker-toggle" type="button" aria-haspopup="listbox" aria-expanded="false">
       ${avatarMarkup(initial,'track-picker-avatar')}<span class="track-picker-copy"><small>Trace affichée</small><span class="track-picker-current">${esc(initial.label)}</span></span><span class="track-picker-chevron">⌄</span></button>
     <div class="track-menu" id="track-menu" role="listbox" aria-label="Trace affichée" hidden>
-      <div class="track-menu-label">Vue d'ensemble</div><div class="track-overview-grid">${overview.map(b=>choice(b,true)).join('')}</div>
+      <div class="track-menu-label">Voitures</div><div class="track-vehicles-grid">${overview.map(b=>choice(b)).join('')}</div>
       <div class="track-menu-label">Personnes</div><div class="track-people-grid">${people.map(b=>choice(b)).join('')}</div></div>`;
   el.addEventListener('click',e=>{
     if(e.target.closest('#track-picker-toggle')){setTrackMenu(document.getElementById('track-menu').hidden);return;}
