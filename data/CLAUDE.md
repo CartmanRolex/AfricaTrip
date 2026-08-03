@@ -26,15 +26,20 @@ Raw Sheet snapshot shape (then transformed by `src/parse_csv.py`):
   absent; the Localisation column marks arrival days at checkpoints
   (SUISSE, MALAGA, ALGECIRAS⛴️, DAKHLA, DAKAR, then the invented
   continuation CONAKRY, ABIDJAN, ACCRA, LOMÉ — all within September).
+  **The published trip stops at Conakry then FREETOWN**: the Sheet still
+  carries the old Abidjan/Accra/Lomé continuation, and `terminus` in
+  `src/site-overrides.json` cuts it after Conakry at build time. Fix the
+  Sheet when write credentials are available, then drop that override.
 
 If the sheet's structure changes (new traveler, new column layout), fix
 `src/parse_csv.py` accordingly and document it in `src/CLAUDE.md`.
 
 The raw public Sheet snapshot still contains the former 2025 calendar text,
-Thomas and its old capacity formulas. The published result deliberately applies
-`src/site-overrides.json` after reading these files: dates/weekdays/tagline are
-pinned to the confirmed 2026 trip, Thomas is removed from `car2`/RPG,
-capacities and totals are recomputed, and car 2's renderer fills the fourth slot
-with **Place disponible**. The same override supplies formatted phone numbers.
+Thomas, its old capacity formulas and the Abidjan/Accra/Lomé continuation. The
+published result deliberately applies `src/site-overrides.json` after reading
+these files: dates/weekdays/tagline are pinned to the confirmed 2026 trip,
+Thomas is removed from `car2`/RPG, capacities and totals are recomputed, car 2's
+renderer fills the fourth slot with **Place disponible**, and the trip ends at
+Freetown. The same override supplies formatted phone numbers.
 This post-Sheet layer is necessary until Sheet write credentials are installed;
 do not "fix" the generated `src/data.json` by editing these snapshots manually.

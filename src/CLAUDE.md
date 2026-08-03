@@ -284,16 +284,27 @@ the parsed rosters/RPG config; when a removed name still has a raw presence colu
 `parse_csv.py` recomputes both `X/4` capacities and the total from confirmed
 `present` states. `phones` replaces `config.rpg[name].tel` while preserving the
 human-readable `+CC …` formatting used by the fiche and its sanitized `tel:`
-link. Current override also removes Thomas and defines the eight requested
-numbers.
+link. `terminus` `{after, cp, label, lat, lng}` shortens the plan to a single
+confirmed final checkpoint: `apply_terminus()` cuts the route right after the
+`after` checkpoint, appends the terminus waypoint, drops the abandoned
+checkpoint labels, clears the abandoned arrival cells and makes the last day the
+terminus arrival, then **recomputes the carried-forward `location`** so the days
+in between still read the last checkpoint actually reached. The cut is derived
+from the `after` arrival record — no date is hardcoded. Current override removes
+Thomas, defines the eight requested numbers and ends the trip at **Freetown**
+after Conakry (the Sheet still describes the old Abidjan/Accra/Lomé
+continuation).
 
 ### `parse_csv.py`
 `data/AfriqueCalendrier_-_Presences_Voyage.csv` (+ `data/Config.csv`, the
 Config tab: `read_config()` parses its `## section` blocks) → `data.json`.
 `read_site_overrides()` applies `site-overrides.json` last, after the Sheet
 config and before records are emitted, so `refresh.py` cannot restore the stale
-2025 year/tagline, reintroduce a removed traveler or overwrite a corrected
-phone number. `parse_date()` parses the day/month from the raw cell, creates an
+2025 year/tagline, reintroduce a removed traveler, overwrite a corrected phone
+number or bring back the abandoned Abidjan/Accra/Lomé continuation
+(`apply_terminus()`, `cp_norm()` compares checkpoints the way the front-end's
+`norm()` does, so a decorated cell like `ALGECIRAS⛴️` still matches).
+`parse_date()` parses the day/month from the raw cell, creates an
 ISO date with `trip_year`, and replaces the raw weekday with the correct French
 weekday for that year while preserving the cell's month spelling/punctuation.
 The `ROUTE`/`CAR_COLORS` constants are only fallbacks for a missing

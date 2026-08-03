@@ -7,6 +7,13 @@
   "removed_travelers": [
     "Thomas"
   ],
+  "terminus": {
+    "after": "CONAKRY",
+    "cp": "FREETOWN",
+    "label": "Freetown",
+    "lat": 8.484,
+    "lng": -13.234
+  },
   "phones": {
     "Arthur": "+33 6 89 47 58 40",
     "Dorvan": "+41 79 571 92 69",

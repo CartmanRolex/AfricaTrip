@@ -76,7 +76,7 @@ def read_site_overrides():
             raw = json.load(f)
     except FileNotFoundError:
         return {"trip_year": DEFAULT_TRIP_YEAR, "textes": {},
-                "removed_travelers": set(), "phones": {}}
+                "removed_travelers": set(), "phones": {}, "terminus": None}
     if not isinstance(raw, dict):
         raise ValueError("site-overrides.json must contain a JSON object")
     removed = raw.get("removed_travelers", [])
@@ -96,7 +96,82 @@ def read_site_overrides():
     return {"trip_year": trip_year,
             "textes": {k.strip(): v.strip() for k, v in textes.items() if k.strip()},
             "removed_travelers": {v.strip() for v in removed if v.strip()},
-            "phones": {k.strip(): v.strip() for k, v in phones.items() if k.strip()}}
+            "phones": {k.strip(): v.strip() for k, v in phones.items() if k.strip()},
+            "terminus": read_terminus(raw.get("terminus"))}
+
+
+def read_terminus(raw):
+    """Validate the optional `terminus` override (final checkpoint of the trip).
+
+    The Sheet still describes the old editorial continuation
+    (Conakry → Abidjan → Accra → Lomé). Until it can be edited at the source,
+    this override shortens the plan to a single confirmed terminus reached
+    after `after`, without hardcoding a date: the cut is derived from the
+    arrival record of `after` itself.
+    """
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError("site-overrides.json terminus must be a JSON object")
+    missing = {"after", "cp", "label", "lat", "lng"} - set(raw)
+    if missing:
+        raise ValueError(f"site-overrides.json terminus misses {sorted(missing)}")
+    for key in ("after", "cp", "label"):
+        if not isinstance(raw[key], str) or not raw[key].strip():
+            raise ValueError(f"site-overrides.json terminus.{key} must be a non-empty string")
+    for key in ("lat", "lng"):
+        if not isinstance(raw[key], (int, float)) or isinstance(raw[key], bool):
+            raise ValueError(f"site-overrides.json terminus.{key} must be a number")
+    return {"after": raw["after"].strip(), "cp": raw["cp"].strip(),
+            "label": raw["label"].strip(), "lat": float(raw["lat"]), "lng": float(raw["lng"])}
+
+
+def cp_norm(s):
+    """Compare checkpoint names the way the front-end does (`norm()`).
+
+    The sheet writes decorated cells such as `ALGECIRAS⛴️`.
+    """
+    return re.sub(r"[^A-Za-zÀ-ÿ]", "", s or "").upper()
+
+
+def apply_terminus(records, config, terminus):
+    """Shorten plan and records so the trip ends at `terminus`.
+
+    Everything after the arrival at `terminus["after"]` belongs to the final
+    leg: the abandoned continuation's checkpoints are cleared, the last day
+    becomes the terminus arrival, and `location` is recomputed by carry-forward
+    so the days in between still read the last checkpoint actually reached. The
+    planned polyline is cut after `after` and closed by the terminus waypoint.
+    """
+    if not terminus or not records:
+        return
+    after, cp, label = terminus["after"], terminus["cp"], terminus["label"]
+
+    route = config.get("route") or []
+    cut = next((i for i, pt in enumerate(route) if cp_norm(pt.get("cp")) == cp_norm(after)), None)
+    if cut is None:
+        raise ValueError(f"site-overrides.json terminus.after ({after}) is not a route checkpoint")
+    config["route"] = route[:cut + 1] + [
+        {"name": label, "lat": terminus["lat"], "lng": terminus["lng"], "cp": cp}]
+
+    kept = {cp_norm(pt.get("cp")) for pt in config["route"] if pt.get("cp")}
+    config["checkpoints"] = {k: v for k, v in (config.get("checkpoints") or {}).items()
+                             if cp_norm(k) in kept}
+    config["checkpoints"][cp] = label
+
+    arrival = next((i for i, r in enumerate(records) if cp_norm(r["checkpoint"]) == cp_norm(after)),
+                   None)
+    if arrival is None:
+        raise ValueError(f"site-overrides.json terminus.after ({after}) is not a record checkpoint")
+    for rec in records[arrival + 1:]:
+        rec["checkpoint"] = ""
+    records[-1]["checkpoint"] = cp
+
+    location = None
+    for rec in records:
+        if rec["checkpoint"]:
+            location = rec["checkpoint"]
+        rec["location"] = location
 
 
 def read_config():
@@ -298,30 +373,7 @@ def main():
             "car2": car2,
         })
 
-    # Override for Freetown after Conakry
-    for rec in records:
-        if rec["iso"] >= "2026-09-12":
-            if rec.get("location"):
-                rec["location"] = "FREETOWN"
-            if rec.get("checkpoint"):
-                rec["checkpoint"] = ""
-    # Set the very last record as the FREETOWN checkpoint
-    records[-1]["checkpoint"] = "FREETOWN"
-    records[-1]["location"] = "FREETOWN"
-    
-    # Ensure Freetown is in the route config
-    has_freetown = any(pt.get("name") == "Freetown" for pt in config.get("route", []))
-    if config.get("route"):
-        # Find Conakry index
-        conakry_idx = next((i for i, pt in enumerate(config["route"]) if pt.get("cp") == "CONAKRY"), -1)
-        if conakry_idx != -1:
-            config["route"] = config["route"][:conakry_idx + 1]
-        
-        if not any(pt.get("name") == "Freetown" for pt in config["route"]):
-            config["route"].append({"name": "Freetown", "lat": 8.484, "lng": -13.234, "cp": "FREETOWN"})
-            if "checkpoints" not in config:
-                config["checkpoints"] = {}
-            config["checkpoints"]["FREETOWN"] = "Freetown"
+    apply_terminus(records, config, overrides["terminus"])
 
     data = {"records": records, "route": config.get("route", route), "car1": CAR1, "car2": CAR2,
             "cars": CARS, "config": config}
