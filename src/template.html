@@ -617,6 +617,7 @@ function traveledKm(P){
 // straight-line km covered by a travel leg (route slice ri0..ri1)
 function legKm(L){ let k=0; for(let i=L.ri0;i<L.ri1;i++) k+=hav(ROUTE[i],ROUTE[i+1]); return k; }
 
+let idx = 0;
 // checkpoint route indices + record indices (in route order)
 const norm = s => (s||'').replace(/[^A-Za-zÀ-ÿ]/g,'').toUpperCase();
 const cpRouteIdx=[], cpName=[];
@@ -1687,7 +1688,7 @@ const scrub=document.getElementById('scrub'); scrub.max=REC.length-1;
 const ticks=document.getElementById('ticks');
 cpName.forEach((nm,k)=>{const s=document.createElement('span');s.textContent=pretty(nm);ticks.appendChild(s);});
 
-let idx=0, playing=false, timer=null;
+let playing=false, timer=null;
 function setIndex(i){ idx=Math.max(0,Math.min(REC.length-1,i)); scrub.value=idx; render(); }
 scrub.oninput=()=>{ stop(); setIndex(+scrub.value); };
 

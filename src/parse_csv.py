@@ -303,16 +303,27 @@ def main():
         if rec["iso"] >= "2026-09-12":
             if rec.get("location"):
                 rec["location"] = "FREETOWN"
+            if rec.get("checkpoint"):
+                rec["checkpoint"] = ""
+    # Set the very last record as the FREETOWN checkpoint
+    records[-1]["checkpoint"] = "FREETOWN"
+    records[-1]["location"] = "FREETOWN"
     
     # Ensure Freetown is in the route config
     has_freetown = any(pt.get("name") == "Freetown" for pt in config.get("route", []))
-    if not has_freetown and config.get("route"):
-        config["route"].append({"name": "Freetown", "lat": 8.484, "lng": -13.234, "cp": "FREETOWN"})
-        if "checkpoints" not in config:
-            config["checkpoints"] = {}
-        config["checkpoints"]["FREETOWN"] = "Freetown"
+    if config.get("route"):
+        # Find Conakry index
+        conakry_idx = next((i for i, pt in enumerate(config["route"]) if pt.get("cp") == "CONAKRY"), -1)
+        if conakry_idx != -1:
+            config["route"] = config["route"][:conakry_idx + 1]
+        
+        if not any(pt.get("name") == "Freetown" for pt in config["route"]):
+            config["route"].append({"name": "Freetown", "lat": 8.484, "lng": -13.234, "cp": "FREETOWN"})
+            if "checkpoints" not in config:
+                config["checkpoints"] = {}
+            config["checkpoints"]["FREETOWN"] = "Freetown"
 
-    data = {"records": records, "route": route, "car1": CAR1, "car2": CAR2,
+    data = {"records": records, "route": config.get("route", route), "car1": CAR1, "car2": CAR2,
             "cars": CARS, "config": config}
     with open(OUT, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False)
