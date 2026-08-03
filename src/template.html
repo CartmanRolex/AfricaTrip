@@ -348,7 +348,7 @@ span.fiche-face{display:block;overflow:hidden}
 /* mobile: fixed map on top, bottom-sheet panel with its own scroll.
    Sections reorder so timeline (sticky) + cars come first; legs after. */
 @media (max-width:880px){
-  .app{grid-template-columns:1fr;grid-template-rows:auto minmax(0,38vh) minmax(0,1fr);
+  .app{grid-template-columns:1fr;grid-template-rows:auto minmax(0,var(--map-h,38vh)) minmax(0,1fr);
     grid-template-areas:"head" "map" "panel";height:100vh;height:100dvh}
   header{padding:8px 14px 9px;gap:4px 10px;align-items:center;flex-wrap:wrap}
   .brand{font-size:15px}
@@ -365,8 +365,8 @@ span.fiche-face{display:block;overflow:hidden}
   .track-menu{left:auto;right:0;width:min(360px,calc(100vw - 14px));max-height:min(58vh,390px)}
   .panel{position:relative;z-index:5;border-left:none;border-top:1px solid var(--line);
     margin-top:-14px;border-radius:16px 16px 0 0;box-shadow:0 -8px 24px rgba(0,0,0,.45)}
-  .panel::before{content:"";flex:0 0 auto;width:44px;height:4px;border-radius:2px;
-    background:var(--line);margin:8px auto 2px}
+  .panel-handle{display:flex;justify-content:center;padding:8px 0 4px;width:100%;flex:0 0 auto;touch-action:none;cursor:grab}
+  .panel-handle::after{content:"";width:44px;height:4px;border-radius:2px;background:var(--line)}
   .panel-scroll{padding:0 14px calc(20px + env(safe-area-inset-bottom));gap:16px}
   /* timeline = 2e ligne du header (brand + stats restent sur la 1re) */
   header .sec-tl{order:5;flex-basis:100%;min-width:0;margin:2px 0 0;column-gap:12px}
@@ -470,6 +470,7 @@ span.fiche-face{display:block;overflow:hidden}
     <div class="track-subjects" id="track-subjects" role="group" aria-label="Trace affichée"></div>
   </nav>
   <div class="panel">
+    <div id="panel-handle" class="panel-handle"></div>
     <div class="panel-scroll">
       <section>
         <div class="legs-head">
@@ -561,8 +562,8 @@ const personName = (...ids) => {
   return null;
 };
 const VEHICLES = {
-  'hugodouard': {label:(CARS[1]||{}).name||'Hugodouard', color:(CARS[1]||{}).color||'#E8924A', short:'1'},
-  'paul-pot': {label:(CARS[2]||{}).name||'Paul Pot', color:(CARS[2]||{}).color||'#4FB7B3', short:'2'},
+  'hugodouard': {label:(CARS[1]||{}).name||'Hugodouard', color:(CARS[1]||{}).color||'#E8924A', short:(CARS[1]||{}).emoji||'🚙'},
+  'paul-pot': {label:(CARS[2]||{}).name||'Paul Pot', color:(CARS[2]||{}).color||'#4FB7B3', short:(CARS[2]||{}).emoji||'🚙'},
 };
 function vehicleId(v){
   const id=slug(v);
@@ -1783,6 +1784,22 @@ startAgoRefresh();
 map.fitBounds(latlngs,{padding:[50,50]});
 setIndex(0);
 window.addEventListener('resize',()=>map.invalidateSize());
+const handle=document.getElementById('panel-handle');
+if(handle){
+  let startY,startH;
+  handle.addEventListener('touchstart',e=>{
+    startY=e.touches[0].clientY;
+    let curr=document.querySelector('.app').style.getPropertyValue('--map-h');
+    startH=curr?parseFloat(curr):38;
+  },{passive:true});
+  handle.addEventListener('touchmove',e=>{
+    if(!startY)return;
+    const dy=e.touches[0].clientY-startY;
+    let newH=startH+(dy/window.innerHeight*100);
+    document.querySelector('.app').style.setProperty('--map-h',Math.max(15,Math.min(85,newH))+'vh');
+  },{passive:true});
+  handle.addEventListener('touchend',()=>startY=null);
+}
 </script>
 </body>
 </html>
