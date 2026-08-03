@@ -362,7 +362,7 @@ span.fiche-face{display:block;overflow:hidden}
   .map-toolbar{z-index:700;justify-self:start;margin:7px 7px 0 56px;max-width:calc(100% - 64px);padding:5px;border-radius:12px}
   .track-picker-toggle{min-height:38px;padding:4px 10px 4px 8px}
   .track-picker-avatar{width:26px;height:26px}
-  .track-menu{left:auto;right:0;width:min(360px,calc(100vw - 14px));max-height:min(58vh,390px)}
+  .track-menu{left:-42px;right:auto;width:calc(100vw - 28px);max-height:min(58vh,390px)}
   .panel{position:relative;z-index:5;border-left:none;border-top:1px solid var(--line);
     margin-top:-14px;border-radius:16px 16px 0 0;box-shadow:0 -8px 24px rgba(0,0,0,.45)}
   .panel-handle{display:flex;justify-content:center;padding:8px 0 4px;width:100%;flex:0 0 auto;touch-action:none;cursor:grab}
@@ -1797,6 +1797,7 @@ if(handle){
     const dy=e.touches[0].clientY-startY;
     let newH=startH+(dy/window.innerHeight*100);
     document.querySelector('.app').style.setProperty('--map-h',Math.max(15,Math.min(85,newH))+'vh');
+    map.invalidateSize();
   },{passive:true});
   handle.addEventListener('touchend',()=>startY=null);
 }
