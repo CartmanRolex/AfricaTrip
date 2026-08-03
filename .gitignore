@@ -8,6 +8,16 @@
 __pycache__/
 *.pyc
 
+# Dépendances Node (outils de vérification headless) — jamais versionnées
+node_modules/
+
+# APK : distribuée par GitHub Releases, jamais par le dépôt
+*.apk
+
+# Captures de vérification headless (scratch local)
+/screenshot*.png
+/out*.png
+
 # Firebase CLI / Emulator local logs and cache
 .firebase/
 firebase-debug.log
