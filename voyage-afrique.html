@@ -561,8 +561,8 @@ const personName = (...ids) => {
   return null;
 };
 const VEHICLES = {
-  'hugodouard': {label:(CARS[1]||{}).name||'Hugodouard', color:(CARS[1]||{}).color||'#E8924A', short:(CARS[1]||{}).emoji||'🚙'},
-  'paul-pot': {label:(CARS[2]||{}).name||'Paul Pot', color:(CARS[2]||{}).color||'#4FB7B3', short:(CARS[2]||{}).emoji||'🚙'},
+  'hugodouard': {label:(CARS[1]||{}).name||'Hugodouard', color:(CARS[1]||{}).color||'#E8924A', short:(CARS[1]||{}).emoji||'🚙', face:(PHOTOS.cars||{})[1]},
+  'paul-pot': {label:(CARS[2]||{}).name||'Paul Pot', color:(CARS[2]||{}).color||'#4FB7B3', short:(CARS[2]||{}).emoji||'🚙', face:(PHOTOS.cars||{})[2]},
 };
 function vehicleId(v){
   const id=slug(v);
@@ -1050,16 +1050,6 @@ function routeProgressAtRecord(recordIndex){
   if(!P.partial)return ROUTE_KM[Math.min(P.upTo,ROUTE_KM.length-1)]||0;
   return (ROUTE_KM[P.upTo]||0)+hav(ROUTE[P.upTo],P.partial);
 }
-function plannedRangeForPerson(name){
-  const onboard=[];
-  REC.forEach((r,i)=>{
-    const state=r.car1[name]||r.car2[name];
-    if(state==='present'||state==='tentative')onboard.push(i);
-  });
-  if(!onboard.length)return null;
-  return {startKm:routeProgressAtRecord(onboard[0]),
-    endKm:onboard.at(-1)===REC.length-1?totalKm:routeProgressAtRecord(onboard.at(-1))};
-}
 function currentTripProgressKm() {
   let max = 0;
   Object.keys(VEHICLES).forEach(id => {
@@ -1070,6 +1060,19 @@ function currentTripProgressKm() {
     }
   });
   return max;
+}
+function plannedRangeForPerson(name){
+  const onboard=[];
+  REC.forEach((r,i)=>{
+    const state=r.car1[name]||r.car2[name];
+    if(state==='present'||state==='tentative')onboard.push(i);
+  });
+  if(!onboard.length)return null;
+  const globalProgress = currentTripProgressKm();
+  let futureOnboard = onboard.filter(i => routeProgressAtRecord(i) >= globalProgress - 50);
+  if (!futureOnboard.length) futureOnboard = [onboard.at(-1)];
+  return {startKm:Math.max(routeProgressAtRecord(futureOnboard[0]), globalProgress),
+    endKm:onboard.at(-1)===REC.length-1?totalKm:routeProgressAtRecord(onboard.at(-1))};
 }
 function addPlannedFuture(last,color,{focused=false,dashOffset='0',startKm=0,endKm=totalKm}={}){
   const globalProgress = currentTripProgressKm();
@@ -1190,11 +1193,11 @@ function setTrackSubject(subject,focus=true){
 }
 function subjectDescriptor(subject=trackSubject){
   const [kind,id]=subject.split(':');
-  if(kind==='vehicle'&&VEHICLES[id])return {kind,label:VEHICLES[id].label,color:VEHICLES[id].color,icon:VEHICLES[id].short};
+  if(kind==='vehicle'&&VEHICLES[id])return {kind,label:VEHICLES[id].label,color:VEHICLES[id].color,icon:VEHICLES[id].short,face:VEHICLES[id].face};
   if(kind==='person'){
     const name=NAME_BY_ID.get(id);if(name)return {kind,label:name,color:colorOf(name),icon:name[0],face:(PHOTOS.faces||{})[name]};
   }
-  return {kind:'vehicle',label:VEHICLES['hugodouard'].label,color:VEHICLES['hugodouard'].color,icon:VEHICLES['hugodouard'].short};
+  return {kind:'vehicle',label:VEHICLES['hugodouard'].label,color:VEHICLES['hugodouard'].color,icon:VEHICLES['hugodouard'].short,face:VEHICLES['hugodouard'].face};
 }
 function avatarMarkup(meta,cls){
   const bg=meta.face?`background-image:url('${meta.face}');`:'';
@@ -1214,7 +1217,7 @@ function setTrackMenu(open){
 }
 function setupTrackControls(){
   const el=document.getElementById('track-subjects');
-  const overview=[...Object.entries(VEHICLES).map(([id,v])=>({subject:`vehicle:${id}`,label:v.label,color:v.color,icon:v.short}))];
+  const overview=[...Object.entries(VEHICLES).map(([id,v])=>({subject:`vehicle:${id}`,label:v.label,color:v.color,icon:v.short,face:v.face}))];
   const people=ACTIVE_NAMES.map(name=>({subject:`person:${slug(name)}`,label:name,color:colorOf(name),icon:name[0],face:(PHOTOS.faces||{})[name]}));
   const choice=(b)=>`<button class="track-choice" data-subject="${b.subject}"
     role="option" aria-selected="${b.subject===trackSubject}" style="--subject-color:${b.color}">${avatarMarkup(b,'track-choice-avatar')}<span class="track-choice-name">${esc(b.label)}</span></button>`;

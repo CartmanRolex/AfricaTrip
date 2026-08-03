@@ -67,8 +67,10 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
   impossible jump starts a separate section instead of drawing a diagonal.
   The accepted history is solid and only the untravelled suffix of `DATA.route`
   remains dashed. Its endpoint is projected geometrically onto the plan; a very
-  distant point is never joined by a misleading connector. The current face/
-  car marker still comes from GPS rather than from an old uploaded photo.
+  distant point is never joined by a misleading connector. The future dashed
+  line correctly interpolates from the current GPS position directly to the
+  *next scheduled checkpoint/presence* for that subject (ignoring the past road trip).
+  The current face/car marker still comes from GPS rather than from an old uploaded photo.
   The app starts in Pause for a person who has never chosen a mode, queues
   offline in IndexedDB, samples at most once/minute (five minutes while still),
   and groups immutable points by person/session/assignment in two-hour chunks.
