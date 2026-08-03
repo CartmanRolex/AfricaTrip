@@ -1115,11 +1115,19 @@ function trackSummary(points){
 function renderHybridTracks(){
   actualTrackLayer.clearLayers();
   const {kind,id}=subjectParts();
-  const maxTime = (idx === REC.length - 1) ? Infinity : new Date(REC[idx].iso).getTime();
+  const baseTime = new Date(REC[idx].iso).getTime();
+  const maxTime = (idx === REC.length - 1) ? Infinity : baseTime + 24 * 3600 * 1000 - 1;
   if(kind==='vehicle'){
     const meta=VEHICLES[id]; if(!meta)return;
-    const pts=vehiclePoints(id).filter(p=>p.at<=maxTime);
-    const current=lastCoherentPoint(vehicleGpsPoints(id).filter(p=>p.at<=maxTime));
+    const allPts=vehiclePoints(id);
+    const lastAll=lastCoherentPoint(allPts);
+    let current;
+    if(baseTime > (lastAll&&lastAll.at ? lastAll.at : 0)){
+      current = posAt(idx).pt;
+    }else{
+      current = lastCoherentPoint(allPts.filter(p=>p.at<=maxTime));
+    }
+    const pts=allPts.filter(p=>p.at<=maxTime);
     const routeEnd=lastTrackPoint(pts);
     addActualPath(pts,meta.color,true);
     addActualMarker(current,meta.color,meta.label,null,true,meta.face);
@@ -1127,8 +1135,15 @@ function renderHybridTracks(){
     if(range)addPlannedFuture(routeEnd||current,meta.color,maxTime,{focused:true,...range});
   }else if(kind==='person'){
     const name=NAME_BY_ID.get(id); if(!name)return;
-    const pts=personPoints(name).filter(p=>p.at<=maxTime);
-    const current=currentForPerson(name, maxTime);
+    const allPts=personPoints(name);
+    const lastAll=currentForPerson(name, Infinity);
+    let current;
+    if(baseTime > (lastAll&&lastAll.at ? lastAll.at : 0)){
+      current = posAt(idx).pt;
+    }else{
+      current = currentForPerson(name, maxTime);
+    }
+    const pts=allPts.filter(p=>p.at<=maxTime);
     const routeEnd=lastTrackPoint(pts);
     const color=colorOf(name);
     addActualPath(pts,color,true); addActualMarker(current,color,name,name,true);
@@ -1137,8 +1152,15 @@ function renderHybridTracks(){
   }else{
     // overview
     Object.entries(VEHICLES).forEach(([vid,v])=>{
-      const pts=vehiclePoints(vid).filter(p=>p.at<=maxTime);
-      const current=lastCoherentPoint(vehicleGpsPoints(vid).filter(p=>p.at<=maxTime));
+      const allPts=vehiclePoints(vid);
+      const lastAll=lastCoherentPoint(allPts);
+      let current;
+      if(baseTime > (lastAll&&lastAll.at ? lastAll.at : 0)){
+        current = posAt(idx).pt;
+      }else{
+        current = lastCoherentPoint(allPts.filter(p=>p.at<=maxTime));
+      }
+      const pts=allPts.filter(p=>p.at<=maxTime);
       const routeEnd=lastTrackPoint(pts);
       addActualPath(pts,v.color,false); 
       addActualMarker(current,v.color,v.label,null,false,v.face);
