@@ -298,6 +298,20 @@ def main():
             "car2": car2,
         })
 
+    # Override for Freetown after Conakry
+    for rec in records:
+        if rec["iso"] >= "2026-09-12":
+            if rec.get("location"):
+                rec["location"] = "FREETOWN"
+    
+    # Ensure Freetown is in the route config
+    has_freetown = any(pt.get("name") == "Freetown" for pt in config.get("route", []))
+    if not has_freetown and config.get("route"):
+        config["route"].append({"name": "Freetown", "lat": 8.484, "lng": -13.234, "cp": "FREETOWN"})
+        if "checkpoints" not in config:
+            config["checkpoints"] = {}
+        config["checkpoints"]["FREETOWN"] = "Freetown"
+
     data = {"records": records, "route": route, "car1": CAR1, "car2": CAR2,
             "cars": CARS, "config": config}
     with open(OUT, "w", encoding="utf-8") as f:

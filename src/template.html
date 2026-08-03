@@ -962,13 +962,16 @@ function addActualPath(points,color,focused){
       lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
   });
 }
-function addActualMarker(point,color,label,name,pulse=true){
+function addActualMarker(point,color,label,name,pulse=true,faceUrl=null){
   if(!point)return;
-  const face=name&&(PHOTOS.faces||{})[name];
+  const face=faceUrl || (name&&(PHOTOS.faces||{})[name]);
   const bg=face?`;background-image:url('${face}')`:'';
-  const html=`<div class="track-now${name?' person':''}${pulse?'':' quiet'}" style="--tc:${color}${bg}" aria-label="${esc(label)}">${face?'':esc(label.slice(0,1))}</div>`;
-  const marker=L.marker([point.lat,point.lng],{pane:'actualMarkerPane',zIndexOffset:1600,icon:L.divIcon({className:'',iconSize:name?[30,30]:[24,24],
-    iconAnchor:name?[15,15]:[12,12],html})}).addTo(actualTrackLayer);
+  const isPerson=!!name;
+  const html=`<div class="track-now${isPerson?' person':''}${pulse?'':' quiet'}" style="--tc:${color}${bg}" aria-label="${esc(label)}">${face?'':esc(label.slice(0,1))}</div>`;
+  const size=face?[30,30]:[24,24];
+  const anchor=face?[15,15]:[12,12];
+  const marker=L.marker([point.lat,point.lng],{pane:'actualMarkerPane',zIndexOffset:1600,icon:L.divIcon({className:'',iconSize:size,
+    iconAnchor:anchor,html})}).addTo(actualTrackLayer);
   if(name)marker.on('click',()=>openFicheFor(name));
 }
 function reportedForPerson(name){
@@ -985,11 +988,13 @@ function rejectedLatestForPerson(name){
     return {point:latest,reason:'saut GPS incohérent'};
   return null;
 }
-function currentForPerson(name){
+function currentForPerson(name, maxTime = Infinity){
   const latest=latestPositions[name],rejected=rejectedLatestForPerson(name);
   const legacy=legacyPositions[name];
-  const personal=lastCoherentPoint(personGpsPoints(name).filter(p=>!rejected||p.pointId!==latest.pointId));
-  const fallback=legacy&&(legacy.accuracyM==null||legacy.accuracyM<=MAX_ACCURACY_M)?legacy:null;
+  let validGpsPoints = personGpsPoints(name).filter(p=>(p.at||0)<=maxTime);
+  if(maxTime === Infinity && rejected) validGpsPoints = validGpsPoints.filter(p=>p.pointId!==latest.pointId);
+  const personal=lastCoherentPoint(validGpsPoints);
+  const fallback=legacy&&(legacy.accuracyM==null||legacy.accuracyM<=MAX_ACCURACY_M)&&(legacy.at||0)<=maxTime?legacy:null;
   return [personal,fallback].filter(Boolean).sort((a,b)=>(a.at||0)-(b.at||0)).at(-1)||null;
 }
 const PROJECTION_TIE_KM=.05;
@@ -1049,10 +1054,11 @@ function routeProgressAtRecord(recordIndex){
   if(!P.partial)return ROUTE_KM[Math.min(P.upTo,ROUTE_KM.length-1)]||0;
   return (ROUTE_KM[P.upTo]||0)+hav(ROUTE[P.upTo],P.partial);
 }
-function currentTripProgressKm() {
+function currentTripProgressKm(maxTime = Infinity) {
   let max = 0;
   Object.keys(VEHICLES).forEach(id => {
-    const pts = vehiclePoints(id), last = lastTrackPoint(pts);
+    const pts = vehiclePoints(id).filter(p=>p.at<=maxTime);
+    const last = lastTrackPoint(pts);
     if(last) {
       const proj = projectOnPlannedRoute(last);
       if(proj && proj.progressKm > max) max = proj.progressKm;
@@ -1060,21 +1066,25 @@ function currentTripProgressKm() {
   });
   return max;
 }
-function plannedRangeForPerson(name){
+function plannedRangeForPerson(name, maxTime = Infinity){
   const onboard=[];
   REC.forEach((r,i)=>{
     const state=r.car1[name]||r.car2[name];
     if(state==='present'||state==='tentative')onboard.push(i);
   });
   if(!onboard.length)return null;
-  const globalProgress = currentTripProgressKm();
+  const globalProgress = currentTripProgressKm(maxTime);
   let futureOnboard = onboard.filter(i => routeProgressAtRecord(i) >= globalProgress - 50);
   if (!futureOnboard.length) futureOnboard = [onboard.at(-1)];
   return {startKm:Math.max(routeProgressAtRecord(futureOnboard[0]), globalProgress),
     endKm:onboard.at(-1)===REC.length-1?totalKm:routeProgressAtRecord(onboard.at(-1))};
 }
-function addPlannedFuture(last,color,{focused=false,dashOffset='0',startKm=0,endKm=totalKm}={}){
-  const globalProgress = currentTripProgressKm();
+function plannedRangeForVehicle(id, maxTime = Infinity){
+  const name = VEHICLES[id].label;
+  return plannedRangeForPerson(name, maxTime);
+}
+function addPlannedFuture(last,color,maxTime=Infinity,{focused=false,dashOffset='0',startKm=0,endKm=totalKm}={}){
+  const globalProgress = currentTripProgressKm(maxTime);
   const projection=last?projectOnPlannedRoute(last):null;
   const futureStartKm = Math.max(startKm, globalProgress);
   if (futureStartKm >= endKm) return {projection,connectorTooFar:false,offRoute:false,hasFuture:false};
@@ -1104,29 +1114,40 @@ function trackSummary(points){
 function renderHybridTracks(){
   actualTrackLayer.clearLayers();
   const {kind,id}=subjectParts();
+  const maxTime = (idx === REC.length - 1) ? Infinity : new Date(REC[idx].iso).getTime();
   if(kind==='vehicle'){
     const meta=VEHICLES[id]; if(!meta)return;
-    const pts=vehiclePoints(id),current=vehicleCurrentPoint(id),routeEnd=lastTrackPoint(pts);
+    const pts=vehiclePoints(id).filter(p=>p.at<=maxTime);
+    const current=lastCoherentPoint(vehicleGpsPoints(id).filter(p=>p.at<=maxTime));
+    const routeEnd=lastTrackPoint(pts);
     addActualPath(pts,meta.color,true);
-    addActualMarker(current,meta.color,meta.label,null,true);
-    addPlannedFuture(routeEnd||current,meta.color,{focused:true});
+    addActualMarker(current,meta.color,meta.label,null,true,meta.face);
+    const range=plannedRangeForVehicle(id, maxTime);
+    if(range)addPlannedFuture(routeEnd||current,meta.color,maxTime,{focused:true,...range});
   }else if(kind==='person'){
     const name=NAME_BY_ID.get(id); if(!name)return;
-    const pts=personPoints(name),current=currentForPerson(name),routeEnd=lastTrackPoint(pts),color=colorOf(name);
+    const pts=personPoints(name).filter(p=>p.at<=maxTime);
+    const current=currentForPerson(name, maxTime);
+    const routeEnd=lastTrackPoint(pts);
+    const color=colorOf(name);
     addActualPath(pts,color,true); addActualMarker(current,color,name,name,true);
-    const range=plannedRangeForPerson(name);
-    if(range)addPlannedFuture(routeEnd||current,color,{focused:true,...range});
+    const range=plannedRangeForPerson(name, maxTime);
+    if(range)addPlannedFuture(routeEnd||current,color,maxTime,{focused:true,...range});
+  }else{
+    // overview
+    Object.entries(VEHICLES).forEach(([vid,v])=>{
+      const pts=vehiclePoints(vid).filter(p=>p.at<=maxTime);
+      const current=lastCoherentPoint(vehicleGpsPoints(vid).filter(p=>p.at<=maxTime));
+      const routeEnd=lastTrackPoint(pts);
+      addActualPath(pts,v.color,false); 
+      addActualMarker(current,v.color,v.label,null,false,v.face);
+      const range=plannedRangeForVehicle(vid, maxTime);
+      if(range)addPlannedFuture(routeEnd||current,v.color,maxTime,{focused:false,...range});
+    });
   }
 }
 function photoVisible(g){
-  const {kind,id}=subjectParts();
-  const identity=mediaIdentity(g),duringTrip=identity.at>=TRIP_START_MS;
-  // Les médias v1 gardent un prénom et parfois une voiture explicites. Ils
-  // deviennent filtrables pendant le voyage, sans inventer une identité pour
-  // les fichiers Drive ou les essais antérieurs au départ.
-  if(kind==='vehicle')return duringTrip&&identity.vehicleId===id;
-  if(kind==='person')return duringTrip&&identity.name===NAME_BY_ID.get(id);
-  return true; // Convoi = tous les médias réels, y compris à pied/autre
+  return true;
 }
 function visibleGalleryIndices(){
   return GALLERY.map((g,i)=>({g,i})).filter(x=>x.g.lat!=null&&photoVisible(x.g)).map(x=>x.i);
@@ -1221,11 +1242,28 @@ function setupTrackControls(){
   const choice=(b)=>`<button class="track-choice" data-subject="${b.subject}"
     role="option" aria-selected="${b.subject===trackSubject}" style="--subject-color:${b.color}">${avatarMarkup(b,'track-choice-avatar')}<span class="track-choice-name">${esc(b.label)}</span></button>`;
   const initial=subjectDescriptor();
+  const c1peeps = people.filter(p => CAR1.includes(p.label));
+  const c2peeps = people.filter(p => CAR2.includes(p.label));
+  const obs = people.filter(p => (CFG.observateurs||[]).includes(p.label));
   el.innerHTML=`<button class="track-picker-toggle" id="track-picker-toggle" type="button" aria-haspopup="listbox" aria-expanded="false">
       ${avatarMarkup(initial,'track-picker-avatar')}<span class="track-picker-copy"><small>Trace affichée</small><span class="track-picker-current">${esc(initial.label)}</span></span><span class="track-picker-chevron">⌄</span></button>
     <div class="track-menu" id="track-menu" role="listbox" aria-label="Trace affichée" hidden>
-      <div class="track-menu-label">Voitures</div><div class="track-vehicles-grid">${overview.map(b=>choice(b)).join('')}</div>
-      <div class="track-menu-label">Personnes</div><div class="track-people-grid">${people.map(b=>choice(b)).join('')}</div></div>`;
+      <div style="display:flex; gap:10px;">
+        <div style="flex:1; display:flex; flex-direction:column; gap:5px;">
+          <div class="track-menu-label" style="margin-bottom:0; text-transform:uppercase;">Voiture 1</div>
+          ${overview[0] ? choice(overview[0]) : ''}
+          <div class="track-menu-label" style="margin-top:6px; margin-bottom:0; text-transform:uppercase;">Personnes</div>
+          ${c1peeps.map(choice).join('')}
+        </div>
+        <div style="flex:1; display:flex; flex-direction:column; gap:5px;">
+          <div class="track-menu-label" style="margin-bottom:0; text-transform:uppercase;">Voiture 2</div>
+          ${overview[1] ? choice(overview[1]) : ''}
+          <div class="track-menu-label" style="margin-top:6px; margin-bottom:0; text-transform:uppercase;">Personnes</div>
+          ${c2peeps.map(choice).join('')}
+        </div>
+      </div>
+      ${obs.length ? `<div class="track-menu-label" style="margin-top:10px; text-transform:uppercase;">Observateurs</div><div class="track-people-grid">${obs.map(choice).join('')}</div>` : ''}
+    </div>`;
   el.addEventListener('click',e=>{
     if(e.target.closest('#track-picker-toggle')){setTrackMenu(document.getElementById('track-menu').hidden);return;}
     const b=e.target.closest('.track-choice');if(!b)return;
@@ -1781,6 +1819,8 @@ function render(){
   document.getElementById('s-pax').textContent=paxCount(rec);
   document.getElementById('s-day').textContent=`${idx+1} / ${REC.length}`;
   odoSet(document.getElementById('s-km'),traveledKm(P));
+  
+  renderHybridTracks();
   carsEl.innerHTML=renderCar(1,rec)+'<div style="height:14px"></div>'+renderCar(2,rec);
   // active leg: highlight card + keep it visible in the slider
   const li=P.legIdx;
