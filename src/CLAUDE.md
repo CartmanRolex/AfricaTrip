@@ -31,8 +31,7 @@ The centered `.map-toolbar` overlays the top of the map on both breakpoints;
 there is deliberately no Prévu/Réel/Comparer switch. A compact **Trace
 affichée** picker replaces the former 720 px button rail: its popover groups
 both cars and avatar-backed people, keeps one `aria-selected` choice,
-and closes after selection/outside/Escape. A permanent key explains solid =
-real / dashed = planned. On mobile the toolbar starts after Leaflet's zoom
+and closes after selection/outside/Escape. On mobile the toolbar starts after Leaflet's zoom
 control and the status may wrap onto two readable lines without widening the
 page.
 
