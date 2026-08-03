@@ -193,14 +193,23 @@ Key JS structures (all near the top of the script):
   patch of bodywork. `addActualMarker()` picks the round avatar from the
   presence of an image, not from the presence of a name.
   `addPlannedFuture()` **always** begins the dashed tail at the most recent GPS
-  point (`tail.unshift`), then rejoins the plan at that point's projection and
-  follows the route to the end of the subject's range. The continuity is
-  unconditional: an earlier version only drew a thin connector when the point
-  was within 50 km of the plan, which left a far-off subject's marker floating
-  with no path at all. Rejoining at the projection (rather than cutting straight
-  to the next checkpoint) preserves the route's bends. The tail must not start
-  from the *planned* progress of the displayed day — that erases a stretch
-  nobody has driven yet and opens a hole on every future day.
+  point (`tail.unshift`), then rejoins the plan at `nextRouteKmAfter()` — the
+  next route waypoint ahead — and follows the route to the end of the subject's
+  range. Three rules, each fixing a real artefact:
+  - the continuity is unconditional (an earlier version drew a thin connector
+    only within 50 km of the plan, leaving a far-off subject's marker floating
+    with no path at all);
+  - with a real point, the resume is that point's own progress, **never**
+    `startKm` (the planned-range start). Bounding by `startKm` teleported the
+    line to a traveler's theoretical embarkation — 159 km of straight line laid
+    over the itinerary for someone already standing on it;
+  - the resume is the next *waypoint*, not the perpendicular foot, otherwise an
+    off-route subject drew a spur out to the road and then doubled back.
+  Without any real point the tail starts exactly at `startKm`, so a traveler who
+  has sent nothing still shows their planned leg from their embarkation.
+  The tail must not start from the *planned* progress of the displayed day —
+  that erases a stretch nobody has driven yet and opens a hole on every future
+  day.
   `projectOnPlannedRoute()` uses local equirectangular projection plus
   cumulative-distance tie-breaking to find that suffix. The thin dotted
   connector between a real point and the plan is drawn **only** when the point
@@ -252,15 +261,16 @@ Key JS structures (all near the top of the script):
   time uncertainty. `vehicleGpsPoints()`/`personGpsPoints()` remain separate
   from media anchors so current markers never jump to an old photo. Caches are
   also invalidated by v1-track and media snapshots.
-- **Person click = real focus** (`openFicheFor()`, `focusTrackSubject()`):
-  opening any traveler selects that person. It draws only their own path thick
-  with a soft glow, pulses their portrait at their position **for the displayed
-  day** (`stateAtDay()`, so the fly-to follows the timeline) and uses a stable
-  zoom 13 (vehicle 11), offset to the visible map area below the toolbar; the
-  previous zoom can no longer leave the next person stuck at zoom 18. Without
-  any position it fits that person's own confirmed/tentative planned range —
-  or, for a vehicle, its roster's range — instead of borrowing another
-  position. A
+- **Two focus modes** (`focusTrackSubject(mode)`, `subjectFocusData()`):
+  choosing a subject — from the picker or by opening a fiche in the panel —
+  uses mode `'route'` and frames that subject's **whole planned trace** (its
+  range plus its current position, so the marker never falls off-screen when it
+  is far from the plan). Selecting someone is for seeing their journey, not for
+  gluing the map to their position of the day. Mode `'point'` flies to them at
+  a stable zoom 13 (vehicle 11), offset to the visible map area below the
+  toolbar, and is reserved for **clicking their head on the map**. The previous
+  zoom can no longer leave the next person stuck at zoom 18. `openFicheFor()`
+  takes the mode as its second argument. A
   usable current point is chosen from accepted GPS evidence and the legacy
   position fallback, never from a media anchor;
   points worse than 250 m or a short impossible latest jump are not used for the
@@ -278,14 +288,11 @@ Key JS structures (all near the top of the script):
   timer, stopped on `pagehide`, so ages continue changing without a snapshot or
   timer leak.
 - `GALLERY` starts with shared Drive/build media `[{id, name, date, lat, lng,
-  gps, thumb, file}]` from `fetch_photos.py`. `photoVisible()` keeps a medium
-  when it predates the end of the displayed day AND either belongs to the
-  selected subject or carries no identity at all. **Unattributed Drive files
-  and pre-departure test shots stay visible under every subject**: since the
-  "Convoi" view was removed there is no other place for them, and hiding them
-  everywhere would lose them. (The 03/08 pass solved that by making
-  `photoVisible()` `return true`, which dropped per-subject filtering
-  entirely.) `refreshPhotos()` renders only the allowed
+  gps, thumb, file}]` from `fetch_photos.py`. **`photoVisible()` filters on the
+  timeline only** — a medium shows once the displayed day has reached it. The
+  gallery belongs to the trip, not to the selected subject: changing trace must
+  never make photos disappear from the map, so there is deliberately no
+  per-subject media filtering. `refreshPhotos()` renders the allowed
   indices into `photoCluster`; clicking a
   marker opens the filtered `#lightbox` list, with image/video support,
   captions, date, location provenance and thumbnail fallback. Firebase v2

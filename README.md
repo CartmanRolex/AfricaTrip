@@ -16,9 +16,10 @@ and the dashed line always starts at the most recent GPS point, so you can
 always see where someone is heading next. A subject with no GPS data keeps the
 full planned route. Cars are drawn exactly like people: same round marker, same
 clustering when several land on the same spot.
-Selecting a traveler highlights only that person's own route and flies to their
-position for the displayed day; the timestamp remains visible so an old point is
-never presented as fresh.
+Selecting a traveler highlights only that person's own route and frames their
+whole planned trace; tap their head on the map to fly in on them instead. The
+timestamp remains visible so an old point is never presented as fresh. Shared
+photos are filtered by the timeline only, never by the selected subject.
 
 **Sliding the timeline moves the map through time.** Tracks, faces and photos
 are limited to what was known at the end of the selected day. Pick a day still

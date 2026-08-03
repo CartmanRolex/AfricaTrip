@@ -78,10 +78,13 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
   impossible jump starts a separate section instead of drawing a diagonal.
   The accepted history is solid and only the untravelled suffix of `DATA.route`
   remains dashed. **The dashed line always starts at the most recent GPS point**
-  and runs from there to the next destination and beyond — the connection is
+  and runs from there to the next waypoint and beyond — the connection is
   never conditional, so a subject far off the plan is still visibly heading
-  somewhere instead of floating detached from any road. It rejoins the plan at
-  the projection of that point, which keeps every bend of the drawn route.
+  somewhere instead of floating detached from any road. Where it rejoins the
+  plan comes from that point's own progress, never from the subject's planned
+  embarkation, and never from the perpendicular foot: both produced visible
+  artefacts (a straight line laid over the itinerary, and a spur out to the road
+  and back).
   Each subject is clipped by **its own** progress, never by the other car's
   lead. The current marker still comes from GPS rather than from an old
   uploaded photo.
@@ -90,6 +93,11 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
   bespoke shape, no bespoke spreading. Only the image framing differs
   (`.wide-art`), because a car cut-out is landscape and would otherwise be
   cropped to nothing in a circle.
+- **Choosing a subject frames their journey; only clicking a head zooms in.**
+  Picking someone in the toolbar, or opening their fiche from the panel, fits
+  their whole planned trace. Tapping their head on the map flies to them.
+- **The gallery belongs to the trip, not to the subject.** Photos are filtered
+  by the timeline only — switching trace never makes a photo disappear.
 - **The timeline is a time machine, and a planned position always says so.**
   Scrubbing the frise restricts tracks, faces and photos to what was known by
   the end of the selected day. For a future day — or a day with no reality at

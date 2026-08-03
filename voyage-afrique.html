@@ -998,7 +998,7 @@ function addActualMarker(point,color,label,name,{pulse=true,faceUrl=null,planned
   const anchor=[size[0]/2,size[1]/2];
   const marker=L.marker([point.lat,point.lng],{pane:'actualMarkerPane',zIndexOffset:1600,icon:L.divIcon({className:'',iconSize:size,
     iconAnchor:anchor,html})}).addTo(actualTrackLayer);
-  if(name)marker.on('click',()=>openFicheFor(name));
+  if(name)marker.on('click',()=>openFicheFor(name,'point'));
 }
 function rejectedLatestForPerson(name){
   const latest=latestPositions[name];
@@ -1131,12 +1131,34 @@ function plannedRangeForVehicle(id){
 // sujet vraiment écarté voyait son marqueur flotter, détaché de toute route.
 // La reprise se fait à la projection du point réel, ce qui conserve tous les
 // virages du tracé au lieu de couper droit vers le checkpoint suivant.
+// Prochain point d'itineraire strictement apres une progression donnee.
+function nextRouteKmAfter(km){
+  for(let i=0;i<ROUTE_KM.length;i++)if(ROUTE_KM[i]>km+.001)return ROUTE_KM[i];
+  return totalKm;
+}
 function addPlannedFuture(last,color,{focused=false,dashOffset='0',startKm=0,endKm=totalKm}={}){
   const end=Math.min(totalKm,endKm);
-  const projection=last?projectOnPlannedRoute(last):null;
-  const start=Math.max(startKm,projection?projection.progressKm:0);
-  const tail=start<end?routeSlice(start,end):[];
-  if(last)tail.unshift([last.lat,last.lng]);
+  // Sans position reelle, le trace prevu commence exactement a l'embarquement.
+  if(!last){
+    const planned=startKm<end?routeSlice(startKm,end):[];
+    if(planned.length>1)L.polyline(planned,{pane:'actualTrackPane',color,weight:focused?4:3.2,
+      opacity:focused?.8:.66,dashArray:'10 12',dashOffset,lineCap:'round',lineJoin:'round',
+      interactive:false}).addTo(actualTrackLayer);
+    return;
+  }
+  // Avec une position reelle, on repart de LA, pas du debut de la plage prevue :
+  // borner par `startKm` faisait sauter la ligne jusqu'a l'embarquement
+  // theorique, soit 159 km de droite par-dessus l'itineraire pour quelqu'un qui
+  // se trouvait pourtant deja dessus.
+  const projection=projectOnPlannedRoute(last);
+  const from=projection?projection.progressKm:startKm;
+  if(from>=end)return;
+  // On rejoint le PROCHAIN point d'itineraire, pas le pied de la
+  // perpendiculaire : sinon un sujet ecarte du plan dessine un eperon vers la
+  // route puis repart en sens inverse.
+  const resume=Math.min(nextRouteKmAfter(from),end);
+  const tail=routeSlice(resume,end);
+  tail.unshift([last.lat,last.lng]);
   if(tail.length>1)L.polyline(tail,{pane:'actualTrackPane',color,weight:focused?4:3.2,opacity:focused?.8:.66,
     dashArray:'10 12',dashOffset,lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
 }
@@ -1185,19 +1207,12 @@ function renderHybridTracks(){
     }
   }
 }
+// La galerie est celle du voyage, pas celle du sujet : changer de trace ne doit
+// jamais faire disparaitre des photos de la carte. Seule la frise filtre encore,
+// puisqu'un media pris apres le jour affiche n'existe pas encore.
 function photoVisible(g){
-  const {kind,id}=subjectParts();
-  const identity=mediaIdentity(g);
-  // Voyage dans le temps : un média pris après le jour affiché n'existe pas
-  // encore sur la carte.
-  if(identity.at&&identity.at>dayWindowEnd())return false;
-  // Un média sans identité (fichier Drive anonyme) ou antérieur au départ
-  // appartient au convoi : il reste visible quel que soit le sujet choisi,
-  // sinon plus aucune vue ne l'afficherait depuis la suppression de « Convoi ».
-  if(!identity.name||identity.at<TRIP_START_MS)return true;
-  if(kind==='vehicle')return identity.vehicleId===id;
-  if(kind==='person')return identity.name===NAME_BY_ID.get(id);
-  return true;
+  const at=mediaIdentity(g).at;
+  return !(at&&at>dayWindowEnd());
 }
 function visibleGalleryIndices(){
   return GALLERY.map((g,i)=>({g,i})).filter(x=>x.g.lat!=null&&photoVisible(x.g)).map(x=>x.i);
@@ -1233,24 +1248,35 @@ function focusBounds(bounds,maxZoom){
 // (13 pour une personne, 11 pour une voiture) : repartir du zoom courant
 // laissait le sujet suivant coincé au zoom 18 du précédent. Sans aucun point,
 // on cadre la portion d'itinéraire qui le concerne — jamais celle d'un autre.
-function focusTrackSubject(){
-  const {kind,id}=subjectParts();
-  const end=dayWindowEnd();
+// Position et plage prevue du sujet courant, pour le cadrage.
+function subjectFocusData(){
+  const {kind,id}=subjectParts(),end=dayWindowEnd();
   if(kind==='person'){
-    const name=NAME_BY_ID.get(id); if(!name)return;
+    const name=NAME_BY_ID.get(id); if(!name)return null;
     const {point}=stateAtDay(currentForPerson(name,end),onboardAt(name,idx));
-    if(point){focusPoint(point,13);return;}
-    const range=plannedRangeForPerson(name),ll=range&&routeSlice(range.startKm,range.endKm);
-    if(ll&&ll.length>1)focusBounds(ll,8);
-    return;
+    return {point,range:plannedRangeForPerson(name),zoom:13};
   }
   if(kind==='vehicle'){
+    if(!VEHICLES[id])return null;
     const {point}=stateAtDay(lastCoherentPoint(vehicleGpsPoints(id).filter(p=>p.at<=end)),true);
-    if(point){focusPoint(point,11);return;}
-    const range=plannedRangeForVehicle(id),ll=range&&routeSlice(range.startKm,range.endKm);
-    focusBounds(ll&&ll.length>1?ll:latlngs,ll&&ll.length>1?8:7);
-    return;
+    return {point,range:plannedRangeForVehicle(id),zoom:11};
   }
+  return null;
+}
+// mode 'route' (defaut) : on cadre TOUT le trace prevu du sujet — choisir
+// quelqu'un sert a voir son voyage, pas a se coller a sa position du jour. La
+// position courante est incluse dans le cadre pour que le marqueur ne tombe
+// pas hors ecran quand le sujet est loin du plan.
+// mode 'point' : on zoome sur lui. Reserve au clic sur sa tete sur la carte.
+function focusTrackSubject(mode='route'){
+  const data=subjectFocusData();
+  if(!data){focusBounds(latlngs,7);return;}
+  const {point,range,zoom}=data;
+  if(mode==='point'&&point){focusPoint(point,zoom);return;}
+  const ll=range?routeSlice(range.startKm,range.endKm):[];
+  if(point)ll.push([point.lat,point.lng]);
+  if(ll.length>1){focusBounds(L.latLngBounds(ll),8);return;}
+  if(point){focusPoint(point,zoom);return;}
   focusBounds(latlngs,7);
 }
 function setTrackSubject(subject,focus=true){
@@ -1362,7 +1388,7 @@ function refreshFaces(){
     if(!p)return;
     if(!onboard&&!(CFG.observateurs||[]).includes(name))return;
     push(p,{img:(PHOTOS.faces||{})[name],color:colorOf(name),initial:name[0]||'?',
-      label:name,planned,onClick:()=>openFicheFor(name)});
+      label:name,planned,onClick:()=>openFicheFor(name,'point')});
   });
   Object.entries(VEHICLES).forEach(([vid,v])=>{
     if(subject.kind==='vehicle'&&vid===subject.id)return;
@@ -1604,11 +1630,13 @@ function revealOpenFiche(){
     scroller.scrollTo({top:Math.max(0,scroller.scrollTop+er.top-sr.top-4),behavior:'smooth'});
   }));
 }
-function openFicheFor(name){
+// `focus` vaut 'route' partout (ouvrir une fiche = voir le voyage de la
+// personne) sauf au clic sur sa tete sur la carte, qui zoome sur elle.
+function openFicheFor(name,focus='route'){
   ficheFor=name;
   setTrackSubject(`person:${slug(name)}`,false);
   render(); renderObs();
-  focusTrackSubject();
+  focusTrackSubject(focus);
   revealOpenFiche();
 }
 document.addEventListener('click',e=>{
