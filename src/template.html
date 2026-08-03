@@ -551,7 +551,7 @@ const MAX_ACCURACY_M = 250;
 let trackRevision=0,cachedTrackRevision=-1,cachedTrackPoints=[];
 const personTrackCache=new Map(),vehicleTrackCache=new Map();
 function invalidateTracks(){trackRevision++;cachedTrackRevision=-1;personTrackCache.clear();vehicleTrackCache.clear();}
-let trackSubject = 'vehicle:1';
+let trackSubject = 'vehicle:hugodouard';
 const ago = ms => { const s=(Date.now()-ms)/1000;
   if(s<90) return "à l'instant";
   if(s<5400) return `il y a ${Math.round(s/60)} min`;
@@ -1210,7 +1210,7 @@ function subjectDescriptor(subject=trackSubject){
   if(kind==='person'){
     const name=NAME_BY_ID.get(id);if(name)return {kind,label:name,color:colorOf(name),icon:name[0],face:(PHOTOS.faces||{})[name]};
   }
-  return {kind:'vehicle',label:VEHICLES['1'].label,color:VEHICLES['1'].color,icon:VEHICLES['1'].short};
+  return {kind:'vehicle',label:VEHICLES['hugodouard'].label,color:VEHICLES['hugodouard'].color,icon:VEHICLES['hugodouard'].short};
 }
 function avatarMarkup(meta,cls){
   const bg=meta.face?`background-image:url('${meta.face}');`:'';
