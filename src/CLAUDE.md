@@ -30,7 +30,7 @@ and the deco camels hide entirely, so they don't bury the small map.
 The centered `.map-toolbar` overlays the top of the map on both breakpoints;
 there is deliberately no Prévu/Réel/Comparer switch. A compact **Trace
 affichée** picker replaces the former 720 px button rail: its popover groups
-Convoi, both cars and avatar-backed people, keeps one `aria-selected` choice,
+both cars and avatar-backed people, keeps one `aria-selected` choice,
 and closes after selection/outside/Escape. A permanent key explains solid =
 real / dashed = planned. On mobile the toolbar starts after Leaflet's zoom
 control and the status may wrap onto two readable lines without widening the
@@ -156,23 +156,22 @@ Key JS structures (all near the top of the script):
   only the remaining planned suffix as a dashed line. With zero points the
   whole plan is dashed. `projectOnPlannedRoute()` uses local equirectangular
   projection plus cumulative-distance tie-breaking, not the inconsistent
-  calendar year, to find the suffix from the latest reliable point. The short
-  join to that projection is a separate dotted line and never enters real km;
-  it is omitted beyond 50 km so it cannot become a misleading diagonal. The
+  calendar year, to find the suffix from the latest reliable point. The
+  dashed line now seamlessly starts from the last reliable GPS point to connect
+  to the planned route, creating a smooth visual interpolation. The
   route data is sparse, so the explicit off-itinerary warning starts only at
   150 km. Complementary `dashOffset`s keep both cars visible over their shared
   future. `actualTrackPane` and
   `actualMarkerPane` keep hybrid lines and current markers above context.
-- **Subject filters** (`trackSubject`, `setTrackSubject()`): `Convoi` renders
-  Hugodouard and Paul Pot as two independent hybrids — never a mean line;
-  either vehicle button renders only that derived vehicle hybrid; a person
+- **Subject filters** (`trackSubject`, `setTrackSubject()`): either
+  vehicle button renders only that derived vehicle hybrid; a person
   button renders only that person's own accepted points plus the remaining
   part of their planned presence range. Person buttons come from deduplicated
   `ACTIVE_NAMES` (both cars plus observers). The picker uses native buttons,
   focus styles and listbox semantics. Choosing a different picker subject
   closes any stale fiche; opening a fiche selects the matching person.
-  `Convoi` includes all located media, while precise filters include v2 media
-  plus attributable v1 media from the trip period.
+  Precise filters include v2 media plus attributable v1 media from the trip
+  period.
 - **Actual route model** (`TRIP_ID = "africa-trip-01"`): stable person ids are
   normalized to active display names by `slug()`/`NAME_BY_ID`; coordinates are
   rejected before number coercion when null, blank, non-finite or outside

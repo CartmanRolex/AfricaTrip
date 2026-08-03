@@ -551,7 +551,7 @@ const MAX_ACCURACY_M = 250;
 let trackRevision=0,cachedTrackRevision=-1,cachedTrackPoints=[];
 const personTrackCache=new Map(),vehicleTrackCache=new Map();
 function invalidateTracks(){trackRevision++;cachedTrackRevision=-1;personTrackCache.clear();vehicleTrackCache.clear();}
-let trackSubject = 'convoy';
+let trackSubject = 'vehicle:1';
 const ago = ms => { const s=(Date.now()-ms)/1000;
   if(s<90) return "à l'instant";
   if(s<5400) return `il y a ${Math.round(s/60)} min`;
@@ -1092,10 +1092,9 @@ function addPlannedFuture(last,color,{focused=false,dashOffset='0',startKm=0,end
   // Le raccord est une information de lecture, jamais un déplacement réel :
   // il reste fin et pointillé, et disparaît plutôt que créer une diagonale
   // trompeuse quand la position est très loin de l'itinéraire envisagé.
-  if(last&&projection&&!connectorTooFar&&start<=projection.progressKm+.001&&projection.distanceKm>.08)
-    L.polyline([[last.lat,last.lng],[projection.point.lat,projection.point.lng]],{
-      pane:'actualTrackPane',color,weight:1.5,opacity:.48,dashArray:'1 7',lineCap:'round',interactive:false
-    }).addTo(actualTrackLayer);
+  if(last&&projection&&!connectorTooFar&&start<=projection.progressKm+.001) {
+    tail.unshift([last.lat, last.lng]);
+  }
   if(tail.length>1)L.polyline(tail,{pane:'actualTrackPane',color,weight:focused?4:3.2,opacity:focused?.8:.66,
     dashArray:'10 12',dashOffset,lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
   return {projection,connectorTooFar,offRoute,hasFuture:tail.length>1};
@@ -1111,18 +1110,7 @@ function renderHybridTracks(){
   actualTrackLayer.clearLayers();
   const status=document.getElementById('track-status');
   const {kind,id}=subjectParts();
-  if(kind==='convoy'){
-    const summaries=[];
-    Object.entries(VEHICLES).forEach(([vid,meta],i)=>{
-      const pts=vehiclePoints(vid),current=vehicleCurrentPoint(vid),routeEnd=lastTrackPoint(pts);
-      addActualPath(pts,meta.color,false);
-      addActualMarker(current,meta.color,meta.label,null,false);
-      const future=addPlannedFuture(routeEnd||current,meta.color,{dashOffset:i?'11':'0'});
-      summaries.push(`${meta.label} : ${trackSummary(pts)}${future.hasFuture?' · futur prévu':''}`+
-        (future.offRoute?` · hors itinéraire prévu (${kmFmt(future.projection.distanceKm)} km)`:''));
-    });
-    status.textContent=summaries.join(' · ');
-  }else if(kind==='vehicle'){
+  if(kind==='vehicle'){
     const meta=VEHICLES[id]; if(!meta)return;
     const pts=vehiclePoints(id),current=vehicleCurrentPoint(id),routeEnd=lastTrackPoint(pts);
     addActualPath(pts,meta.color,true);
@@ -1222,7 +1210,7 @@ function subjectDescriptor(subject=trackSubject){
   if(kind==='person'){
     const name=NAME_BY_ID.get(id);if(name)return {kind,label:name,color:colorOf(name),icon:name[0],face:(PHOTOS.faces||{})[name]};
   }
-  return {kind:'convoy',label:'Convoi',color:'var(--c1)',icon:'◆'};
+  return {kind:'vehicle',label:VEHICLES['1'].label,color:VEHICLES['1'].color,icon:VEHICLES['1'].short};
 }
 function avatarMarkup(meta,cls){
   const bg=meta.face?`background-image:url('${meta.face}');`:'';
@@ -1242,8 +1230,7 @@ function setTrackMenu(open){
 }
 function setupTrackControls(){
   const el=document.getElementById('track-subjects');
-  const overview=[{subject:'convoy',label:'Convoi',color:'#E8924A',icon:'◆'},
-    ...Object.entries(VEHICLES).map(([id,v])=>({subject:`vehicle:${id}`,label:v.label,color:v.color,icon:v.short}))];
+  const overview=[...Object.entries(VEHICLES).map(([id,v])=>({subject:`vehicle:${id}`,label:v.label,color:v.color,icon:v.short}))];
   const people=ACTIVE_NAMES.map(name=>({subject:`person:${slug(name)}`,label:name,color:colorOf(name),icon:name[0],face:(PHOTOS.faces||{})[name]}));
   const choice=(b,overviewChoice=false)=>`<button class="track-choice${overviewChoice?' overview':''}" data-subject="${b.subject}"
     role="option" aria-selected="${b.subject===trackSubject}" style="--subject-color:${b.color}">${avatarMarkup(b,'track-choice-avatar')}<span class="track-choice-name">${esc(b.label)}</span></button>`;
