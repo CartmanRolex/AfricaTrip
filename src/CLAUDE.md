@@ -33,15 +33,26 @@ desktop by a base `display:none`) drags the `--map-h` custom property between
 survives the finger leaving the handle, and `map.invalidateSize()` is deferred
 to the next animation frame instead of firing on every move.
 
-The centered `.map-toolbar` overlays the top of the map on both breakpoints;
-there is deliberately no Prévu/Réel/Comparer switch, **no legend and no status
-line** (they were removed to give the small map back its room — the
-per-traveler details they carried now live in the fiche). A compact **Trace
-affichée** picker replaces the former 720 px button rail: the popover is a
-`.track-cars` two-column grid, one `.track-car-col` per vehicle holding that
-car's button then its own crew, followed by an Observateurs row. It keeps one
-`aria-selected` choice and closes after selection/outside/Escape. Styling is in
-the stylesheet, not inline on the generated markup.
+The `.map-toolbar` overlays the map; there is deliberately no
+Prévu/Réel/Comparer switch, **no legend and no status line** (they were removed
+to give the small map back its room — the per-traveler details they carried now
+live in the fiche). The **Trace affichée** picker replaces the former 720 px
+button rail: the popover is a `.track-cars` two-column grid, one
+`.track-car-col` per vehicle. **The vehicle chip is the column head**
+(`.track-choice.car`, faint fill + hairline) and its crew follows — that
+structure replaced four label rows that only repeated what it already says.
+Observers are not in the picker: they are not a trace to follow, and their fiche
+still opens from the panel. One `aria-selected` choice, closes on
+selection/outside/Escape, styling in the stylesheet rather than inline.
+
+On **mobile** the picker joins Leaflet's zoom control in a single left-hand
+column of map instruments (same 10 px gutter, stacked below it) instead of
+sitting beside it. Closed, it drops the "Trace affichée" eyebrow — the avatar
+and the name already say it — and shrinks to a 30 px pill. Open, the crew wraps
+to two ranks and the menu spans the width, so all eleven names stay readable
+with no scrolling; its `max-height` is derived from `--map-h`, the same custom
+property the panel handle drags, so **it can never spill past the map** (145 px
+tall over a 323 px map at the default size, versus 390 px before).
 
 Key JS structures (all near the top of the script):
 - `DATA.records` — one entry per day: `{date, iso, checkpoint, location,

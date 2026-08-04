@@ -79,15 +79,14 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
   max-height:min(56vh,390px);overflow-y:auto;padding:9px;background:rgba(30,24,19,.98);
   border:1px solid var(--sand-dim);border-radius:13px;box-shadow:0 16px 42px rgba(0,0,0,.68)}
 .track-menu[hidden]{display:none}
-.track-menu-label{margin:5px 5px 7px;font-family:var(--mono);font-size:7px;letter-spacing:.12em;
-  text-transform:uppercase;color:var(--muted)}
-/* une colonne par voiture : le véhicule puis son équipage, pour choisir une
-   trace sans avoir à savoir qui roule avec qui. */
-.track-cars{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.track-car-col{min-width:0;display:flex;flex-direction:column;gap:5px}
-.track-car-col>.track-menu-label{margin:0 5px}
-.track-car-col>.track-menu-label~.track-menu-label{margin-top:6px}
-.track-people-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+/* Une colonne par voiture. La pastille du véhicule EST la tête de colonne :
+   ce qui suit est son équipage. La structure dit déjà ce que quatre lignes
+   d'étiquettes répétaient — elles ont été retirées. */
+.track-cars{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.track-car-col{min-width:0;display:flex;flex-direction:column;gap:3px}
+.track-choice.car{background:rgba(239,231,214,.05);margin-bottom:5px;
+  box-shadow:0 1px 0 var(--line)}
+.track-choice.car .track-choice-name{font-family:var(--display);font-size:11.5px;letter-spacing:.03em}
 .track-choice{min-width:0;min-height:38px;display:flex;align-items:center;gap:8px;padding:5px 7px;
   color:var(--sand-dim);background:transparent;border:1px solid transparent;border-radius:9px;text-align:left;
   transition:color .15s,background .15s,border-color .15s}
@@ -363,10 +362,33 @@ span.fiche-face{display:block;overflow:hidden}
   .stat b.odo{font-size:12.5px}
   .stat span{font-size:7.5px;letter-spacing:.06em}
   #map{z-index:1}
-  .map-toolbar{z-index:700;justify-self:start;margin:7px 7px 0 56px;max-width:calc(100% - 64px);padding:5px;border-radius:12px}
-  .track-picker-toggle{min-height:38px;padding:4px 10px 4px 8px}
-  .track-picker-avatar{width:26px;height:26px}
-  .track-menu{left:-42px;right:auto;width:calc(100vw - 28px);max-height:min(58vh,390px)}
+  /* Les instruments de carte tiennent dans UNE colonne à gauche : zoom, puis
+     trace affichée juste dessous, même gouttière. La carte est basse sur
+     mobile, donc le sélecteur reste une pastille discrète — le sur-titre
+     doublait sa hauteur pour ne rien dire de plus que l'avatar et le nom. */
+  .map-toolbar{z-index:700;justify-self:start;margin:78px 0 0 10px;
+    max-width:calc(100% - 20px);padding:4px;border-radius:11px}
+  .track-picker-toggle{min-height:30px;padding:3px 8px 3px 3px;gap:7px;border-radius:9px}
+  .track-picker-avatar{width:24px;height:24px;font-size:11px}
+  .track-picker-copy small{display:none}
+  .track-picker-current{margin-top:0;font-size:11.5px}
+  .track-picker-chevron{margin-left:6px;font-size:12px}
+  /* Le menu ne peut jamais déborder de la carte : sa hauteur suit `--map-h`,
+     la même variable que la poignée du panneau règle. */
+  /* 78 px sous le haut de la carte + la pastille + l'écart + une marge basse :
+     le menu s'arrête au-dessus du bord de la carte au lieu de déborder sur le
+     panneau. Le plancher garde le menu utilisable si la carte est réduite. */
+  .track-menu{left:0;right:auto;width:calc(100vw - 20px);padding:7px;
+    max-height:max(140px,calc(var(--map-h,38vh) - 142px))}
+  .track-cars{gap:7px}
+  /* L'équipage passe sur deux rangs : tout le monde tient sans défilement et
+     le menu découvre davantage de carte. */
+  .track-car-col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px}
+  .track-choice.car{grid-column:1 / -1}
+  .track-choice{min-height:29px;padding:2px 6px;gap:6px;border-radius:8px}
+  .track-choice-avatar{width:21px;height:21px}
+  .track-choice-name{font-size:10px}
+  .track-choice.car{margin-bottom:4px}
   .panel{position:relative;z-index:5;border-left:none;border-top:1px solid var(--line);
     margin-top:-14px;border-radius:16px 16px 0 0;box-shadow:0 -8px 24px rgba(0,0,0,.45)}
   .panel-handle{display:flex;justify-content:center;padding:8px 0 4px;width:100%;flex:0 0 auto;touch-action:none;cursor:grab}
@@ -1380,22 +1402,17 @@ function setupTrackControls(){
   const el=document.getElementById('track-subjects');
   const personChoice=name=>({subject:`person:${slug(name)}`,label:name,color:colorOf(name),
     icon:name[0],face:(PHOTOS.faces||{})[name]});
-  const choice=b=>`<button class="track-choice" data-subject="${b.subject}"
+  const choice=(b,extra='')=>`<button class="track-choice${extra?' '+extra:''}" data-subject="${b.subject}"
     role="option" aria-selected="${b.subject===trackSubject}" style="--subject-color:${b.color}">${avatarMarkup(b,'track-choice-avatar')}<span class="track-choice-name">${esc(b.label)}</span></button>`;
   const carColumn=([id,v])=>`<div class="track-car-col">
-      <div class="track-menu-label">Voiture ${v.car}</div>
-      ${choice({subject:`vehicle:${id}`,label:v.label,color:v.color,icon:v.short,face:v.face})}
-      <div class="track-menu-label">Personnes</div>
+      ${choice({subject:`vehicle:${id}`,label:v.label,color:v.color,icon:v.short,face:v.face},'car')}
       ${(v.roster||[]).filter(n=>ACTIVE_NAMES.includes(n)).map(n=>choice(personChoice(n))).join('')}
     </div>`;
-  const obs=(CFG.observateurs||[]).filter(n=>ACTIVE_NAMES.includes(n));
   const initial=subjectDescriptor();
   el.innerHTML=`<button class="track-picker-toggle" id="track-picker-toggle" type="button" aria-haspopup="listbox" aria-expanded="false">
       ${avatarMarkup(initial,'track-picker-avatar')}<span class="track-picker-copy"><small>Trace affichée</small><span class="track-picker-current">${esc(initial.label)}</span></span><span class="track-picker-chevron">⌄</span></button>
     <div class="track-menu" id="track-menu" role="listbox" aria-label="Trace affichée" hidden>
       <div class="track-cars">${Object.entries(VEHICLES).map(carColumn).join('')}</div>
-      ${obs.length?`<div class="track-menu-label">Observateurs</div>
-      <div class="track-people-grid">${obs.map(n=>choice(personChoice(n))).join('')}</div>`:''}
     </div>`;
   el.addEventListener('click',e=>{
     if(e.target.closest('#track-picker-toggle')){setTrackMenu(document.getElementById('track-menu').hidden);return;}
