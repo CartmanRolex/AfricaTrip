@@ -71,11 +71,23 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
   the first trip day onward, and genuinely GPS-geolocated media into a
   chronological personal route. Manual media pins and Drive photos whose
   position was estimated from the plan stay visible as photos but never become
-  “real” track points. For each car, only points with an explicit captured car
-  assignment are used; v1 points without one remain personal, so cars and people
-  cannot contaminate one another. Sparse points several hours apart stay joined
-  when the implied speed is plausible; short teleports are rejected and a long
-  impossible jump starts a separate section instead of drawing a diagonal.
+  “real” track points. A point that carries **no** captured car falls back to
+  the person's roster car (`rosterVehicleId()`): the app writes `car:"obs"` for
+  “À pied / autre” *and* for its own default, so crew members' photos used to
+  land outside their vehicle. There is no longer a departure-date gate either —
+  media and points from before 2 August count.
+- **A drawn line is only drawn where we know the road.** Three guards, each
+  answering a real artefact those two changes exposed:
+  two consecutive points of one car coming from **different people** more than
+  50 km apart cannot describe the same vehicle (before departure everyone is at
+  home — 708 km of invented road between Paul and Jehan); a **day-precision
+  media** placed at noon is dropped from the line when the implied speed over
+  the real gap is impossible (703 km/h), while staying a photo bubble; and a gap
+  of several hours **and** more than 100 km is a data blackout, not sparse GPS,
+  so it opens a new section rather than a straight line across the country.
+  Sparse points several hours apart still stay joined when they are close;
+  short teleports are rejected and a long impossible jump starts a separate
+  section instead of drawing a diagonal.
   The accepted history is solid and only the untravelled suffix of `DATA.route`
   remains dashed. **The dashed line always starts at the most recent GPS point**
   and runs from there to the next waypoint and beyond — the connection is

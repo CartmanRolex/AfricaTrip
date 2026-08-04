@@ -239,19 +239,35 @@ Key JS structures (all near the top of the script):
   the current idempotent map `{pointId: point}` or an older array. A point keeps
   its own `personId`, `vehicleId`, `mode`, time, coordinates, accuracy and
   source. `allTrackPoints()` merges v2 chunks/latest, v1 personal tracks and
-  `mediaTrackPoint()` anchors, then excludes every source before
-  `TRIP_START_MS`. Only media with embedded
-  GPS (`gps`/`media-gps`) qualify; manual pins and planned+jittered Drive
-  positions do not. Near-duplicates are coalesced without losing an explicit
-  vehicle assignment.
+  `mediaTrackPoint()` anchors. There is **no departure-date gate**: media and
+  points from before the first trip day count (`TRIP_START_MS` is gone). Only
+  media with embedded GPS (`gps`/`media-gps`) qualify; manual pins and
+  planned+jittered Drive positions do not. A point with no captured vehicle
+  falls back to `rosterVehicleId(name)` — the roster car — because the app
+  writes `car:"obs"` both for “À pied / autre” and as its own default, so crew
+  photos were landing outside their own vehicle. Near-duplicates are coalesced
+  without losing an explicit vehicle assignment.
 - **Personal vs vehicle reconstruction**: `personPoints(name)` contains only
   that person's accepted GPS/photo anchors across vehicle/independent periods;
-  it is never merged with another traveler. V1 track points carry no car and
-  deliberately remain personal. `vehiclePoints(vehicleId)` gathers only
+  it is never merged with another traveler. V1 track points carry no car, so
+  they take the roster fallback. `vehiclePoints(vehicleId)` gathers only
   points whose captured mode is `vehicle` and whose captured `vehicleId`
   matches, buckets them into 60-second windows, then chooses one observation
   using GPS accuracy plus median distance to the other occupants' observations.
-  `impossibleTransition()` rejects any jump farther than a 220 km/h travel
+  `trackSegments()` adds three guards before the speed test, each fixing an
+  artefact that accepting pre-departure data exposed:
+  `occupantsDisagree()` cuts the line when two consecutive points of one car
+  come from **different people** more than `SAME_CAR_MAX_KM` (50 km) apart — a
+  car cannot be in two places, and before departure each crew member is at home
+  (708 km of invented road between Paul and Jehan);
+  `uncertainPointBreaksLine()` drops a day-precision medium (placed at noon)
+  from the line when the speed implied by the **real** gap is impossible — it
+  stays a photo bubble, so a photo where there is no GPS still helps, while one
+  contradicting a neighbouring fix does not (703 km/h);
+  and a gap of at least `TRACK_RESET_GAP_MS` **and** more than `BLACKOUT_KM`
+  (100 km) opens a new section: that is a data blackout, not sparse GPS, and we
+  do not know which road was taken (Dorvan, 703 km with no point for ten days).
+  `impossibleTransition()` then rejects any jump farther than a 220 km/h travel
   allowance plus a 120 m anti-jitter floor or 1.5× the two GPS accuracy radii.
   Thus a sub-2 km teleport over a few seconds is caught without cutting two
   noisy neighbouring fixes. A time gap alone no longer cuts the route: sparse
@@ -320,8 +336,8 @@ Key JS structures (all near the top of the script):
     personal point exists; it must never be treated as a car assignment or
     historical trace. Removed roster names are ignored.
   - each active roster member's `tracks/{name}/points` v1 subcollection is read
-    live and filtered from the first 2026 trip day. Its `{lat,lng,at}` points
-    enrich only that person's line because the old documents contain no car.
+    live, with no date filter. Its `{lat,lng,at}` points carry no car, so they
+    take that person's roster vehicle.
   - root `photos` is rebuilt on each media snapshot after preserving the
     build-time `GALLERY` prefix, which also handles deleted Firebase media.
   - root `crew` remains the live PV source: numeric `pv` overwrites the CSV

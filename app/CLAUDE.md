@@ -22,8 +22,14 @@ mode n'est pas **Pause**.
    personne sans déconnecter le compte partagé.
 3. Le dashboard propose quatre affectations persistantes, propres à chaque
    personne : **Hugodouard**, **Paul Pot**, **À pied / autre**, **Pause**.
-   Le choix est conservé par cookie + `localStorage`. Sans choix mémorisé, le
-   mode sûr par défaut est Pause.
+   Le choix est conservé par cookie + `localStorage`. **Sans choix mémorisé,
+   le défaut est la voiture du roster** (`defaultAssignmentFor()`, d'après
+   `CREW`) ; un observateur ou un prénom inconnu reste en Pause. Le défaut
+   précédent était Pause pour tout le monde : les points et médias d'un
+   équipier qui n'avait rien choisi partaient en `car:"obs"`, hors voiture, et
+   son trajet ne rejoignait jamais celui de sa voiture sur le site.
+   Conséquence assumée : le partage GPS démarre dès l'ouverture de l'app pour
+   quelqu'un du roster ; **Pause** reste à un tap.
 4. Toute nouvelle session et tout changement créent un événement immuable dans
    `assignmentEvents`. Le GPS ne démarre qu'après mise en file locale durable de
    cet événement. Changer d'affectation arrête d'abord l'ancien watcher et

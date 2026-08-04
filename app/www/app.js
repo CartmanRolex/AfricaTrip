@@ -81,15 +81,28 @@ function choiceKey(mode, vehicleId) {
   if (mode === "paused") return "paused";
   return "paused";
 }
+// Affectation par defaut d'une personne : SA voiture d'apres le roster. Le
+// defaut precedent etait Pause, si bien qu'un equipier qui n'avait rien choisi
+// enregistrait ses points (et ses photos) en « obs » — hors voiture — et son
+// trajet ne rejoignait jamais celui de sa voiture sur le site.
+// Consequence assumee : le partage GPS demarre des l'ouverture de l'app pour
+// quelqu'un du roster. « Pause » reste a un tap pour l'arreter.
+function defaultAssignmentFor(personId) {
+  const entry = Object.entries(CREW).find(([name]) => personIdFor(name) === personId);
+  const car = entry && entry[1];
+  if (car === 1) return ASSIGNMENT_CHOICES.hugodouard;
+  if (car === 2) return ASSIGNMENT_CHOICES["paul-pot"];
+  return ASSIGNMENT_CHOICES.paused;   // observateur ou prenom inconnu
+}
 function loadAssignmentChoice(personId) {
   try {
     const cookieKey = readCookieValue(ASSIGNMENT_COOKIE + personId);
     if (cookieKey && ASSIGNMENT_CHOICES[cookieKey]) return ASSIGNMENT_CHOICES[cookieKey];
     const saved = JSON.parse(storedValue(ASSIGNMENT_KEY + personId) || "null");
-    if (!saved) return ASSIGNMENT_CHOICES.paused;
+    if (!saved) return defaultAssignmentFor(personId);
     const key = choiceKey(saved && saved.mode, saved && saved.vehicleId);
     return ASSIGNMENT_CHOICES[key];
-  } catch (_) { return ASSIGNMENT_CHOICES.paused; }
+  } catch (_) { return defaultAssignmentFor(personId); }
 }
 function saveAssignmentChoice(personId, assignment) {
   storeValue(ASSIGNMENT_KEY + personId, JSON.stringify({

@@ -565,7 +565,6 @@ function startAgoRefresh(){
 }
 function stopAgoRefresh(){if(agoRefreshTimer){clearInterval(agoRefreshTimer);agoRefreshTimer=null;}}
 const REC = DATA.records, ROUTE = DATA.route, CARS = DATA.cars;
-const TRIP_START_MS = REC.length ? Date.parse(`${REC[0].iso}T00:00:00Z`) : 0;
 const CAR1 = DATA.car1, CAR2 = DATA.car2;
 // tout le contenu "modifiable" vient de l'onglet Config de la feuille
 const CFG = DATA.config || {}, T = CFG.textes || {};
@@ -583,6 +582,17 @@ const VEHICLES = {
   'paul-pot': {label:(CARS[2]||{}).name||'Paul Pot', color:(CARS[2]||{}).color||'#4FB7B3',
     short:(CARS[2]||{}).emoji||'🚙', face:(PHOTOS.cars||{})[2], roster:CAR2, car:2},
 };
+// Voiture d'appartenance d'une personne, d'apres le roster du voyage. Sert de
+// repli quand un point ne porte AUCUNE affectation capturee : l'app ecrit
+// `car:"obs"` des que le mode est « A pied / autre » ou « Pause », ce qui est
+// aussi son etat par defaut tant que personne n'a choisi. Un point de Jehan
+// tombait donc hors de Paul Pot alors qu'il y voyage.
+function rosterVehicleId(name){
+  if(!name)return null;
+  if(CAR1.includes(name))return 'hugodouard';
+  if(CAR2.includes(name))return 'paul-pot';
+  return null;
+}
 function vehicleId(v){
   const id=slug(v);
   if(id==='hugodouard'||id==='1'||id==='car-1'||id==='voiture-1')return 'hugodouard';
@@ -854,8 +864,8 @@ function mediaTrackPoint(g){
   // estimées (`gps:false`) sont donc également exclues.
   if(!g.gps&&g.locationSource!=='media-gps')return null;
   const identity=mediaIdentity(g);
-  if(!identity.name||!identity.at||identity.at<TRIP_START_MS)return null;
-  const vid=identity.vehicleId;
+  if(!identity.name||!identity.at)return null;
+  const vid=identity.vehicleId||rosterVehicleId(identity.name);
   const noonFromDay=!!g.date&&identity.at===Date.parse(`${g.date}T12:00:00Z`);
   return {pointId:`media:${g._origin||'gallery'}:${g.id||identity.name+':'+identity.at}`,
     personId:slug(identity.name),name:identity.name,lat:Number(g.lat),lng:Number(g.lng),at:identity.at,
@@ -869,7 +879,7 @@ function allTrackPoints(){
   legacyTrackDocs.forEach(points=>out.push(...points));
   Object.values(latestPositions).forEach(p=>out.push(p));
   GALLERY.forEach(g=>{const p=mediaTrackPoint(g);if(p)out.push(p);});
-  cachedTrackPoints=uniquePoints(out.filter(p=>p.at>=TRIP_START_MS));cachedTrackRevision=trackRevision;
+  cachedTrackPoints=uniquePoints(out);cachedTrackRevision=trackRevision;
   personTrackCache.clear();vehicleTrackCache.clear();return cachedTrackPoints;
 }
 function personPoints(name){
@@ -946,6 +956,29 @@ function deriveVehiclePoints(id,includeMedia){
 }
 function vehiclePoints(id){return deriveVehiclePoints(id,true);}
 function vehicleGpsPoints(id){return deriveVehiclePoints(id,false);}
+// Deux occupants d'une meme voiture sont a quelques metres l'un de l'autre.
+// Si deux points consecutifs d'un vehicule viennent de personnes DIFFERENTES et
+// sont eloignes, ils ne peuvent pas temoigner du meme trajet : l'un des deux
+// n'etait pas a bord. C'est le cas avant le depart, ou chacun est chez soi —
+// relier ces positions dessinerait une route que personne n'a faite (708 km
+// entre Paul et Jehan la veille du depart). On coupe la section au lieu
+// d'inventer le trajet ; les deux points restent affiches.
+const SAME_CAR_MAX_KM=50, BLACKOUT_KM=100;
+// Un media date au JOUR pres est place a midi. Il peut donc "doubler" un vrai
+// fix GPS de la meme journee et faire zigzaguer la ligne a 700 km/h. On le
+// garde comme bulle photo, mais on ne l'insere pas dans le trace quand la
+// vitesse impliquee — mesuree sur l'ecart REEL, pas sur la tolerance d'une
+// journee entiere — est impossible. Une photo prise la ou il n'y a aucun GPS
+// reste donc utile au trace ; celle qui contredit un fix voisin ne l'est pas.
+function uncertainPointBreaksLine(prev,p){
+  if(!p.timeUncertain&&!prev.timeUncertain)return false;
+  const gap=p.at-prev.at; if(gap<=0)return false;
+  return hav(prev,p)>transitionToleranceKm(prev,p)+MAX_TRACK_SPEED_KMH*gap/3600000;
+}
+function occupantsDisagree(a,b){
+  return !!a.vehicleId&&a.vehicleId===b.vehicleId&&a.name&&b.name&&a.name!==b.name&&
+    hav(a,b)>SAME_CAR_MAX_KM;
+}
 function trackSegments(points){
   const segments=[]; let current=[];
   points.forEach(p=>{
@@ -953,6 +986,20 @@ function trackSegments(points){
     if(prev){
       const gap=p.at-prev.at;
       if(gap<=0)return;
+      if(occupantsDisagree(prev,p)){
+        if(current.length)segments.push(current);current=[];
+        current.push(p); return;
+      }
+      if(uncertainPointBreaksLine(prev,p))return;
+      // Plusieurs heures sans donnees ET plusieurs centaines de kilometres : ce
+      // n'est pas un GPS clairseme, c'est un trou. On ignore quelle route a ete
+      // prise, donc on ouvre une nouvelle section au lieu de tracer une droite
+      // a travers le pays (Dorvan : 703 km entre Lausanne et l'Atlantique, sans
+      // un seul point pendant 10 jours).
+      if(gap>=TRACK_RESET_GAP_MS&&hav(prev,p)>BLACKOUT_KM){
+        if(current.length)segments.push(current);current=[];
+        current.push(p); return;
+      }
       if(impossibleTransition(prev,p)){
         // Une téléportation courte est un fix aberrant. Une longue rupture
         // impossible ouvre une nouvelle section sans dessiner de diagonale.
@@ -1421,7 +1468,7 @@ refreshPhotos(); refreshFaces();
         const d=doc.data(),name=personName(d.displayName,d.name,doc.id);
         if(!name||!validCoords(d.lat,d.lng))return;
         const lat=Number(d.lat),lng=Number(d.lng),at=toMs(firstValue(d.capturedAtMs,d.capturedAt,d.at));
-        if(!at||at<TRIP_START_MS)return;
+        if(!at)return;
         legacyPositions[name]={name,personId:slug(name),lat,lng,at,
           accuracyM:d.accuracyM!=null&&Number.isFinite(Number(d.accuracyM))?Number(d.accuracyM):null,
           vehicleId:null,mode:'legacy',source:'legacy'};
@@ -1430,15 +1477,18 @@ refreshPhotos(); refreshFaces();
     },liveError('positions v1'));
 
     // Historique v1 : ces sous-collections ne portent que personne/lat/lng/at.
-    // Elles enrichissent donc uniquement la trace personnelle, jamais une
-    // voiture. Les essais antérieurs au premier jour du voyage sont écartés.
+    // Faute d'affectation capturée, on retient la voiture du roster (repli
+    // explicite, pas une invention : la grille du voyage dit où roule la
+    // personne).
     [...new Set([...CAR1,...CAR2])].forEach(name=>{
       fs.onSnapshot(fs.collection(db,'tracks',name,'points'),snap=>{
         const points=[];
         snap.forEach(doc=>{
+          const vid=rosterVehicleId(name);
           const p=normalisePoint(doc.data(),{personId:slug(name),displayName:name,
-            pointId:`v1:${doc.id}`,mode:'legacy-personal',source:'gps-v1'});
-          if(p&&p.at>=TRIP_START_MS)points.push(p);
+            pointId:`v1:${doc.id}`,vehicleId:vid,mode:vid?'vehicle':'legacy-personal',
+            source:'gps-v1'});
+          if(p)points.push(p);
         });
         legacyTrackDocs.set(name,points);
         invalidateTracks();refreshLiveLayers();
@@ -1450,7 +1500,7 @@ refreshPhotos(); refreshFaces();
       Object.keys(latestPositions).forEach(k=>delete latestPositions[k]);
       snap.forEach(doc=>{
         const p=normalisePoint(doc.data(),{personId:doc.id});
-        if(p&&p.at>=TRIP_START_MS)latestPositions[p.name]={...p,source:'gps-v2'};
+        if(p)latestPositions[p.name]={...p,source:'gps-v2'};
       });
       invalidateTracks();
       refreshLiveLayers();
@@ -1458,7 +1508,7 @@ refreshPhotos(); refreshFaces();
     fs.onSnapshot(fs.collection(db,'trips',TRIP_ID,'trackChunks'),snap=>{
       const readChunk=doc=>{
         const d=doc.data(),raw=Array.isArray(d.points)?d.points:Object.values(d.points||{});
-        trackChunkDocs.set(doc.id,raw.map(p=>normalisePoint(p,d)).filter(p=>p&&p.at>=TRIP_START_MS));
+        trackChunkDocs.set(doc.id,raw.map(p=>normalisePoint(p,d)).filter(Boolean));
       };
       if(typeof snap.docChanges==='function'){
         snap.docChanges().forEach(change=>change.type==='removed'?trackChunkDocs.delete(change.doc.id):readChunk(change.doc));
