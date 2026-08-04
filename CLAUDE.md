@@ -77,7 +77,13 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
   land outside their vehicle.
 - **The travelled track is made of GPS points and photos, nothing else.** It
   joins the accepted points in order — no road is ever reconstructed from the
-  itinerary, and no straight line is invented to fill a gap. Short teleports are
+  itinerary, and no straight line is invented to fill a gap.
+- **People riding together share one track.** Occupants of a car describe the
+  same movement, so each of them gets the car's merged track for the days the
+  presence grid puts them aboard, plus their own points outside those days. One
+  phone left on is enough for the whole crew. Nobody inherits a car they are not
+  in, and an inherited point still has to be later than that person's own
+  `track_start`. Short teleports are
   rejected and a long impossible jump opens a separate section.
 - **The future is one interpolation: last known position → next stop, then the
   plan.** `addPlannedFuture()` starts the dashed line exactly at the most recent

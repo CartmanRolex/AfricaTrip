@@ -252,10 +252,19 @@ Key JS structures (all near the top of the script):
   writes `car:"obs"` both for “À pied / autre” and as its own default, so crew
   photos were landing outside their own vehicle. Near-duplicates are coalesced
   without losing an explicit vehicle assignment.
-- **Personal vs vehicle reconstruction**: `personPoints(name)` contains only
-  that person's accepted GPS/photo anchors across vehicle/independent periods;
-  it is never merged with another traveler. V1 track points carry no car, so
-  they take the roster fallback. `vehiclePoints(vehicleId)` gathers only
+- **Occupants share their car's track** (`personTrack()`, `aboardVehicleAt()`):
+  people riding together describe the *same* movement, so one phone's points
+  serve everyone aboard. `personPoints(name)` is the car's **derived** track
+  (one observation per minute, chosen among all occupants) for the periods the
+  person is aboard, plus their own points outside those periods — deduplicated
+  by 60-second bucket so two near-simultaneous readings never stack. Dorvan goes
+  from a single point to his car's full nine.
+  Two guards keep it honest: `aboardVehicleAt()` reads the **presence grid** for
+  days inside the calendar (falling back to the roster only outside it), so
+  nobody inherits a car they are not in; and an inherited point must still be
+  later than the inheriting person's own `track_start`, otherwise Paul's track
+  would start on 30 July through Jehan's photos.
+  `vehiclePoints(vehicleId)` gathers only
   points whose captured mode is `vehicle` and whose captured `vehicleId`
   matches, buckets them into 60-second windows, then chooses one observation
   using GPS accuracy plus median distance to the other occupants' observations.

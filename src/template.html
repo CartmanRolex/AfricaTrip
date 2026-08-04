@@ -898,13 +898,51 @@ function allTrackPoints(){
   cachedTrackPoints=uniquePoints(out.filter(p=>!beforeOwnStart(p)));cachedTrackRevision=trackRevision;
   personTrackCache.clear();vehicleTrackCache.clear();return cachedTrackPoints;
 }
+// Dans quelle voiture se trouve une personne a un instant donne. La grille de
+// presence fait autorite pour les jours du calendrier ; en dehors (avant le
+// premier jour), on retient sa voiture du roster.
+const REC_BY_DAY=new Map(REC.map((r,i)=>[r.iso,i]));
+function localDay(ms){
+  const d=new Date(ms);
+  return new Date(ms-d.getTimezoneOffset()*60000).toISOString().slice(0,10);
+}
+function aboardVehicleAt(name,at){
+  const i=REC_BY_DAY.get(localDay(at));
+  if(i==null)return rosterVehicleId(name);
+  const r=REC[i],s1=r.car1[name],s2=r.car2[name];
+  if(s1==='present'||s1==='tentative')return 'hugodouard';
+  if(s2==='present'||s2==='tentative')return 'paul-pot';
+  return null;
+}
+// Les occupants d'une voiture voyagent ensemble : leurs telephones decrivent le
+// MEME deplacement. La trace d'une personne reprend donc celle de sa voiture
+// pendant les periodes ou elle est a bord — plus dense et plus complete que ses
+// seuls points — et y ajoute ses points propres hors de ces periodes. On part
+// de la trace DERIVEE du vehicule (une observation par minute, choisie parmi
+// tous les occupants) pour ne pas empiler deux releves quasi simultanes.
+function personTrack(name,vehicleTrack,ownFilter){
+  // Le partage n'ouvre PAS de porte derobee sur la date de debut : un point
+  // herite doit etre posterieur au debut de trace de celui qui l'herite, sinon
+  // la trace de Paul commencerait le 30 juillet via les photos de Jehan.
+  const start=trackStartFor(name),shared=[];
+  Object.keys(VEHICLES).forEach(vid=>{
+    vehicleTrack(vid).forEach(p=>{
+      if(p.at>=start&&aboardVehicleAt(name,p.at)===vid)shared.push(p);});
+  });
+  const buckets=new Set(shared.map(p=>Math.floor(p.at/60000)));
+  const own=allTrackPoints().filter(p=>p.name===name&&ownFilter(p)&&
+    !buckets.has(Math.floor(p.at/60000)));
+  return uniquePoints([...shared,...own]);
+}
 function personPoints(name){
-  if(!personTrackCache.has(name))personTrackCache.set(name,uniquePoints(allTrackPoints().filter(p=>p.name===name)));
+  if(!personTrackCache.has(name))
+    personTrackCache.set(name,personTrack(name,vehiclePoints,()=>true));
   return personTrackCache.get(name);
 }
 function personGpsPoints(name){
   const key=`gps:${name}`;
-  if(!personTrackCache.has(key))personTrackCache.set(key,uniquePoints(allTrackPoints().filter(p=>p.name===name&&p.source!=='media')));
+  if(!personTrackCache.has(key))
+    personTrackCache.set(key,personTrack(name,vehicleGpsPoints,p=>p.source!=='media'));
   return personTrackCache.get(key);
 }
 function median(values){
