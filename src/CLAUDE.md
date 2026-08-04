@@ -169,11 +169,10 @@ Key JS structures (all near the top of the script):
   "Sur la carte" row. An observer is never placed on the route (`onPlan` false)
   because they are not travelling.
 - Planning rendering in `render()`: the timeline is explicitly labelled
-  **prévu**. `legLine` highlights the selected leg (animated dashes via
-  `.leg-flow` CSS) with its difficulty colour, clipped to the part still ahead
-  **at the displayed day** — the bound comes from `routeProgressAtRecord(idx)`,
-  i.e. from the plan itself, never from one car's real GPS progress.
-  `leg-chip` shows the label/pips at the leg midpoint. Numbered `cp-badge`
+  **prévu**. There is **no leg polyline on the map**: the pale animated dashed
+  line that used to highlight the selected leg read as a ghost third path next
+  to the real track and the dashed future. The leg is identified by `leg-chip`
+  (label/pips at its midpoint) and by its card in the Étapes list. Numbered `cp-badge`
   milestones stay neutral because two real cars may have different progress;
   name pills hide below zoom 5 via `body.danger-far`. The final selected
   planning leg still shows the editorial "open route" zone/label.
@@ -317,6 +316,15 @@ Key JS structures (all near the top of the script):
   with `data-live-at` are refreshed every 30 seconds by one visibility-aware
   timer, stopped on `pagehide`, so ages continue changing without a snapshot or
   timer leak.
+- **The gallery browses one pile at a time.** A photo marker opens the lightbox
+  on that single photo (no arrows); a **pile** opens it on that pile's photos,
+  in chronological order, and the arrows stay inside that subset.
+  `photoCluster` therefore sets `zoomToBoundsOnClick:false` and
+  `spiderfyOnMaxZoom:false` — clicking a pile must show the series it depicts,
+  not do something else — and each marker carries its `galleryIndex`
+  (`pileIndices()`). `openLightbox()` refuses an empty list and `lbStep()` is a
+  no-op below two items, so a pile that yields no index cannot open a blank
+  viewer.
 - `GALLERY` starts with shared Drive/build media `[{id, name, date, lat, lng,
   gps, thumb, file}]` from `fetch_photos.py`. **`photoVisible()` filters on the
   timeline only** — a medium shows once the displayed day has reached it. The

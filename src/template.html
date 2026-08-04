@@ -128,8 +128,6 @@ body.danger-far .cp-badge span{display:none}
 .leg-chip i{font-style:normal;font-size:8px;letter-spacing:.12em}
 body.danger-far .leg-chip i{display:none}
 /* tracé animé de l'étape active */
-.leg-flow{stroke-dasharray:2 10;animation:legflow 1.1s linear infinite}
-@keyframes legflow{to{stroke-dashoffset:-12}}
 .open-label{font-family:var(--mono);font-size:9.5px;letter-spacing:.03em;color:var(--unknown);white-space:nowrap;
   background:rgba(20,17,14,.7);border:1px dashed rgba(227,181,63,.55);border-radius:5px;padding:3px 8px;
   transform:translate(-50%,0);box-shadow:0 2px 8px rgba(0,0,0,.4)}
@@ -448,7 +446,7 @@ span.fiche-face{display:block;overflow:hidden}
 .track-now.planned{border-style:dashed;opacity:.82}
 .track-now.planned::before{display:none}
 @keyframes trackping{0%{transform:scale(.75);opacity:.9}100%{transform:scale(2.25);opacity:0}}
-@media (prefers-reduced-motion:reduce){.track-now::before{animation:none}.leg-flow{animation:none}}
+@media (prefers-reduced-motion:reduce){.track-now::before{animation:none}}
 .map-photo{position:relative;width:30px;height:30px;border-radius:50%;overflow:hidden;border:2px solid var(--sand-dim);
   box-shadow:0 2px 8px rgba(0,0,0,.5);background:var(--panel2)}
 .map-photo img{width:100%;height:100%;object-fit:cover;display:block}
@@ -742,7 +740,6 @@ const actualTrackLayer=L.layerGroup().addTo(map);
 const latlngs = ROUTE.map(p=>[p.lat,p.lng]);
 // La frise ne simule aucun trajet réel. Elle ne fait que surligner discrètement
 // l'étape planifiée sélectionnée, sous les traces hybrides par véhicule/personne.
-const legLine = L.polyline([],{color:'#EFE7D6',weight:3,opacity:.38,lineCap:'round',className:'leg-flow'}).addTo(plannedLayer);
 
 // couloir de clic invisible sur TOUT le tracé : cliquer un endroit du chemin
 // cale la frise sur le jour auquel le planning associe ce point
@@ -815,9 +812,15 @@ function pileHTML(kids, kind, total){
   return `<div class="pile pile-${kind === 'face' ? 'faces' : 'photos'}">${items}<span class="pile-n">${total}</span></div>`;
 }
 // photos : empilement de vignettes, ancré légèrement SOUS le point
+// Un empilement de photos est une SERIE : cliquer dessus ouvre la visionneuse
+// sur ces photos-la, et les fleches ne parcourent que celles-ci. D'ou le zoom
+// et l'eclatement desactives — sinon le clic ferait autre chose que montrer la
+// serie qu'on vient de designer.
 const photoCluster = L.markerClusterGroup({ ...CLUST, chunkedLoading: true,
+  zoomToBoundsOnClick: false, spiderfyOnMaxZoom: false,
   iconCreateFunction: cl => L.divIcon({ className: '', iconSize: [44, 46], iconAnchor: [22, 4],
     html: pileHTML(cl.getAllChildMarkers(), 'photo', cl.getChildCount()) }) }).addTo(map);
+photoCluster.on('clusterclick', e => openLightbox(pileIndices(e.layer.getAllChildMarkers()), 0));
 // têtes : empilement de visages, ancré légèrement AU-DESSUS du point ; ajouté
 // après -> rendu par-dessus les photos
 const faceCluster = L.markerClusterGroup({ ...CLUST,
@@ -1432,11 +1435,11 @@ function refreshPhotos(){
   const visible=visibleGalleryIndices();
   visible.forEach(i => {
     const g=GALLERY[i];
-    const m = L.marker([g.lat, g.lng], { pileImg: g.thumb, icon: L.divIcon({ className: '', iconSize: [30, 30],
+    const m = L.marker([g.lat, g.lng], { pileImg: g.thumb, galleryIndex: i,
+      icon: L.divIcon({ className: '', iconSize: [30, 30],
       iconAnchor: [15, -3], html: `<div class="map-photo${g.video ? ' is-video' : ''}"><img src="${g.thumb}" alt=""${g.caption ? ` title="${esc(g.caption)}"` : ''}></div>` }) });
-    m.on('click', () => {
-      const list = visibleGalleryIndices(); openLightbox(list, list.indexOf(i));
-    });
+    // Une photo isolee est une serie d'une seule photo : pas de fleches.
+    m.on('click', () => openLightbox([i], 0));
     markers.push(m);
   });
   photoCluster.addLayers(markers);
@@ -1598,9 +1601,19 @@ const lb=document.getElementById('lightbox');
 // échappe le texte (légende) saisi par l'équipage avant injection HTML
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 let lbList=[],lbIdx=0;
-function openLightbox(list,idx){ lbList=list; lbIdx=idx; showLb(); }
+// Indices de galerie d'un empilement, en ordre chronologique : parcourir une
+// serie aux fleches doit suivre le temps, pas l'ordre interne du cluster.
+function pileIndices(markers){
+  return markers.map(m=>m.options.galleryIndex).filter(i=>i!=null)
+    .sort((a,b)=>(mediaIdentity(GALLERY[a]).at||0)-(mediaIdentity(GALLERY[b]).at||0));
+}
+function openLightbox(list,idx){
+  if(!list||!list.length)return;          // rien a montrer : ne pas ouvrir a vide
+  lbList=list; lbIdx=Math.max(0,Math.min(list.length-1,idx)); showLb();
+}
 function showLb(){
   const g=GALLERY[lbList[lbIdx]];
+  if(!g)return;
   const img=lb.querySelector('img');
   const vid=lb.querySelector('video');
   if(g.video){
@@ -1625,7 +1638,10 @@ function showLb(){
   lb.querySelector('.lb-next').style.display=nav;
   lb.classList.add('open');
 }
-function lbStep(d){ lbIdx=(lbIdx+d+lbList.length)%lbList.length; showLb(); }
+function lbStep(d){
+  if(lbList.length<2)return;              // une serie d'une seule photo ne defile pas
+  lbIdx=(lbIdx+d+lbList.length)%lbList.length; showLb();
+}
 function closeLb(){ lb.classList.remove('open'); const v=lb.querySelector('video'); if(v){ try{v.pause();}catch(_){} } }
 lb.querySelector('.lb-prev').onclick=e=>{e.stopPropagation();lbStep(-1);};
 lb.querySelector('.lb-next').onclick=e=>{e.stopPropagation();lbStep(1);};
@@ -1984,18 +2000,10 @@ function render(){
   // La frise pilote exclusivement la lecture du planning. Les lignes pleines,
   // marqueurs et suffixes pointillés restent dérivés des données GPS fiables.
   const P=posAt(idx);
-  const AL=LEGS[P.legIdx], lpts=[];
-  if(!AL.stay){
-    // On ne surligne que la portion de l'étape encore à parcourir AU JOUR
-    // AFFICHÉ. La borne vient du planning lui-même, pas du GPS : la frise est
-    // une lecture du prévu et ne doit pas dépendre de l'avance réelle d'une
-    // des deux voitures.
-    const start=Math.max(ROUTE_KM[AL.ri0],routeProgressAtRecord(idx));
-    const end=ROUTE_KM[AL.ri1];
-    if(start<end)lpts.push(...routeSlice(start,end));
-  }
-  legLine.setLatLngs(lpts);
-  legLine.setStyle({color:DIFF_COLOR(legMeta(P.legIdx).diff)});
+  // Pas de surlignage de l'etape sur la carte : la ligne pale et clignotante
+  // qu'il dessinait faisait doublon avec le pointillé du futur et se lisait
+  // comme un chemin fantome. L'etape reste identifiee par sa pastille sur la
+  // carte et par sa carte dans la liste des Etapes.
   updateLegChip(P.legIdx);
   setOpenZone(P.legIdx===LEGS.length-1);   // final leg = onward route undecided
   // panel
