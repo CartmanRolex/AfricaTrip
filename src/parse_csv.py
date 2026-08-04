@@ -76,7 +76,8 @@ def read_site_overrides():
             raw = json.load(f)
     except FileNotFoundError:
         return {"trip_year": DEFAULT_TRIP_YEAR, "textes": {},
-                "removed_travelers": set(), "phones": {}, "terminus": None}
+                "removed_travelers": set(), "phones": {}, "terminus": None,
+                "track_start": None}
     if not isinstance(raw, dict):
         raise ValueError("site-overrides.json must contain a JSON object")
     removed = raw.get("removed_travelers", [])
@@ -97,7 +98,33 @@ def read_site_overrides():
             "textes": {k.strip(): v.strip() for k, v in textes.items() if k.strip()},
             "removed_travelers": {v.strip() for v in removed if v.strip()},
             "phones": {k.strip(): v.strip() for k, v in phones.items() if k.strip()},
-            "terminus": read_terminus(raw.get("terminus"))}
+            "terminus": read_terminus(raw.get("terminus")),
+            "track_start": read_track_start(raw.get("track_start"))}
+
+
+def read_track_start(raw):
+    """Validate `track_start`: from when a person's points build their route.
+
+    Media and GPS older than that date are ignored by the site — they are
+    pre-trip leftovers, not part of the journey. `default` applies to everyone;
+    `by_person` overrides it for those who left earlier.
+    """
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError("site-overrides.json track_start must be a JSON object")
+
+    def day(value, label):
+        if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value.strip()):
+            raise ValueError(f"site-overrides.json track_start.{label} must be YYYY-MM-DD")
+        return value.strip()
+
+    default = day(raw.get("default"), "default") if raw.get("default") is not None else None
+    by_person = raw.get("by_person", {})
+    if not isinstance(by_person, dict):
+        raise ValueError("site-overrides.json track_start.by_person must be an object")
+    return {"default": default,
+            "by_person": {k.strip(): day(v, f"by_person.{k}") for k, v in by_person.items() if k.strip()}}
 
 
 def read_terminus(raw):
@@ -374,6 +401,8 @@ def main():
         })
 
     apply_terminus(records, config, overrides["terminus"])
+    if overrides["track_start"]:
+        config["trackStart"] = overrides["track_start"]
 
     data = {"records": records, "route": config.get("route", route), "car1": CAR1, "car2": CAR2,
             "cars": CARS, "config": config}

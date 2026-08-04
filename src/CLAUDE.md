@@ -192,10 +192,12 @@ Key JS structures (all near the top of the script):
   because a car cut-out is landscape (170×120) and 140 % would crop it to a
   patch of bodywork. `addActualMarker()` picks the round avatar from the
   presence of an image, not from the presence of a name.
+  `addActualPath()` draws **only** the accepted points, joined in order: no
+  road is reconstructed from the itinerary to fill a gap.
   `addPlannedFuture()` **always** begins the dashed tail at the most recent GPS
-  point (`tail.unshift`), then rejoins the plan at `nextRouteKmAfter()` — the
-  next route waypoint ahead — and follows the route to the end of the subject's
-  range. Three rules, each fixing a real artefact:
+  point (`tail.unshift`) and interpolates straight to the **next stop**
+  (`nextStopKm()`, a checkpoint), then follows the route to the end of the
+  subject's range. Two rules, each fixing a real artefact:
   - the continuity is unconditional (an earlier version drew a thin connector
     only within 50 km of the plan, leaving a far-off subject's marker floating
     with no path at all);
@@ -203,7 +205,7 @@ Key JS structures (all near the top of the script):
     `startKm` (the planned-range start). Bounding by `startKm` teleported the
     line to a traveler's theoretical embarkation — 159 km of straight line laid
     over the itinerary for someone already standing on it;
-  - the resume is the next *waypoint*, not the perpendicular foot, otherwise an
+  - the resume is the next *stop*, not the perpendicular foot, otherwise an
     off-route subject drew a spur out to the road and then doubled back.
   Without any real point the tail starts exactly at `startKm`, so a traveler who
   has sent nothing still shows their planned leg from their embarkation.
@@ -242,7 +244,10 @@ Key JS structures (all near the top of the script):
   `mediaTrackPoint()` anchors. There is **no departure-date gate**: media and
   points from before the first trip day count (`TRIP_START_MS` is gone). Only
   media with embedded GPS (`gps`/`media-gps`) qualify; manual pins and
-  planned+jittered Drive positions do not. A point with no captured vehicle
+  planned+jittered Drive positions do not. **Each person's points count only
+  from their own `track_start`** (`trackStartFor()`, `beforeOwnStart()`, fed by
+  `site-overrides.json`): everything older is a pre-trip leftover. That is the
+  only date gate — there is no global departure constant. A point with no captured vehicle
   falls back to `rosterVehicleId(name)` — the roster car — because the app
   writes `car:"obs"` both for “À pied / autre” and as its own default, so crew
   photos were landing outside their own vehicle. Near-duplicates are coalesced
@@ -254,27 +259,7 @@ Key JS structures (all near the top of the script):
   points whose captured mode is `vehicle` and whose captured `vehicleId`
   matches, buckets them into 60-second windows, then chooses one observation
   using GPS accuracy plus median distance to the other occupants' observations.
-  `trackSegments()` adds three guards before the speed test, each fixing an
-  artefact that accepting pre-departure data exposed:
-  `occupantsDisagree()` cuts the line when two consecutive points of one car
-  come from **different people** more than `SAME_CAR_MAX_KM` (50 km) apart — a
-  car cannot be in two places, and before departure each crew member is at home
-  (708 km of invented road between Paul and Jehan);
-  `uncertainPointBreaksLine()` drops a day-precision medium (placed at noon)
-  from the line when the speed implied by the **real** gap is impossible — it
-  stays a photo bubble, so a photo where there is no GPS still helps, while one
-  contradicting a neighbouring fix does not (703 km/h);
-  and a gap of at least `TRACK_RESET_GAP_MS` **and** more than `BLACKOUT_KM`
-  (100 km) opens a new section: that is a data blackout, not sparse GPS, and we
-  do not know which road was taken (Dorvan, 703 km with no point for ten days).
-  Cutting the line would otherwise make the journey itself invisible, so
-  `addActualPath()` bridges consecutive sections with `addTravelledBridge()`:
-  a line that **follows the planned route** between the two projections, drawn
-  only when progress actually increases. Three visual levels result — thick
-  solid = measured GPS, thin pale solid = covered with the road reconstructed
-  from the plan, dashed = still ahead. `trackKm()` still counts measured
-  segments only, so "km réels" in the fiche never inflates.
-  `impossibleTransition()` then rejects any jump farther than a 220 km/h travel
+  `impossibleTransition()` rejects any jump farther than a 220 km/h travel
   allowance plus a 120 m anti-jitter floor or 1.5× the two GPS accuracy radii.
   Thus a sub-2 km teleport over a few seconds is caught without cutting two
   noisy neighbouring fixes. A time gap alone no longer cuts the route: sparse
@@ -383,7 +368,11 @@ the parsed rosters/RPG config; when a removed name still has a raw presence colu
 `parse_csv.py` recomputes both `X/4` capacities and the total from confirmed
 `present` states. `phones` replaces `config.rpg[name].tel` while preserving the
 human-readable `+CC …` formatting used by the fiche and its sanitized `tel:`
-link. `terminus` `{after, cp, label, lat, lng}` shortens the plan to a single
+link. `track_start` `{default, by_person}` (dates `YYYY-MM-DD`) sets, per
+person, the day from which their GPS points and photos build their route —
+anything older is a pre-trip leftover. Current value: everyone from
+2026-08-02, Jehan and Dorvan from 2026-07-30.
+`terminus` `{after, cp, label, lat, lng}` shortens the plan to a single
 confirmed final checkpoint: `apply_terminus()` cuts the route right after the
 `after` checkpoint, appends the terminus waypoint, drops the abandoned
 checkpoint labels, clears the abandoned arrival cells and makes the last day the

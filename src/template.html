@@ -586,6 +586,23 @@ const VEHICLES = {
 // `car:"obs"` des que le mode est « A pied / autre » ou « Pause », ce qui est
 // aussi son etat par defaut tant que personne n'a choisi. Un point de Jehan
 // tombait donc hors de Paul Pot alors qu'il y voyage.
+// Date a partir de laquelle les points d'une personne construisent sa trace
+// (`track_start` dans site-overrides.json). Tout ce qui est anterieur est un
+// reliquat d'avant le voyage : photos d'essai, trajets domicile-travail.
+const TRACK_START = (() => {
+  const cfg = CFG.trackStart || {};
+  const day = v => { const t = v ? Date.parse(`${v}T00:00:00`) : NaN;
+    return Number.isFinite(t) ? t : null; };
+  const byPerson = new Map();
+  Object.entries(cfg.by_person || {}).forEach(([n, v]) => { const t = day(v);
+    if (t != null) byPerson.set(n, t); });
+  return { def: day(cfg.default), byPerson };
+})();
+function trackStartFor(name){
+  const own = name != null ? TRACK_START.byPerson.get(name) : undefined;
+  return own != null ? own : (TRACK_START.def != null ? TRACK_START.def : -Infinity);
+}
+function beforeOwnStart(p){ return p.at < trackStartFor(p.name); }
 function rosterVehicleId(name){
   if(!name)return null;
   if(CAR1.includes(name))return 'hugodouard';
@@ -878,7 +895,7 @@ function allTrackPoints(){
   legacyTrackDocs.forEach(points=>out.push(...points));
   Object.values(latestPositions).forEach(p=>out.push(p));
   GALLERY.forEach(g=>{const p=mediaTrackPoint(g);if(p)out.push(p);});
-  cachedTrackPoints=uniquePoints(out);cachedTrackRevision=trackRevision;
+  cachedTrackPoints=uniquePoints(out.filter(p=>!beforeOwnStart(p)));cachedTrackRevision=trackRevision;
   personTrackCache.clear();vehicleTrackCache.clear();return cachedTrackPoints;
 }
 function personPoints(name){
@@ -955,29 +972,6 @@ function deriveVehiclePoints(id,includeMedia){
 }
 function vehiclePoints(id){return deriveVehiclePoints(id,true);}
 function vehicleGpsPoints(id){return deriveVehiclePoints(id,false);}
-// Deux occupants d'une meme voiture sont a quelques metres l'un de l'autre.
-// Si deux points consecutifs d'un vehicule viennent de personnes DIFFERENTES et
-// sont eloignes, ils ne peuvent pas temoigner du meme trajet : l'un des deux
-// n'etait pas a bord. C'est le cas avant le depart, ou chacun est chez soi —
-// relier ces positions dessinerait une route que personne n'a faite (708 km
-// entre Paul et Jehan la veille du depart). On coupe la section au lieu
-// d'inventer le trajet ; les deux points restent affiches.
-const SAME_CAR_MAX_KM=50, BLACKOUT_KM=100;
-// Un media date au JOUR pres est place a midi. Il peut donc "doubler" un vrai
-// fix GPS de la meme journee et faire zigzaguer la ligne a 700 km/h. On le
-// garde comme bulle photo, mais on ne l'insere pas dans le trace quand la
-// vitesse impliquee — mesuree sur l'ecart REEL, pas sur la tolerance d'une
-// journee entiere — est impossible. Une photo prise la ou il n'y a aucun GPS
-// reste donc utile au trace ; celle qui contredit un fix voisin ne l'est pas.
-function uncertainPointBreaksLine(prev,p){
-  if(!p.timeUncertain&&!prev.timeUncertain)return false;
-  const gap=p.at-prev.at; if(gap<=0)return false;
-  return hav(prev,p)>transitionToleranceKm(prev,p)+MAX_TRACK_SPEED_KMH*gap/3600000;
-}
-function occupantsDisagree(a,b){
-  return !!a.vehicleId&&a.vehicleId===b.vehicleId&&a.name&&b.name&&a.name!==b.name&&
-    hav(a,b)>SAME_CAR_MAX_KM;
-}
 function trackSegments(points){
   const segments=[]; let current=[];
   points.forEach(p=>{
@@ -985,20 +979,6 @@ function trackSegments(points){
     if(prev){
       const gap=p.at-prev.at;
       if(gap<=0)return;
-      if(occupantsDisagree(prev,p)){
-        if(current.length)segments.push(current);current=[];
-        current.push(p); return;
-      }
-      if(uncertainPointBreaksLine(prev,p))return;
-      // Plusieurs heures sans donnees ET plusieurs centaines de kilometres : ce
-      // n'est pas un GPS clairseme, c'est un trou. On ignore quelle route a ete
-      // prise, donc on ouvre une nouvelle section au lieu de tracer une droite
-      // a travers le pays (Dorvan : 703 km entre Lausanne et l'Atlantique, sans
-      // un seul point pendant 10 jours).
-      if(gap>=TRACK_RESET_GAP_MS&&hav(prev,p)>BLACKOUT_KM){
-        if(current.length)segments.push(current);current=[];
-        current.push(p); return;
-      }
       if(impossibleTransition(prev,p)){
         // Une téléportation courte est un fix aberrant. Une longue rupture
         // impossible ouvre une nouvelle section sans dessiner de diagonale.
@@ -1019,24 +999,11 @@ function lastTrackPoint(points){const segments=trackSegments(points);return segm
 function subjectParts(){
   const [kind,id]=trackSubject.split(':'); return {kind,id};
 }
-// Entre deux sections separees par un trou de donnees, on sait que le sujet a
-// avance mais pas par ou. Plutot que tracer une droite (route inventee) ou ne
-// rien tracer (le trajet accompli devient invisible), on reconstitue le trajet
-// EN SUIVANT L'ITINERAIRE prevu entre les deux projections. Style distinct :
-// plein comme le passe, mais fin et pale, car ce n'est pas une mesure.
-//   epais plein = GPS mesure | fin pale = parcouru, reconstitue | pointille = a venir
-function addTravelledBridge(a,b,color,focused){
-  const pa=projectOnPlannedRoute(a),pb=projectOnPlannedRoute(b);
-  if(!pa||!pb||pb.progressKm<=pa.progressKm+1)return;   // pas d'avancee a montrer
-  const ll=[[a.lat,a.lng],...routeSlice(pa.progressKm,pb.progressKm),[b.lat,b.lng]];
-  L.polyline(ll,{pane:'actualTrackPane',color,weight:focused?3:2.2,opacity:focused?.62:.5,
-    lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
-}
+// La trace passee est faite UNIQUEMENT des positions GPS et des photos : on
+// relie les points entre eux, rien d'autre n'est dessine. Aucune route n'est
+// reconstituee a partir de l'itineraire prevu.
 function addActualPath(points,color,focused){
-  const segments=trackSegments(points);
-  segments.forEach((seg,i)=>{
-    const next=segments[i+1];
-    if(next)addTravelledBridge(seg.at(-1),next[0],color,focused);
+  trackSegments(points).forEach(seg=>{
     if(seg.length<2)return;
     const ll=seg.map(p=>[p.lat,p.lng]);
     if(focused)L.polyline(ll,{pane:'actualTrackPane',color,weight:11,opacity:.17,lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
@@ -1193,9 +1160,9 @@ function plannedRangeForVehicle(id){
 // sujet vraiment écarté voyait son marqueur flotter, détaché de toute route.
 // La reprise se fait à la projection du point réel, ce qui conserve tous les
 // virages du tracé au lieu de couper droit vers le checkpoint suivant.
-// Prochain point d'itineraire strictement apres une progression donnee.
-function nextRouteKmAfter(km){
-  for(let i=0;i<ROUTE_KM.length;i++)if(ROUTE_KM[i]>km+.001)return ROUTE_KM[i];
+// Prochaine ESCALE (checkpoint) strictement apres une progression donnee.
+function nextStopKm(km){
+  for(const i of cpRouteIdx)if(ROUTE_KM[i]>km+.001)return ROUTE_KM[i];
   return totalKm;
 }
 function addPlannedFuture(last,color,{focused=false,dashOffset='0',startKm=0,endKm=totalKm}={}){
@@ -1208,18 +1175,15 @@ function addPlannedFuture(last,color,{focused=false,dashOffset='0',startKm=0,end
       interactive:false}).addTo(actualTrackLayer);
     return;
   }
-  // Avec une position reelle, on repart de LA, pas du debut de la plage prevue :
-  // borner par `startKm` faisait sauter la ligne jusqu'a l'embarquement
-  // theorique, soit 159 km de droite par-dessus l'itineraire pour quelqu'un qui
-  // se trouvait pourtant deja dessus.
+  // Le futur, c'est une interpolation entre la DERNIERE POSITION connue et la
+  // PROCHAINE ESCALE, puis l'itineraire prevu jusqu'au bout. Rien de plus : ni
+  // eperon perpendiculaire vers la route, ni saut jusqu'a l'embarquement
+  // theorique.
   const projection=projectOnPlannedRoute(last);
   const from=projection?projection.progressKm:startKm;
   if(from>=end)return;
-  // On rejoint le PROCHAIN point d'itineraire, pas le pied de la
-  // perpendiculaire : sinon un sujet ecarte du plan dessine un eperon vers la
-  // route puis repart en sens inverse.
-  const resume=Math.min(nextRouteKmAfter(from),end);
-  const tail=routeSlice(resume,end);
+  const stop=Math.min(nextStopKm(from),end);
+  const tail=routeSlice(stop,end);
   tail.unshift([last.lat,last.lng]);
   if(tail.length>1)L.polyline(tail,{pane:'actualTrackPane',color,weight:focused?4:3.2,opacity:focused?.8:.66,
     dashArray:'10 12',dashOffset,lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);

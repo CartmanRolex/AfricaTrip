@@ -74,38 +74,20 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
   “real” track points. A point that carries **no** captured car falls back to
   the person's roster car (`rosterVehicleId()`): the app writes `car:"obs"` for
   “À pied / autre” *and* for its own default, so crew members' photos used to
-  land outside their vehicle. There is no longer a departure-date gate either —
-  media and points from before 2 August count.
-- **A drawn line is only drawn where we know the road.** Three guards, each
-  answering a real artefact those two changes exposed:
-  two consecutive points of one car coming from **different people** more than
-  50 km apart cannot describe the same vehicle (before departure everyone is at
-  home — 708 km of invented road between Paul and Jehan); a **day-precision
-  media** placed at noon is dropped from the line when the implied speed over
-  the real gap is impossible (703 km/h), while staying a photo bubble; and a gap
-  of several hours **and** more than 100 km is a data blackout, not sparse GPS,
-  so it opens a new section rather than a straight line across the country.
-  Cutting the line must not hide the journey, though: consecutive sections are
-  **bridged along the planned itinerary** (`addTravelledBridge()`), so what has
-  already been covered stays visible and continuous up to today's position. The
-  map therefore speaks three levels: **thick solid = measured GPS**, **thin pale
-  solid = covered, road reconstructed from the plan**, **dashed = still to
-  come**. Only measured kilometres are counted in "km réels".
-  Sparse points several hours apart still stay joined when they are close;
-  short teleports are rejected and a long impossible jump starts a separate
-  section instead of drawing a diagonal.
-  The accepted history is solid and only the untravelled suffix of `DATA.route`
-  remains dashed. **The dashed line always starts at the most recent GPS point**
-  and runs from there to the next waypoint and beyond — the connection is
-  never conditional, so a subject far off the plan is still visibly heading
-  somewhere instead of floating detached from any road. Where it rejoins the
-  plan comes from that point's own progress, never from the subject's planned
-  embarkation, and never from the perpendicular foot: both produced visible
-  artefacts (a straight line laid over the itinerary, and a spur out to the road
-  and back).
-  Each subject is clipped by **its own** progress, never by the other car's
-  lead. The current marker still comes from GPS rather than from an old
-  uploaded photo.
+  land outside their vehicle.
+- **The travelled track is made of GPS points and photos, nothing else.** It
+  joins the accepted points in order — no road is ever reconstructed from the
+  itinerary, and no straight line is invented to fill a gap. Short teleports are
+  rejected and a long impossible jump opens a separate section.
+- **The future is one interpolation: last known position → next stop, then the
+  plan.** `addPlannedFuture()` starts the dashed line exactly at the most recent
+  point and joins the next checkpoint (`nextStopKm()`), then follows the
+  itinerary to the end of the subject's range.
+- **Each person's track starts on their own date** (`track_start` in
+  `site-overrides.json`: `default` 2026-08-02, with Jehan and Dorvan from
+  2026-07-30). Anything older is a pre-trip leftover — test photos, commutes —
+  and is dropped before any reconstruction. This is the single place that
+  decides it; there is no hardcoded departure constant any more.
 - **Cars are characters, not a special case.** They use the same round avatar
   marker as people, and the same `faceCluster` handles their overlaps — no
   bespoke shape, no bespoke spreading. Only the image framing differs
