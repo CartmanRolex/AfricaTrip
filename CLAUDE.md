@@ -85,6 +85,12 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
   the real gap is impossible (703 km/h), while staying a photo bubble; and a gap
   of several hours **and** more than 100 km is a data blackout, not sparse GPS,
   so it opens a new section rather than a straight line across the country.
+  Cutting the line must not hide the journey, though: consecutive sections are
+  **bridged along the planned itinerary** (`addTravelledBridge()`), so what has
+  already been covered stays visible and continuous up to today's position. The
+  map therefore speaks three levels: **thick solid = measured GPS**, **thin pale
+  solid = covered, road reconstructed from the plan**, **dashed = still to
+  come**. Only measured kilometres are counted in "km réels".
   Sparse points several hours apart still stay joined when they are close;
   short teleports are rejected and a long impossible jump starts a separate
   section instead of drawing a diagonal.

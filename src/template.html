@@ -1019,8 +1019,24 @@ function lastTrackPoint(points){const segments=trackSegments(points);return segm
 function subjectParts(){
   const [kind,id]=trackSubject.split(':'); return {kind,id};
 }
+// Entre deux sections separees par un trou de donnees, on sait que le sujet a
+// avance mais pas par ou. Plutot que tracer une droite (route inventee) ou ne
+// rien tracer (le trajet accompli devient invisible), on reconstitue le trajet
+// EN SUIVANT L'ITINERAIRE prevu entre les deux projections. Style distinct :
+// plein comme le passe, mais fin et pale, car ce n'est pas une mesure.
+//   epais plein = GPS mesure | fin pale = parcouru, reconstitue | pointille = a venir
+function addTravelledBridge(a,b,color,focused){
+  const pa=projectOnPlannedRoute(a),pb=projectOnPlannedRoute(b);
+  if(!pa||!pb||pb.progressKm<=pa.progressKm+1)return;   // pas d'avancee a montrer
+  const ll=[[a.lat,a.lng],...routeSlice(pa.progressKm,pb.progressKm),[b.lat,b.lng]];
+  L.polyline(ll,{pane:'actualTrackPane',color,weight:focused?3:2.2,opacity:focused?.62:.5,
+    lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
+}
 function addActualPath(points,color,focused){
-  trackSegments(points).forEach(seg=>{
+  const segments=trackSegments(points);
+  segments.forEach((seg,i)=>{
+    const next=segments[i+1];
+    if(next)addTravelledBridge(seg.at(-1),next[0],color,focused);
     if(seg.length<2)return;
     const ll=seg.map(p=>[p.lat,p.lng]);
     if(focused)L.polyline(ll,{pane:'actualTrackPane',color,weight:11,opacity:.17,lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);

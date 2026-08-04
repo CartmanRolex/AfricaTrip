@@ -267,6 +267,13 @@ Key JS structures (all near the top of the script):
   and a gap of at least `TRACK_RESET_GAP_MS` **and** more than `BLACKOUT_KM`
   (100 km) opens a new section: that is a data blackout, not sparse GPS, and we
   do not know which road was taken (Dorvan, 703 km with no point for ten days).
+  Cutting the line would otherwise make the journey itself invisible, so
+  `addActualPath()` bridges consecutive sections with `addTravelledBridge()`:
+  a line that **follows the planned route** between the two projections, drawn
+  only when progress actually increases. Three visual levels result — thick
+  solid = measured GPS, thin pale solid = covered with the road reconstructed
+  from the plan, dashed = still ahead. `trackKm()` still counts measured
+  segments only, so "km réels" in the fiche never inflates.
   `impossibleTransition()` then rejects any jump farther than a 220 km/h travel
   allowance plus a 120 m anti-jitter floor or 1.5× the two GPS accuracy radii.
   Thus a sub-2 km teleport over a few seconds is caught without cutting two
