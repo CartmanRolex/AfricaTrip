@@ -171,8 +171,11 @@ Gotchas learned the hard way:
 - For mobile, `page.setViewport({width:420, height:860, isMobile:true,
   hasTouch:true})` works directly — no iframe wrapper needed.
 - Useful assertions: `document.querySelectorAll('.track-now').length` (subject
-  markers), `.track-now.planned` (planned positions), `legLine.getLatLngs()`
-  (highlighted leg), `visibleGalleryIndices().length` (media filtering).
+  markers, one per selected subject), `.track-now.planned` (planned positions),
+  `personPoints(name)` / `vehiclePoints(id)` (what feeds a track),
+  `lbList.length` after a click (the pile the gallery is scoped to), and walking
+  `actualTrackLayer.eachLayer` to read every drawn polyline's style — that is
+  how the ghost leg line was found.
 
 ## Data access
 

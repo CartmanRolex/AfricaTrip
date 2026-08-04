@@ -114,7 +114,6 @@ header{grid-area:head;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
   text-transform:uppercase;color:var(--sand);white-space:nowrap;
   background:rgba(20,17,14,.74);border:1px solid var(--line);border-radius:5px;padding:2px 7px;
   box-shadow:0 2px 8px rgba(0,0,0,.45)}
-.cp-badge.done b{background:var(--c1);border-color:var(--c1);color:#1a120a}
 .cp-badge.next b{border-color:var(--unknown);color:var(--unknown);animation:cpnext 1.6s ease-in-out infinite}
 @keyframes cpnext{0%,100%{box-shadow:0 0 0 2.5px rgba(20,17,14,.78)}
   50%{box-shadow:0 0 0 2.5px rgba(20,17,14,.78),0 0 0 8px rgba(227,181,63,.22)}}
@@ -141,21 +140,6 @@ body.danger-far .danger-label{display:none}
   background:rgba(20,17,14,.72);border:1px dashed rgba(217,91,67,.55);border-radius:5px;padding:2px 7px;
   transform:translate(-50%,0);box-shadow:0 2px 8px rgba(0,0,0,.4)}
 /* bulles photos partagées (Drive) — regroupées en piles quand trop proches */
-.bubble-wrap{position:relative;width:34px;height:34px;transform:translate(-50%,-50%);cursor:pointer}
-.photo-bubble{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;
-  position:relative;z-index:1;border:2px solid var(--sand);
-  box-shadow:0 2px 7px rgba(0,0,0,.55);transition:transform .15s}
-.bubble-wrap:hover .photo-bubble{transform:scale(1.45)}
-.bubble-wrap:hover{z-index:60}
-/* effet de pile : deux disques décalés derrière la vignette */
-.bubble-wrap.stacked::before,.bubble-wrap.stacked::after{content:'';position:absolute;inset:0;
-  border-radius:50%;background:var(--panel2);border:2px solid var(--sand-dim)}
-.bubble-wrap.stacked::before{transform:translate(5px,-5px)}
-.bubble-wrap.stacked::after{transform:translate(10px,-10px);opacity:.55}
-.bubble-count{position:absolute;top:-7px;right:-9px;z-index:2;
-  font-family:var(--mono);font-weight:700;font-size:9px;color:#1a120a;
-  background:var(--c1);border:1.5px solid var(--bg);border-radius:9px;padding:1px 5px}
-body.danger-far .bubble-wrap{width:22px;height:22px}
 .lightbox{position:fixed;inset:0;z-index:2000;background:rgba(20,17,14,.93);
   display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px}
 .lightbox.open{display:flex}
@@ -199,7 +183,6 @@ body.danger-far .bubble-wrap{width:22px;height:22px}
 .fiche-link:hover{filter:brightness(1.08)}
 .seat-chip[data-name]{cursor:pointer}
 .lb-prev{left:16px}.lb-next{right:16px}
-@keyframes pulse{0%{r:9;opacity:.8}100%{r:24;opacity:0}}
 
 /* ---------- panel ---------- */
 .panel{grid-area:panel;background:var(--panel);border-left:1px solid var(--line);
@@ -887,8 +870,7 @@ function uniquePoints(points,accuracyLimit=MAX_ACCURACY_M){
       (!previous.vehicleId||!p.vehicleId||previous.vehicleId===p.vehicleId)){
       const rank=q=>(q.source==='media'?1000:0)+(q.accuracyM==null?500:q.accuracyM);
       const chosen=rank(p)<rank(previous)?p:previous,vid=previous.vehicleId||p.vehicleId;
-      out[out.length-1]={...chosen,vehicleId:vid,mode:vid?'vehicle':chosen.mode,
-        mediaEvidence:!!previous.mediaEvidence||!!p.mediaEvidence||previous.source==='media'||p.source==='media'};
+      out[out.length-1]={...chosen,vehicleId:vid,mode:vid?'vehicle':chosen.mode};
     }else out.push(p);
   });
   return out;
@@ -1067,25 +1049,27 @@ function subjectParts(){
 // La trace passee est faite UNIQUEMENT des positions GPS et des photos : on
 // relie les points entre eux, rien d'autre n'est dessine. Aucune route n'est
 // reconstituee a partir de l'itineraire prevu.
-function addActualPath(points,color,focused){
+function addActualPath(points,color){
   trackSegments(points).forEach(seg=>{
     if(seg.length<2)return;
     const ll=seg.map(p=>[p.lat,p.lng]);
-    if(focused)L.polyline(ll,{pane:'actualTrackPane',color,weight:11,opacity:.17,lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
-    L.polyline(ll,{pane:'actualTrackPane',color,weight:focused?5:3.5,opacity:focused?1:.82,
+    // halo sous le trait, pour detacher la trace du fond de carte
+    L.polyline(ll,{pane:'actualTrackPane',color,weight:11,opacity:.17,lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
+    L.polyline(ll,{pane:'actualTrackPane',color,weight:5,opacity:1,
       lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
   });
 }
 // Un seul marqueur pour tout le monde : une voiture est un personnage de plus.
 // `wideArt` ne change que le cadrage de l'image (découpe de voiture en
 // paysage), jamais la forme.
-function addActualMarker(point,color,label,name,{pulse=true,faceUrl=null,planned=false,
+function addActualMarker(point,color,label,name,{faceUrl=null,planned=false,
     wideArt=false}={}){
   if(!point)return;
   const img=faceUrl || (name&&(PHOTOS.faces||{})[name]);
   const bg=img?`;background-image:url('${img}')`:'';
-  const cls=['track-now',img?'avatar':'',wideArt?'wide-art':'',pulse&&!planned?'':'quiet',
-    planned?'planned':''].filter(Boolean).join(' ');
+  // Le marqueur du sujet suivi pulse, sauf s'il montre une position prevue.
+  const cls=['track-now',img?'avatar':'',wideArt?'wide-art':'',planned?'quiet planned':'']
+    .filter(Boolean).join(' ');
   const aria=planned?`${label} — position prévue`:label;
   const html=`<div class="${cls}" style="--tc:${color}${bg}" aria-label="${esc(aria)}" title="${esc(aria)}">${img?'':esc(label.slice(0,1))}</div>`;
   const size=img?[30,30]:[24,24];
@@ -1230,13 +1214,13 @@ function nextStopKm(km){
   for(const i of cpRouteIdx)if(ROUTE_KM[i]>km+.001)return ROUTE_KM[i];
   return totalKm;
 }
-function addPlannedFuture(last,color,{focused=false,dashOffset='0',startKm=0,endKm=totalKm}={}){
+function addPlannedFuture(last,color,{startKm=0,endKm=totalKm}={}){
   const end=Math.min(totalKm,endKm);
   // Sans position reelle, le trace prevu commence exactement a l'embarquement.
   if(!last){
     const planned=startKm<end?routeSlice(startKm,end):[];
-    if(planned.length>1)L.polyline(planned,{pane:'actualTrackPane',color,weight:focused?4:3.2,
-      opacity:focused?.8:.66,dashArray:'10 12',dashOffset,lineCap:'round',lineJoin:'round',
+    if(planned.length>1)L.polyline(planned,{pane:'actualTrackPane',color,weight:4,opacity:.8,
+      dashArray:'10 12',lineCap:'round',lineJoin:'round',
       interactive:false}).addTo(actualTrackLayer);
     return;
   }
@@ -1250,8 +1234,8 @@ function addPlannedFuture(last,color,{focused=false,dashOffset='0',startKm=0,end
   const stop=Math.min(nextStopKm(from),end);
   const tail=routeSlice(stop,end);
   tail.unshift([last.lat,last.lng]);
-  if(tail.length>1)L.polyline(tail,{pane:'actualTrackPane',color,weight:focused?4:3.2,opacity:focused?.8:.66,
-    dashArray:'10 12',dashOffset,lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
+  if(tail.length>1)L.polyline(tail,{pane:'actualTrackPane',color,weight:4,opacity:.8,
+    dashArray:'10 12',lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
 }
 function trackSummary(points){
   const accepted=trackSegments(points).flat(),count=accepted.length;
@@ -1279,11 +1263,11 @@ function renderHybridTracks(){
   if(kind==='vehicle'){
     const st=vehicleStateAtDay(id,end);
     if(st.meta){
-      addActualPath(st.pts,st.meta.color,true);
+      addActualPath(st.pts,st.meta.color);
       addPlannedFuture(lastTrackPoint(st.pts)||st.real,st.meta.color,
-        {focused:true,...plannedRangeForVehicle(id)});
+        plannedRangeForVehicle(id));
       addActualMarker(st.point,st.meta.color,st.meta.label,null,
-        {pulse:true,faceUrl:st.meta.face,planned:st.planned,wideArt:true});
+        {faceUrl:st.meta.face,planned:st.planned,wideArt:true});
     }
   }else if(kind==='person'){
     const name=NAME_BY_ID.get(id);
@@ -1292,9 +1276,9 @@ function renderHybridTracks(){
       const real=currentForPerson(name,end);
       const {point,planned}=stateAtDay(real,onboardAt(name,idx));
       const color=colorOf(name),range=plannedRangeForPerson(name);
-      addActualPath(pts,color,true);
-      if(range)addPlannedFuture(lastTrackPoint(pts)||real,color,{focused:true,...range});
-      addActualMarker(point,color,name,name,{pulse:true,planned});
+      addActualPath(pts,color);
+      if(range)addPlannedFuture(lastTrackPoint(pts)||real,color,range);
+      addActualMarker(point,color,name,name,{planned});
     }
   }
 }

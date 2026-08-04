@@ -5,7 +5,7 @@
 
 ## Files
 
-### `template.html` — the entire app (HTML + CSS + JS, ~1,500 lines)
+### `template.html` — the entire app (HTML + CSS + JS, ~2,000 lines)
 Built into `index.html`/`voyage-afrique.html` by `build.py`, which replaces
 three literal tokens:
 - `__DATA__`    ← contents of `data.json`
@@ -55,6 +55,12 @@ property the panel handle drags, so **it can never spill past the map** (145 px
 tall over a 323 px map at the default size, versus 390 px before). If the
 `+/-` buttons ever come back, the toolbar margin and that `max-height` offset
 both have to move down by the control's height.
+
+Only the **selected** subject is ever drawn on `actualTrackLayer` (its track,
+its dashed future, its pulsing marker); everyone else is a `faceCluster`
+marker. That single rule is why `addActualPath()`, `addActualMarker()` and
+`addPlannedFuture()` carry no "focused"/"quiet" variants — if a second subject
+ever has to be drawn at once, that is the assumption to revisit first.
 
 Key JS structures (all near the top of the script):
 - `DATA.records` — one entry per day: `{date, iso, checkpoint, location,
@@ -185,7 +191,7 @@ Key JS structures (all near the top of the script):
   record index whose `posAt()` position is closest (equirectangular metric)
   and calls `setIndex()`. The numbered `cp-badge` circles are clickable too
   (jump to that checkpoint's arrival day; the name pill stays click-through).
-- **One hybrid map truth** (`renderHybridTracks()`, `drawVehicleTrack()`):
+- **One hybrid map truth** (`renderHybridTracks()`, `vehicleStateAtDay()`):
   `plannedLayer` contains only editorial context (selected leg, neutral
   checkpoints, dangers/deco, clickable route and open-zone annotation).
   `actualTrackLayer` draws the focused subject's accepted GPS history as a
@@ -225,13 +231,13 @@ Key JS structures (all near the top of the script):
   that erases a stretch nobody has driven yet and opens a hole on every future
   day.
   `projectOnPlannedRoute()` uses local equirectangular projection plus
-  cumulative-distance tie-breaking to find that suffix. The thin dotted
-  connector between a real point and the plan is drawn **only** when the point
-  is within `MAX_PLAN_CONNECTOR_KM`; beyond that it is dropped rather than
-  inventing a misleading diagonal. Route data is sparse, so the off-itinerary
+  cumulative-distance tie-breaking to find that suffix. The join from the real
+  point to the plan is unconditional and part of the dashed line itself — there
+  is no separate connector and no distance cutoff, so a subject far off the plan
+  is still visibly heading somewhere. Route data is sparse, so the off-itinerary
   warning starts at 150 km and is reported in the fiche ("Écart au plan"),
-  the toolbar status line being gone. Complementary `dashOffset`s keep both
-  cars visible over their shared future. `actualTrackPane` and
+  the toolbar status line being gone. Only the selected subject draws a future,
+  so there is one dashed line at a time. `actualTrackPane` and
   `actualMarkerPane` keep hybrid lines and current markers above context.
 - **Subject filters** (`trackSubject`, `setTrackSubject()`, default
   `vehicle:hugodouard` — there is no "Convoi" subject any more): a vehicle
@@ -240,8 +246,9 @@ Key JS structures (all near the top of the script):
   presence range. `plannedRangeForVehicle()` is the union of its roster's
   ranges (`VEHICLES[id].roster`) — the 03/08 pass looked the car's *name* up as
   a person, always found nothing, and silently deleted both cars' dashed
-  future. Person buttons come from deduplicated `ACTIVE_NAMES` (both cars plus
-  observers). The picker uses native buttons, focus styles and listbox
+  future. Person buttons come from each vehicle's own roster; observers are not
+  in the picker (they are not a trace to follow) but their fiche still opens
+  from the panel. The picker uses native buttons, focus styles and listbox
   semantics. Choosing a different picker subject closes any stale fiche;
   opening a fiche selects the matching person.
 - **Actual route model** (`TRIP_ID = "africa-trip-01"`): stable person ids are
@@ -254,7 +261,8 @@ Key JS structures (all near the top of the script):
   its own `personId`, `vehicleId`, `mode`, time, coordinates, accuracy and
   source. `allTrackPoints()` merges v2 chunks/latest, v1 personal tracks and
   `mediaTrackPoint()` anchors. There is **no departure-date gate**: media and
-  points from before the first trip day count (`TRIP_START_MS` is gone). Only
+  points from before the first trip day count — there is no global departure
+  constant, only the per-person `track_start`. Only
   media with embedded GPS (`gps`/`media-gps`) qualify; manual pins and
   planned+jittered Drive positions do not. **Each person's points count only
   from their own `track_start`** (`trackStartFor()`, `beforeOwnStart()`, fed by
@@ -331,8 +339,8 @@ Key JS structures (all near the top of the script):
   gallery belongs to the trip, not to the selected subject: changing trace must
   never make photos disappear from the map, so there is deliberately no
   per-subject media filtering. `refreshPhotos()` renders the allowed
-  indices into `photoCluster`; clicking a
-  marker opens the filtered `#lightbox` list, with image/video support,
+  indices into `photoCluster`; the `#lightbox` it opens is scoped to one pile
+  (see above), with image/video support,
   captions, date, location provenance and thumbnail fallback. Firebase v2
   media remain in the existing root `photos` collection for compatibility but
   carry `tripId`, `personId`, `vehicleIdAtCapture`, `mode`, `assignmentId`,
