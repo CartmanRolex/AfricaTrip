@@ -45,14 +45,16 @@ Observers are not in the picker: they are not a trace to follow, and their fiche
 still opens from the panel. One `aria-selected` choice, closes on
 selection/outside/Escape, styling in the stylesheet rather than inline.
 
-On **mobile** the picker joins Leaflet's zoom control in a single left-hand
-column of map instruments (same 10 px gutter, stacked below it) instead of
-sitting beside it. Closed, it drops the "Trace affichée" eyebrow — the avatar
+Leaflet's `zoomControl` is **off**: zooming is the wheel, pinch and double-tap,
+and the freed top-left corner goes to the picker. On **mobile** the picker
+occupies that corner. Closed, it drops the "Trace affichée" eyebrow — the avatar
 and the name already say it — and shrinks to a 30 px pill. Open, the crew wraps
 to two ranks and the menu spans the width, so all eleven names stay readable
 with no scrolling; its `max-height` is derived from `--map-h`, the same custom
 property the panel handle drags, so **it can never spill past the map** (145 px
-tall over a 323 px map at the default size, versus 390 px before).
+tall over a 323 px map at the default size, versus 390 px before). If the
+`+/-` buttons ever come back, the toolbar margin and that `max-height` offset
+both have to move down by the control's height.
 
 Key JS structures (all near the top of the script):
 - `DATA.records` — one entry per day: `{date, iso, checkpoint, location,

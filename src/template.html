@@ -362,11 +362,11 @@ span.fiche-face{display:block;overflow:hidden}
   .stat b.odo{font-size:12.5px}
   .stat span{font-size:7.5px;letter-spacing:.06em}
   #map{z-index:1}
-  /* Les instruments de carte tiennent dans UNE colonne à gauche : zoom, puis
-     trace affichée juste dessous, même gouttière. La carte est basse sur
-     mobile, donc le sélecteur reste une pastille discrète — le sur-titre
-     doublait sa hauteur pour ne rien dire de plus que l'avatar et le nom. */
-  .map-toolbar{z-index:700;justify-self:start;margin:78px 0 0 10px;
+  /* Le sélecteur occupe le coin haut-gauche libéré par les boutons de zoom. La
+     carte est basse sur mobile, donc il reste une pastille discrète — le
+     sur-titre doublait sa hauteur pour ne rien dire de plus que l'avatar et le
+     nom. */
+  .map-toolbar{z-index:700;justify-self:start;margin:10px 0 0 10px;
     max-width:calc(100% - 20px);padding:4px;border-radius:11px}
   .track-picker-toggle{min-height:30px;padding:3px 8px 3px 3px;gap:7px;border-radius:9px}
   .track-picker-avatar{width:24px;height:24px;font-size:11px}
@@ -375,11 +375,11 @@ span.fiche-face{display:block;overflow:hidden}
   .track-picker-chevron{margin-left:6px;font-size:12px}
   /* Le menu ne peut jamais déborder de la carte : sa hauteur suit `--map-h`,
      la même variable que la poignée du panneau règle. */
-  /* 78 px sous le haut de la carte + la pastille + l'écart + une marge basse :
-     le menu s'arrête au-dessus du bord de la carte au lieu de déborder sur le
-     panneau. Le plancher garde le menu utilisable si la carte est réduite. */
+  /* Marge haute + la pastille + l'écart + une marge basse : le menu s'arrête
+     au-dessus du bord de la carte au lieu de déborder sur le panneau. Le
+     plancher garde le menu utilisable si la carte est réduite. */
   .track-menu{left:0;right:auto;width:calc(100vw - 20px);padding:7px;
-    max-height:max(140px,calc(var(--map-h,38vh) - 142px))}
+    max-height:max(140px,calc(var(--map-h,38vh) - 76px))}
   .track-cars{gap:7px}
   /* L'équipage passe sur deux rangs : tout le monde tient sans défilement et
      le menu découvre davantage de carte. */
@@ -724,7 +724,9 @@ function posAt(r){
 }
 
 /* ---- map ---- */
-const map=L.map('map',{zoomControl:true,attributionControl:true,minZoom:3}).setView([30,-8],4);
+// Pas de boutons +/- : le zoom se fait a la molette, au pincement et au double
+// clic, et sur mobile la place gagnee revient au selecteur de trace.
+const map=L.map('map',{zoomControl:false,attributionControl:true,minZoom:3}).setView([30,-8],4);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
   subdomains:'abcd',maxZoom:19,
   attribution:'&copy; OpenStreetMap &copy; CARTO'
