@@ -14,15 +14,41 @@ falls back to the static photo (`oncanplay` gate → `.vid-ok`).
 |--------------------|---------|----------------------------------------|
 | `edouard_live.mp4` | Edouard | 800×1088, 5 s mugshot loop; head ≈ (50%, 35%) → w:210% l:-55% t:-50% |
 | `younous_live.mp4` | Younous | 800×1088 mugshot loop; big curly hair → w:170% l:-36% t:-31% |
-| `hugo_live.mp4`    | Hugo    | 800×1418 colonial-explorer loop (jungle, pith helmet), waist-up shot so the head sits high in frame → w:170% l:-36% t:-59.4% |
+| `hugo_live.mp4`    | Hugo    | 704×1248 colonial-explorer loop (jungle, pith helmet), waist-up shot so the head sits high in frame → w:170% l:-36% t:-59.4% |
 | `gal_live.mp4`     | Gal     | 800×1088 Touareg portrait (indigo chèche, camp + camels behind); tall head (turban→chin ≈ 390px) so the circle needs a LOOSE frame or its curve clips the jaw → w:151.5% l:-26.1% t:-28.6% |
 | `arthur_live.mp4`  | Arthur  | 800x1088 desert portrait (beige djellaba, dunes + oasis) -> w:182% l:-43.2% t:-15.9% |
 | `dorvan_live.mp4`  | Dorvan  | 800x1088 savanna sunset; Dorvan + zebras + giraffe + grass all move -> w:181.8% l:-40.9% t:-5.6% |
-| `paul_live.mp4`    | Paul    | 800x773 (near-square source) rice paddy, conical hat: wide brim, framed to keep the face readable -> w:177.8% l:-38.9% t:0% |
+| `paul_live.mp4`    | Paul    | 960×928 (near-square source) rice paddy, conical hat: wide brim, framed to keep the face readable -> w:177.8% l:-38.9% t:0% |
 | `giordano_live.mp4`| Giordano| 800x1088 physics lecture hall (blackboard of equations) -> w:160% l:-25% t:-64% |
-| `jehan_live.mp4`   | Jehan   | 800x773 sailing boat at sea, captain's cap -> w:250% l:-75% t:-0.7% |
-| `thomas_live.mp4`  | Thomas  | 800x773 favela rooftop at sunset, sunglasses -> w:227.3% l:-63.6% t:-49.5% |
-| `malen_live.mp4`   | Malen   | 800×1015 soviet-square smoke break (lighter + cigarette in frame) → w:167% l:-35% t:-83% |
+| `jehan_live.mp4`   | Jehan   | 960×928 sailing boat at sea, captain's cap -> w:250% l:-75% t:-0.7% |
+| `thomas_live.mp4`  | Thomas  | 960×928 favela rooftop at sunset, sunglasses -> w:227.3% l:-63.6% t:-49.5% |
+| `malen_live.mp4`   | Malen   | 832×1056 soviet-square smoke break (lighter + cigarette in frame) → w:167% l:-35% t:-83% |
+
+## Poids : encodage volontairement sobre (2026-08-06)
+
+Les clips ont ete reencodes en H.264 CRF 23 (preset slow, `+faststart`), **sans
+toucher a la resolution ni a la cadence**. Les originaux sortaient de Wan2.2 a
+10-17 Mbit/s pour des images de 800 px de large, soit une dizaine de fois le
+debit utile : 85 Mo au total. Ils font maintenant 11,9 Mo (-86 %).
+
+Ce n'est PAS pour accelerer le deploiement — mesure faite, le checkout et
+l'upload de tout le depot prennent 7 secondes. C'est pour l'equipage : ces
+fichiers sont telecharges a l'ouverture d'une fiche, et ouvrir celle d'Arthur
+coutait 10,6 Mo de data mobile en Mauritanie.
+
+Verification faite avant remplacement, parce qu'un clignement ne dure que 3 a 6
+images sur 121 : comparaison image par image entre original et version
+compressee, **par blocs** pour qu'une petite zone comme une paupiere ne se noie
+pas dans la moyenne. Ecart median 0,3-0,6 sur une echelle 0-255, maximum 1,5, et
+le mouvement le plus marque de chaque clip conserve a 90-131 %. Aucun clignement
+perdu. Les 121 images, les dimensions et les 24 fps sont identiques.
+
+Attention au piege : une premiere metrique correlait la difference entre images
+CONSECUTIVES. Elle criait au loup partout, parce qu'elle mesurait surtout la
+disparition du bruit d'encodage de l'original, pas une perte de mouvement.
+Comparer l'image i a l'image i est le bon test.
+
+Pour recuperer les originaux : `git checkout 4be4660 -- photos/videos/`.
 
 The STATIC face crops of live-portrait people come from the video's FIRST
 FRAME (no visual jump on hover): extract it by loading the mp4 in headless

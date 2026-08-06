@@ -138,10 +138,13 @@ version.json                       (build id, for the auto-refresh below)
   Verified against a `max-age=600` server: the reload really does return the new
   HTML, not the cached copy. It is skipped on `file://` and silent on any
   failure. `version.json` must stay published — it is in `sync.py`'s whitelist.
-- **Deploying takes about a minute**, sometimes much longer, and that is the
-  other half of "I don't see my change". `.nojekyll` at the root stops GitHub
-  Pages from running Jekyll over the whole 138 MB repo (the videos dominate);
-  builds were 45-65 s typically but one took 434 s. Never delete that file.
+- **Deploying takes about a minute**, and that is the other half of "I don't see
+  my change". `.nojekyll` at the root stops GitHub Pages from running Jekyll over
+  the checkout — keep that file. Repo size is *not* the factor: measured on a
+  successful run, checkout takes 3 s, uploading the artifact 4 s and the deploy
+  6 s. When a deploy hangs it is GitHub's own queue: the `build` job succeeds and
+  only "Deploy to GitHub Pages" spins on `deployment_queued` until its 10-minute
+  timeout. Nothing in the repo fixes that — re-run the workflow.
 - **One-shot update for the user**: `python src/sync.py` (or double-clicking
   `sync.bat` at the root) chains parse_csv + fetch_routes + build + fetch_photos
   (routing is non-blocking: offline, known routes are kept and new segments stay
