@@ -534,6 +534,10 @@ span.fiche-face{display:block;overflow:hidden}
 const DATA = __DATA__;
 const PHOTOS = __PHOTOS__;
 const GALLERY = __GALLERY__;
+// Geometries routieres precalculees entre deux points GPS (src/fetch_routes.py).
+// Absentes = on garde la ligne droite : le site ne depend d'aucun service de
+// routage a l'affichage.
+const ROUTES = __ROUTES__;
 const TRIP_ID = 'africa-trip-01';
 const BUILD_GALLERY_N = GALLERY.length;
 GALLERY.forEach(g => { g._origin = 'build'; g._v2 = false; });
@@ -1049,10 +1053,24 @@ function subjectParts(){
 // La trace passee est faite UNIQUEMENT des positions GPS et des photos : on
 // relie les points entre eux, rien d'autre n'est dessine. Aucune route n'est
 // reconstituee a partir de l'itineraire prevu.
+// Cle d'une paire de points, identique a celle produite par fetch_routes.py.
+const routeKey=(a,b)=>`${a.lat.toFixed(4)},${a.lng.toFixed(4)};${b.lat.toFixed(4)},${b.lng.toFixed(4)}`;
+// Trace d'une section : on suit la ROUTE entre deux points quand elle a ete
+// precalculee, sinon la ligne droite. Sans cela, deux points espaces se
+// relient a travers la mer (Montpellier -> Barcelone coupe le golfe du Lion).
+function segmentLatLngs(seg){
+  const ll=[[seg[0].lat,seg[0].lng]];
+  for(let i=1;i<seg.length;i++){
+    const road=ROUTES[routeKey(seg[i-1],seg[i])];
+    if(road&&road.length>1)ll.push(...road.slice(1));
+    else ll.push([seg[i].lat,seg[i].lng]);
+  }
+  return ll;
+}
 function addActualPath(points,color){
   trackSegments(points).forEach(seg=>{
     if(seg.length<2)return;
-    const ll=seg.map(p=>[p.lat,p.lng]);
+    const ll=segmentLatLngs(seg);
     // halo sous le trait, pour detacher la trace du fond de carte
     L.polyline(ll,{pane:'actualTrackPane',color,weight:11,opacity:.17,lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
     L.polyline(ll,{pane:'actualTrackPane',color,weight:5,opacity:1,

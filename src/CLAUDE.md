@@ -11,6 +11,7 @@ three literal tokens:
 - `__DATA__`    ← contents of `data.json`
 - `__PHOTOS__`  ← contents of `photos.json`
 - `__GALLERY__` ← contents of `gallery.json` (`[]` if absent)
+- `__ROUTES__`  ← contents of `routes.json` (`{}` if absent)
 
 The head carries a tiny inline SVG diamond favicon, so the self-contained page
 does not generate a stray `/favicon.ico` 404 during browser checks.
@@ -456,6 +457,27 @@ the repo root, sheet shared with the service-account email as Editor
 like `refresh.py`. Writing to a sheet no longer affects the site: the trip
 data is `data/*.csv` in this repo.
 
+### `fetch_routes.py`
+Precomputes the road geometry between GPS points into `routes.json`, injected as
+`__ROUTES__`. Reads Firestore through its **public REST API** with the
+`projectId`/`apiKey` taken from `app/www/firebase-config.js` (single source, no
+extra credential, stdlib only), then asks OSRM for each pair.
+
+It deliberately does **not** reimplement the front-end's reconstruction
+(minute bucketing, impossible-transition rejection, roster fallback, shared
+occupant tracks): duplicating that in Python would rot on the next template
+change. It groups the raw points coarsely — per person and per vehicle,
+chronologically — and routes every pair within `PAIR_WINDOW` (3), which covers
+the pairs the site actually draws once it has dropped some points. Coverage is
+measurable: walk `trackSegments()` in the browser and count the pairs present in
+`ROUTES` (currently 23/23 of the segments over 1 km).
+
+Guards: pairs under 1 km keep the straight line, pairs over 1500 km are not a
+continuous drive, and a route more than 4× the great-circle distance is treated
+as an aberration (a detour around a sea, a point landing on an island) and
+dropped. Pairs whose points have disappeared are pruned from the cache. Ferries
+are covered — Algeciras → Tanger Med resolves to the 23 km crossing.
+
 ### `fetch_photos.py`
 Syncs the shared Drive photo folder onto the map (`--dry-run` to preview).
 Folder URL/ID in the git-ignored `.drive-folder` (same pattern as
@@ -483,7 +505,8 @@ seeded by `entry_id`), then writes `photos/uploads/<safe>.jpg` (max 1600 px)
 
 ### `sync.py`
 The user-facing one-shot updater (`python src/sync.py`, or `sync.bat` at the
-root for double-click): parse_csv.py → build.py → fetch_photos.py → `git add` of an
+root for double-click): parse_csv.py → fetch_routes.py (non-blocking) →
+build.py → fetch_photos.py → `git add` of an
 explicit whitelist of pipeline inputs/outputs, including
 `site-overrides.json` (never `photos/gal.enc`) → commit → push. Exits
 without committing when nothing changed.
@@ -522,7 +545,7 @@ Hard-won gotchas (do not re-learn these):
   used to live here; it became unreachable once the white outlines were
   preserved, and was deleted — see git history if a sheet ever needs it.)
 
-### `data.json` / `photos.json` / `gallery.json`
+### `data.json` / `photos.json` / `gallery.json` / `routes.json`
 Generated. Never edit by hand; regenerate with the scripts above. All are
 committed so a rebuild doesn't depend on the private sheet or Drive.
 To remove a photo permanently, delete it from the Drive folder AND from

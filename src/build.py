@@ -2,9 +2,10 @@
 Build the final standalone site by injecting src/data.json into src/template.html.
 
 Usage:  python src/build.py
-Reads:  src/template.html  (contains the literal tokens __DATA__ and __PHOTOS__)
+Reads:  src/template.html  (literal tokens __DATA__, __PHOTOS__, __GALLERY__, __ROUTES__)
         src/data.json
         src/photos.json    (face thumbnails as data URIs; python src/make_faces.py)
+        src/routes.json    (road geometry between GPS points; python src/fetch_routes.py)
 Writes: voyage-afrique.html  (self-contained, open directly in a browser)
         index.html           (identical copy so GitHub Pages serves it at the
                               repo root URL)
@@ -21,6 +22,7 @@ TEMPLATE = os.path.join(HERE, "template.html")
 DATA = os.path.join(HERE, "data.json")
 PHOTOS = os.path.join(HERE, "photos.json")
 GALLERY = os.path.join(HERE, "gallery.json")
+ROUTES = os.path.join(HERE, "routes.json")
 OUTS = [os.path.join(HERE, "..", "voyage-afrique.html"),
         os.path.join(HERE, "..", "index.html")]
 
@@ -45,8 +47,9 @@ def main():
     else:
         photos = "{}"
     gallery = open(GALLERY, encoding="utf-8").read() if os.path.exists(GALLERY) else "[]"
+    routes = open(ROUTES, encoding="utf-8").read() if os.path.exists(ROUTES) else "{}"
     html = (template.replace("__DATA__", data).replace("__PHOTOS__", photos)
-            .replace("__GALLERY__", gallery))
+            .replace("__GALLERY__", gallery).replace("__ROUTES__", routes))
     for out in OUTS:
         open(out, "w", encoding="utf-8").write(html)
         print(f"Wrote {os.path.normpath(out)} ({len(html):,} chars)")

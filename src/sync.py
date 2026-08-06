@@ -3,9 +3,11 @@ Met a jour le site en une seule commande.
 
 Usage:  python src/sync.py          (ou double-clic sur sync.bat a la racine)
 
-1. parse_csv.py + build.py : reconstruit le site depuis les donnees du depot
-2. fetch_photos.py         : rapatrie les nouvelles photos du Drive partage
-3. git commit+push         : publie sur GitHub Pages
+1. parse_csv.py    : relit les donnees du voyage (data/*.csv + overrides)
+2. fetch_routes.py : calcule la route reelle entre les nouveaux points GPS
+3. build.py        : regenere le site
+4. fetch_photos.py : rapatrie les nouvelles photos du Drive partage
+5. git commit+push : publie sur GitHub Pages
 
 Le Google Sheet n'est PLUS la reference : les donnees du voyage vivent dans le
 depot (data/*.csv + src/site-overrides.json). sync.py ne telecharge donc plus
@@ -25,8 +27,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, ".."))
 
 PUBLISH = ["index.html", "voyage-afrique.html", "src/data.json",
-           "src/gallery.json", "src/photos.json", "src/site-overrides.json",
-           "data", "photos/uploads"]
+           "src/gallery.json", "src/photos.json", "src/routes.json",
+           "src/site-overrides.json", "data", "photos/uploads"]
 
 
 def run(*cmd):
@@ -37,6 +39,10 @@ def run(*cmd):
 def main():
     if run(sys.executable, os.path.join(HERE, "parse_csv.py")):
         sys.exit("ERREUR pendant la lecture des donnees du voyage (data/*.csv).")
+    # Le routage n'est pas bloquant : sans reseau on garde les routes deja
+    # connues et les nouveaux segments restent des lignes droites.
+    if run(sys.executable, os.path.join(HERE, "fetch_routes.py")):
+        print("AVERTISSEMENT : routes non mises a jour, on continue.")
     if run(sys.executable, os.path.join(HERE, "build.py")):
         sys.exit("ERREUR pendant la generation du site.")
     if run(sys.executable, os.path.join(HERE, "fetch_photos.py")):

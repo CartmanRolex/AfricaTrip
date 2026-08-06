@@ -38,8 +38,10 @@ data/Config.csv                                 (committed, hand-editable)
    + src/site-overrides.json       # repo-side trip config (year, roster, phones, terminus)
    │  python src/parse_csv.py      # CSV + config -> src/data.json
    ▼
-src/data.json ──┐
-src/photos.json ─┤ python src/build.py   # injects both into src/template.html
+src/data.json ───┐
+src/photos.json ─┤ python src/build.py   # injects all four into src/template.html
+src/gallery.json ┤
+src/routes.json ─┘
                  ▼
 index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
 ```
@@ -78,6 +80,14 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
 - **The travelled track is made of GPS points and photos, nothing else.** It
   joins the accepted points in order — no road is ever reconstructed from the
   itinerary, and no straight line is invented to fill a gap.
+- **Between two points it follows the actual road.** `src/routes.json`
+  (produced by `python src/fetch_routes.py`) holds the driving geometry of each
+  pair of consecutive points, keyed by their rounded coordinates. It is
+  **precomputed and committed**, so the published page calls no routing service:
+  it looks the pair up and falls back to the straight line when it is missing.
+  Without it, sparse points join through the sea — Montpellier to Barcelona in a
+  straight line crosses the Gulf of Lion. A routed geometry is a deduction, not
+  a measurement, but it is far closer to the truth than that.
 - **People riding together share one track.** Occupants of a car describe the
   same movement, so each of them gets the car's merged track for the days the
   presence grid puts them aboard, plus their own points outside those days. One
@@ -119,7 +129,9 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
   so `voyage-afrique.html` opens from disk; only map tiles/fonts/Leaflet come
   from CDNs.
 - **One-shot update for the user**: `python src/sync.py` (or double-clicking
-  `sync.bat` at the root) chains parse_csv + build + fetch_photos, then commits
+  `sync.bat` at the root) chains parse_csv + fetch_routes + build + fetch_photos
+  (routing is non-blocking: offline, known routes are kept and new segments stay
+  straight), then commits
   and pushes ONLY the whitelisted pipeline inputs/outputs (including
   `src/site-overrides.json`, safe wrt `photos/gal.enc`). No-op if nothing
   changed. It deliberately does **not** call `refresh.py` any more: a
