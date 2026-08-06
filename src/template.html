@@ -1997,7 +1997,7 @@ function faceMarkup(name,ph,auto){
   const lv=LIVE[name];
   if(lv) return `<span class="live-wrap"${auto?' style="pointer-events:none"':''}>
     <img src="${ph}" alt="${name}">
-    <video src="${lv.src}" muted loop playsinline preload="metadata"${auto?' autoplay':''}
+    <video src="${lv.src}" muted loop playsinline preload="none"${auto?' autoplay':''}
       oncanplay="this.parentNode.classList.add('vid-ok')"
       style="width:${lv.w};left:${lv.l};top:${lv.t}"></video></span>`;
   const wide=(PHOTOS.facesWide||{})[name];

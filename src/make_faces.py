@@ -221,6 +221,9 @@ def main():
     voitures = Image.open(os.path.join(PHOTOS, "voitures.jpg"))
     for no, box in CAR_BOXES.items():
         car = cut_car(voitures, box)
+        # decoupe sur fond uni -> palette 64 couleurs, meme raison que les
+        # stickers : c'est embarque en data URI dans chaque page.
+        car = car.quantize(colors=64, method=Image.FASTOCTREE)
         out = os.path.join(EMOJIS, f"car{no}.png")
         car.save(out, "PNG", optimize=True)
         buf = io.BytesIO()
@@ -233,6 +236,10 @@ def main():
         for i, st in enumerate(cut_stickers(sheet, thumb_h=96), 1):
             if i in CLEAN:
                 st = clean_rects(st, CLEAN[i])
+            # meme traitement que les chameaux : ces stickers sont des aplats,
+            # une palette de 64 couleurs les rend ~5x plus legers sans difference
+            # visible, et ils sont embarques en data URI dans CHAQUE page.
+            st = st.quantize(colors=64, method=Image.FASTOCTREE)
             out = os.path.join(EMOJIS, f"terro{i}.png")
             st.save(out, "PNG", optimize=True)
             buf = io.BytesIO()

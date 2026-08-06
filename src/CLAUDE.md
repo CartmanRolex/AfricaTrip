@@ -131,7 +131,11 @@ Key JS structures (all near the top of the script):
   `## deco`): camels along the desert stretch, plain `<img>` markers reusing
   `.danger-img` (drop-shadow + danger-far scaling), no circle/label.
 - `LIVE` — living portraits (name → `{src, w, l, t}`): MP4 loops in
-  `photos/videos/` (relative paths, see that folder's CLAUDE.md). The seat
+  `photos/videos/` (relative paths, see that folder's CLAUDE.md). The `<video>`
+  carries **`preload="none"`** — with `preload="metadata"` browsers pulled most
+  of every visible clip on page load: 5.9 MB measured, 77 % of the whole page.
+  Nothing is fetched until a hover or a fiche asks for it, and the static crop
+  is already the designed fallback until `oncanplay` fires. The seat
   chip gets class `live`; delegated mouseover/mouseout toggle `.playing`
   (video plays inside the circle, replacing the hover-zoom img effect —
   the wrapper `.live-wrap` scales ×3.2 instead); the fiche face plays it
