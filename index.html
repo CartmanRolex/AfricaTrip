@@ -545,7 +545,7 @@ const ROUTES = {"11.3180,-12.2830;9.6410,-13.5780":[[11.3178,-12.28318],[11.3106
 // (jamais mis en cache) et, si un build plus recent est publie, on recharge une
 // seule fois. Sans reseau, depuis le disque, ou si quoi que ce soit echoue, on
 // ne fait rien.
-const BUILD = "d8e4a2babe93";
+const BUILD = "601e0f962924";
 if(location.protocol!=='file:'){
   fetch(`version.json?t=${Date.now()}`,{cache:'no-store'})
     .then(r=>r.ok?r.json():null)
@@ -843,6 +843,17 @@ function mediaThumb(url, video, px){
     return url.replace('/video/upload/', `/video/upload/w_${px},h_${px},c_fill,so_0/`)
               .replace(/\.[a-z0-9]+($|\?)/i, '.jpg$1');
   return url.replace('/upload/', `/upload/w_${px},h_${px},c_fill,q_auto,f_auto/`);
+}
+// Version calibree pour un ecran. La visionneuse servait l'ORIGINAL : 5 Mo pour
+// une photo, 16 Mo pour une video, la ou une version d'affichage est
+// indiscernable. Mesure sur les medias reels : -80 a -90 % sur les images,
+// -50 a -78 % sur les videos. Ne s'applique qu'aux URL Cloudinary ; les photos
+// Drive servies par Pages gardent leur chemin.
+function mediaDisplay(url, video){
+  if (!url || !/res\.cloudinary\.com/.test(url)) return url;
+  return video
+    ? url.replace('/video/upload/', '/video/upload/q_auto,w_1280,c_limit/')
+    : url.replace('/upload/', '/upload/w_1400,c_limit,q_auto,f_auto/');
 }
 
 /* ---- trajet réel -------------------------------------------------------
@@ -1678,13 +1689,15 @@ function showLb(){
   const vid=lb.querySelector('video');
   if(g.video){
     img.style.display='none'; img.removeAttribute('src');
-    vid.style.display='block'; vid.src=g.file; vid.poster=g.thumb;
+    vid.style.display='block'; vid.src=mediaDisplay(g.file,true); vid.poster=g.thumb;
     try{ vid.currentTime=0; vid.play().catch(()=>{}); }catch(_){}
   }else{
     try{ vid.pause(); }catch(_){}
     vid.removeAttribute('src'); vid.style.display='none';
     img.style.display='block';
-    img.src=g.file; img.onerror=()=>{img.onerror=null;img.src=g.thumb;};
+    // repli en cascade : version ecran -> original -> vignette
+    img.src=mediaDisplay(g.file,false);
+    img.onerror=()=>{img.onerror=()=>{img.onerror=null;img.src=g.thumb;};img.src=g.file;};
   }
   const d=g.date?new Date(g.date+'T12:00:00'):null;
   const dateLabel=d&&!Number.isNaN(d.getTime())?d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'}):'date inconnue';
