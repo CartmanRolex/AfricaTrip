@@ -538,6 +538,24 @@ const GALLERY = __GALLERY__;
 // Absentes = on garde la ligne droite : le site ne depend d'aucun service de
 // routage a l'affichage.
 const ROUTES = __ROUTES__;
+// Identifiant de ce build. GitHub Pages sert index.html avec `max-age=600` et
+// n'autorise aucun reglage d'en-tete : le navigateur garde donc la page 10 min
+// sans rien demander au serveur. On telecharge un minuscule `version.json`
+// (jamais mis en cache) et, si un build plus recent est publie, on recharge une
+// seule fois. Sans reseau, depuis le disque, ou si quoi que ce soit echoue, on
+// ne fait rien.
+const BUILD = "__BUILD__";
+if(location.protocol!=='file:'){
+  fetch(`version.json?t=${Date.now()}`,{cache:'no-store'})
+    .then(r=>r.ok?r.json():null)
+    .then(v=>{
+      if(!v||!v.build||v.build===BUILD)return;
+      if(sessionStorage.getItem('build-reloaded')===v.build)return;  // jamais deux fois
+      sessionStorage.setItem('build-reloaded',v.build);
+      location.reload();
+    })
+    .catch(()=>{});
+}
 const TRIP_ID = 'africa-trip-01';
 const BUILD_GALLERY_N = GALLERY.length;
 GALLERY.forEach(g => { g._origin = 'build'; g._v2 = false; });

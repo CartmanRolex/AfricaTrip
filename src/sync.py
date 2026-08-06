@@ -26,7 +26,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, ".."))
 
-PUBLISH = ["index.html", "voyage-afrique.html", "src/data.json",
+PUBLISH = ["index.html", "voyage-afrique.html", "version.json", "src/data.json",
            "src/gallery.json", "src/photos.json", "src/routes.json",
            "src/site-overrides.json", "data", "photos/uploads"]
 

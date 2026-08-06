@@ -9,11 +9,14 @@ Reads:  src/template.html  (literal tokens __DATA__, __PHOTOS__, __GALLERY__, __
 Writes: voyage-afrique.html  (self-contained, open directly in a browser)
         index.html           (identical copy so GitHub Pages serves it at the
                               repo root URL)
+        version.json         (build id, so a published page can notice that a
+                              newer one exists — see __BUILD__ in the template)
 
 Full pipeline to rebuild from the raw CSV:
     python src/parse_csv.py   # CSV  -> src/data.json
     python src/build.py       # JSON -> voyage-afrique.html + index.html
 """
+import hashlib
 import json
 import os
 
@@ -25,6 +28,7 @@ GALLERY = os.path.join(HERE, "gallery.json")
 ROUTES = os.path.join(HERE, "routes.json")
 OUTS = [os.path.join(HERE, "..", "voyage-afrique.html"),
         os.path.join(HERE, "..", "index.html")]
+VERSION = os.path.join(HERE, "..", "version.json")
 
 def main():
     template = open(TEMPLATE, encoding="utf-8").read()
@@ -48,11 +52,20 @@ def main():
         photos = "{}"
     gallery = open(GALLERY, encoding="utf-8").read() if os.path.exists(GALLERY) else "[]"
     routes = open(ROUTES, encoding="utf-8").read() if os.path.exists(ROUTES) else "{}"
+    # Identifiant de build : empreinte des ENTREES, pas de la sortie (la sortie
+    # contient l'identifiant). Deux builds identiques donnent donc le meme id.
+    build = hashlib.sha256(
+        "\u0000".join([template, data, photos, gallery, routes]).encode("utf-8")
+    ).hexdigest()[:12]
     html = (template.replace("__DATA__", data).replace("__PHOTOS__", photos)
-            .replace("__GALLERY__", gallery).replace("__ROUTES__", routes))
+            .replace("__GALLERY__", gallery).replace("__ROUTES__", routes)
+            .replace("__BUILD__", build))
+    with open(VERSION, "w", encoding="utf-8") as f:
+        json.dump({"build": build}, f)
     for out in OUTS:
         open(out, "w", encoding="utf-8").write(html)
         print(f"Wrote {os.path.normpath(out)} ({len(html):,} chars)")
+    print(f"Build {build} -> {os.path.normpath(VERSION)}")
 
 if __name__ == "__main__":
     main()

@@ -43,7 +43,8 @@ src/photos.json ─┤ python src/build.py   # injects all four into src/templat
 src/gallery.json ┤
 src/routes.json ─┘
                  ▼
-index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
+index.html + voyage-afrique.html   (identical, self-contained, ~790 KB)
+version.json                       (build id, for the auto-refresh below)
 ```
 
 - `src/photos.json` (face/car/sticker images as data URIs) is produced by
@@ -128,6 +129,15 @@ index.html + voyage-afrique.html   (identical, self-contained, ~500 KB)
 - The site is **fully self-contained**: all images are embedded as data URIs
   so `voyage-afrique.html` opens from disk; only map tiles/fonts/Leaflet come
   from CDNs.
+- **A published page notices when a newer one exists.** GitHub Pages serves
+  `index.html` with `cache-control: max-age=600` and gives no way to change
+  headers, so a browser keeps the page for ten minutes without asking. Each
+  build stamps a `__BUILD__` id into the HTML and writes the same id to
+  `version.json`; on load the page fetches that tiny file uncached and reloads
+  **once** if the ids differ (a `sessionStorage` mark makes a loop impossible).
+  Verified against a `max-age=600` server: the reload really does return the new
+  HTML, not the cached copy. It is skipped on `file://` and silent on any
+  failure. `version.json` must stay published — it is in `sync.py`'s whitelist.
 - **One-shot update for the user**: `python src/sync.py` (or double-clicking
   `sync.bat` at the root) chains parse_csv + fetch_routes + build + fetch_photos
   (routing is non-blocking: offline, known routes are kept and new segments stay

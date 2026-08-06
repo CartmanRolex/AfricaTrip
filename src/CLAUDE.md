@@ -12,6 +12,12 @@ three literal tokens:
 - `__PHOTOS__`  ← contents of `photos.json`
 - `__GALLERY__` ← contents of `gallery.json` (`[]` if absent)
 - `__ROUTES__`  ← contents of `routes.json` (`{}` if absent)
+- `__BUILD__`   ← the build id, a hash of those four inputs plus the template
+
+`BUILD` powers the auto-refresh: the page fetches `version.json` uncached and
+reloads once when a newer build is published, because GitHub Pages caches the
+HTML for ten minutes and offers no header control. Hashing the **inputs** (not
+the output, which contains the id) keeps the build idempotent.
 
 The head carries a tiny inline SVG diamond favicon, so the self-contained page
 does not generate a stray `/favicon.ico` 404 during browser checks.
