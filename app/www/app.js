@@ -1093,6 +1093,34 @@ function currentUploadStatus(context, html, asText = false) {
   if (asText) $("up-status").textContent = html;
   else $("up-status").innerHTML = html;
 }
+// Relit la video que le plugin natif a copiee en cache. C'est l'etape la plus
+// fragile du chemin video : selon la version de Capacitor et le schema de la
+// WebView, l'URL servable n'est pas la meme, et un echec ici remonte comme un
+// « Failed to fetch » indistinguable de celui de l'upload Cloudinary. On essaie
+// donc les formes connues, et on rapporte precisement ce qui a echoue.
+async function readLocalVideo(path) {
+  const bare = String(path).replace(/^file:\/\//, "");
+  const tries = [];
+  if (CAP && CAP.convertFileSrc) tries.push(["convertFileSrc", CAP.convertFileSrc(path)]);
+  tries.push(["schéma WebView", `${location.origin}/_capacitor_file_${bare}`]);
+  tries.push(["chemin brut", path]);
+  const seen = new Set(), errs = [];
+  for (const [label, url] of tries) {
+    if (seen.has(url)) continue;
+    seen.add(url);
+    try {
+      const r = await fetch(url);
+      if (!r.ok) { errs.push(`${label}: HTTP ${r.status}`); continue; }
+      const blob = await r.blob();
+      if (!blob.size) { errs.push(`${label}: fichier vide`); continue; }
+      return blob;
+    } catch (e) {
+      errs.push(`${label}: ${e && e.message ? e.message : e}`);
+    }
+  }
+  throw new Error("lecture de la vidéo impossible — " + errs.join(" | "));
+}
+
 function initPhotos(lifecycle, person) {
   let pendingBrowserContext = null;
   $("add-photos").onclick = async () => {
@@ -1116,9 +1144,8 @@ function initPhotos(lifecycle, person) {
           };
           if (it.video && it.path) {
             // vidéo : le natif a copié le fichier en cache (pas de base64) ->
-            // on le relit via la WebView (convertFileSrc) puis on l'uploade.
-            const src = (CAP && CAP.convertFileSrc) ? CAP.convertFileSrc(it.path) : it.path;
-            const blob = await (await fetch(src)).blob();
+            // on le relit via la WebView avant de l'uploader.
+            const blob = await readLocalVideo(it.path);
             await uploadPhoto(blob, lat, lng, date, true, context);
           } else {
             await uploadPhoto(b64toBlob(it.base64), lat, lng, date, false, context);
@@ -1195,10 +1222,23 @@ async function uploadPhoto(blob, lat, lng, date, video = isVideoBlob(blob), cont
     const form = new FormData();
     form.append("file", blob);
     form.append("upload_preset", CLOUDINARY.preset);
-    const res = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUDINARY.cloudName}/${video ? "video" : "image"}/upload`,
-      { method: "POST", body: form });
-    if (!res.ok) throw new Error("upload " + res.status);
+    let res;
+    try {
+      res = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY.cloudName}/${video ? "video" : "image"}/upload`,
+        { method: "POST", body: form });
+    } catch (e) {
+      // fetch qui echoue sans reponse = reseau coupe ou envoi interrompu. Le
+      // distinguer d'une erreur de lecture du fichier evite de chercher au
+      // mauvais endroit la prochaine fois.
+      throw new Error(`envoi vers Cloudinary interrompu (${Math.round(blob.size / 1048576)} Mo) — `
+        + `réseau instable ? détail : ${e && e.message ? e.message : e}`);
+    }
+    if (!res.ok) {
+      let why = "";
+      try { why = " — " + ((await res.json()).error || {}).message; } catch (_) {}
+      throw new Error(`Cloudinary a refusé le ${noun} (HTTP ${res.status})${why}`);
+    }
     const link = (await res.json()).secure_url;
 
     const { db, addDoc, collection, ts } = await fb();

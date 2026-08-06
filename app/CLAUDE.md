@@ -117,6 +117,15 @@ tests des règles avant tout déploiement.
 - Les fichiers vont sur Cloudinary via le preset non signé `expedition` ; seul
   le `secure_url` et les métadonnées vont dans Firestore. Firebase Storage n'est
   pas utilisé.
+- **Diagnostiquer un échec d'envoi.** Le chemin vidéo natif comporte DEUX
+  `fetch` : relire le fichier copié en cache, puis l'envoyer à Cloudinary. Les
+  deux échouaient avec le même « Failed to fetch », impossible à départager.
+  `readLocalVideo()` essaie maintenant les formes d'URL connues
+  (`convertFileSrc`, schéma de la WebView, chemin brut) et nomme celle qui a
+  échoué ; l'envoi Cloudinary rapporte séparément la taille et, en cas de refus
+  HTTP, le message de Cloudinary. Le preset non signé `expedition` et
+  l'endpoint `/video/upload` ont été vérifiés directement : un envoi de test y
+  passe en HTTP 200, donc un échec vient d'ailleurs.
 - Android : le plugin Java `native/AfricaMediaPlugin.java` récupère l'original
   grâce à `ACCESS_MEDIA_LOCATION`. Il lit l'EXIF des images et l'atome de lieu
   QuickTime des vidéos. Il transmet désormais `capturedAt` avec l'heure EXIF/
@@ -146,8 +155,8 @@ tests des règles avant tout déploiement.
 - `www/faces.js`, `www/icons/`, `www/manifest.json` — visages et PWA.
 - `native/AfricaMediaPlugin.java`, `native/MainActivity.java`,
   `native/AndroidManifest.xml` — couche Android versionnée.
-- `build-android.sh` — fixe actuellement Android `versionCode 2` /
-  `versionName 2.1.0`, injecte le natif, synchronise Capacitor et génère
+- `build-android.sh` — fixe actuellement Android `versionCode 3` /
+  `versionName 2.2.0`, injecte le natif, synchronise Capacitor et génère
   `android/app/build/outputs/apk/debug/app-debug.apk`. Incrémenter le code à
   chaque APK publiée pour permettre la mise à jour par-dessus l'ancienne.
 - `firestore.rules` — compatibilité v1 + validation stricte v2.
