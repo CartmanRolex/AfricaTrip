@@ -117,6 +117,28 @@ tests des règles avant tout déploiement.
 - Les fichiers vont sur Cloudinary via le preset non signé `expedition` ; seul
   le `secure_url` et les métadonnées vont dans Firestore. Firebase Storage n'est
   pas utilisé.
+- **Une photo est allégée sur le téléphone, avant de partir.** `compressImage()`
+  ré-encode en JPEG qualité 0.85 **à la résolution d'origine** : on ne
+  redimensionne pas, on ne fait que défaire la qualité quasi maximale qu'écrit
+  l'appareil. Mesuré sur un original 4032x3024 : 3,6 Mo -> 1,6 Mo, soit 55 % de
+  moins pour la même image. C'est le trajet téléphone -> Cloudinary qu'on
+  raccourcit, en données mobiles et sur un réseau instable ; les transformations
+  Cloudinary (`w_1400,c_limit,q_auto,f_auto`, vignettes) sont un sujet distinct
+  et complémentaire — elles allègent ce que le VISITEUR télécharge, une fois le
+  fichier déjà stocké. Deux garde-fous : le résultat n'est gardé que s'il est
+  réellement plus léger (une capture déjà optimisée repart intacte), et toute
+  erreur renvoie l'original. Le canvas efface l'EXIF, sans conséquence : GPS et
+  date sont lus AVANT (ExifInterface en natif, exifr en navigateur) et voyagent
+  dans des champs à part — mais `imageOrientation: "from-image"` est
+  obligatoire, sinon les photos prises en portrait arrivent couchées.
+- **La vidéo, elle, part encore telle quelle.** C'est le vrai poste de poids :
+  un téléphone filme à un débit très supérieur au nécessaire, et rien ne le
+  réduit aujourd'hui. `MAX_VIDEO_BYTES` (100 Mo) ne compresse pas, il REFUSE.
+  Le transcodage doit se faire côté natif (`MediaCodec`/`MediaMuxer` dans
+  `AfricaMediaPlugin.java`) : à résolution inchangée, seul le débit baisse.
+  Inutile de tenter ffmpeg.wasm côté JS — trop lent et trop gourmand en mémoire
+  sur mobile. Bénéfice secondaire d'un envoi natif : il supprimerait aussi le
+  plafond mémoire de la WebView, qui doit aujourd'hui charger le clip ENTIER.
 - **Diagnostiquer un échec d'envoi.** Le chemin vidéo natif comporte DEUX
   `fetch` : relire le fichier copié en cache, puis l'envoyer à Cloudinary. Les
   deux échouaient avec le même « Failed to fetch », impossible à départager.

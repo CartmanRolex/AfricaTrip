@@ -284,6 +284,30 @@ function b64toBlob(b64, type = "image/jpeg") {
 // Plafond côté client (Cloudinary gratuit = 100 Mo/fichier en upload non signé).
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 const isVideoBlob = b => (b && b.type || "").startsWith("video/");
+// Compression à l'envoi : on ré-encode la photo À SA TAILLE D'ORIGINE (aucun
+// redimensionnement) en JPEG qualité 0.85. Un téléphone enregistre souvent à
+// une qualité quasi maximale ; ré-encoder divise le poids sans différence
+// visible. L'EXIF saute au passage, sans conséquence : GPS et date sont lus en
+// amont (ExifInterface en natif, exifr en navigateur) et voyagent à part.
+const JPEG_QUALITY = 0.85;
+async function compressImage(blob) {
+  try {
+    // l'EXIF disparaissant, le canvas doit appliquer la rotation lui-même,
+    // sinon les photos prises en portrait se retrouvent couchées.
+    const bmp = await createImageBitmap(blob, { imageOrientation: "from-image" });
+    const canvas = document.createElement("canvas");
+    canvas.width = bmp.width; canvas.height = bmp.height;
+    canvas.getContext("2d").drawImage(bmp, 0, 0);
+    bmp.close();
+    const out = await new Promise(r => canvas.toBlob(r, "image/jpeg", JPEG_QUALITY));
+    canvas.width = canvas.height = 0;   // libère le buffer sans attendre le GC
+    // ré-encoder ne paie pas toujours (petite image, capture déjà optimisée) :
+    // on ne garde le résultat que s'il est réellement plus léger.
+    return out && out.size < blob.size ? out : blob;
+  } catch (_) {
+    return blob;   // format exotique / WebView récalcitrante -> original
+  }
+}
 // Vignette : photo -> crop carré ; vidéo -> poster (1re frame) en .jpg.
 function mediaThumb(url, video, px) {
   if (!url) return "";
@@ -1228,8 +1252,11 @@ async function uploadPhoto(blob, lat, lng, date, video = isVideoBlob(blob), cont
     // le FICHIER va sur Cloudinary (gratuit, sans carte) ; seules les
     // MÉTADONNÉES (nom, position, date, url, type) vont dans Firestore.
     // Endpoint distinct pour la vidéo (/video/upload) vs l'image (/image/upload).
+    // la vidéo part telle quelle (le transcodage reste à faire côté natif) ;
+    // la photo est allégée ici, avant de partir sur le réseau.
+    const payload = video ? blob : await compressImage(blob);
     const form = new FormData();
-    form.append("file", blob);
+    form.append("file", payload);
     form.append("upload_preset", CLOUDINARY.preset);
     let res;
     try {
@@ -1240,7 +1267,7 @@ async function uploadPhoto(blob, lat, lng, date, video = isVideoBlob(blob), cont
       // fetch qui echoue sans reponse = reseau coupe ou envoi interrompu. Le
       // distinguer d'une erreur de lecture du fichier evite de chercher au
       // mauvais endroit la prochaine fois.
-      throw new Error(`envoi vers Cloudinary interrompu (${Math.round(blob.size / 1048576)} Mo) — `
+      throw new Error(`envoi vers Cloudinary interrompu (${Math.round(payload.size / 1048576)} Mo) — `
         + `réseau instable ? détail : ${e && e.message ? e.message : e}`);
     }
     if (!res.ok) {
