@@ -181,6 +181,10 @@ public class AfricaMediaPlugin extends Plugin {
         JSObject o = new JSObject();
         o.put("path", "file://" + out.getAbsolutePath());
         o.put("video", true);
+        // Taille du fichier copie : la WebView doit le charger entierement en
+        // memoire pour l'envoyer, donc le JS a besoin de la connaitre AVANT
+        // d'essayer, pour refuser proprement au lieu d'echouer sur un fetch.
+        o.put("bytes", out.length());
         if (lat != null) { o.put("lat", lat); o.put("lng", lng); }
         if (date != null) o.put("date", date);
         if (capturedAt != null) o.put("capturedAt", capturedAt);

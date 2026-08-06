@@ -1098,7 +1098,8 @@ function currentUploadStatus(context, html, asText = false) {
 // WebView, l'URL servable n'est pas la meme, et un echec ici remonte comme un
 // « Failed to fetch » indistinguable de celui de l'upload Cloudinary. On essaie
 // donc les formes connues, et on rapporte precisement ce qui a echoue.
-async function readLocalVideo(path) {
+async function readLocalVideo(path, bytes) {
+  const poids = bytes ? ` (${Math.round(bytes / 1048576)} Mo)` : "";
   const bare = String(path).replace(/^file:\/\//, "");
   const tries = [];
   if (CAP && CAP.convertFileSrc) tries.push(["convertFileSrc", CAP.convertFileSrc(path)]);
@@ -1118,7 +1119,7 @@ async function readLocalVideo(path) {
       errs.push(`${label}: ${e && e.message ? e.message : e}`);
     }
   }
-  throw new Error("lecture de la vidéo impossible — " + errs.join(" | "));
+  throw new Error(`lecture de la vidéo${poids} impossible — ` + errs.join(" | "));
 }
 
 function initPhotos(lifecycle, person) {
@@ -1144,8 +1145,16 @@ function initPhotos(lifecycle, person) {
           };
           if (it.video && it.path) {
             // vidéo : le natif a copié le fichier en cache (pas de base64) ->
-            // on le relit via la WebView avant de l'uploader.
-            const blob = await readLocalVideo(it.path);
+            // on le relit via la WebView avant de l'uploader. La WebView doit
+            // la charger ENTIÈREMENT en mémoire : au-delà du plafond, on refuse
+            // ici plutôt que d'échouer sur un fetch sans explication.
+            if (it.bytes && it.bytes > MAX_VIDEO_BYTES) {
+              currentUploadStatus(context,
+                `<span class="err">vidéo trop lourde (${Math.round(it.bytes / 1048576)} Mo, max `
+                + `${Math.round(MAX_VIDEO_BYTES / 1048576)}) — filme plus court</span>`);
+              continue;
+            }
+            const blob = await readLocalVideo(it.path, it.bytes);
             await uploadPhoto(blob, lat, lng, date, true, context);
           } else {
             await uploadPhoto(b64toBlob(it.base64), lat, lng, date, false, context);
