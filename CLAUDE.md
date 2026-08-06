@@ -143,12 +143,14 @@ version.json                       (build id, for the auto-refresh below)
   HTML, not the cached copy. It is skipped on `file://` and silent on any
   failure. `version.json` must stay published — it is in `sync.py`'s whitelist.
 - **Deploying takes about a minute**, and that is the other half of "I don't see
-  my change". `.nojekyll` at the root stops GitHub Pages from running Jekyll over
-  the checkout — keep that file. Repo size is *not* the factor: measured on a
-  successful run, checkout takes 3 s, uploading the artifact 4 s and the deploy
-  6 s. When a deploy hangs it is GitHub's own queue: the `build` job succeeds and
-  only "Deploy to GitHub Pages" spins on `deployment_queued` until its 10-minute
-  timeout. Nothing in the repo fixes that — re-run the workflow.
+  my change". Repo size is *not* the factor: measured on a successful run,
+  checkout takes 3 s, uploading the artifact 4 s and the deploy 6 s.
+  **Do not add `.nojekyll`.** It was tried on 2026-08-06 to skip Jekyll — worth
+  3 s — and every deployment from that commit onwards failed: the `build` job
+  kept succeeding while "Deploy to GitHub Pages" spun on `deployment_queued`
+  until its 10-minute timeout with `error_count: 10`. The correlation was exact
+  (last success just before it, nothing but failures after). If a deploy hangs,
+  check that file first, then simply re-run the workflow.
 - **One-shot update for the user**: `python src/sync.py` (or double-clicking
   `sync.bat` at the root) chains parse_csv + fetch_routes + build + fetch_photos
   (routing is non-blocking: offline, known routes are kept and new segments stay
