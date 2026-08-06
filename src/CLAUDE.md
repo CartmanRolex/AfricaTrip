@@ -359,7 +359,13 @@ Key JS structures (all near the top of the script):
   never make photos disappear from the map, so there is deliberately no
   per-subject media filtering. `refreshPhotos()` renders the allowed
   indices into `photoCluster`; the `#lightbox` it opens is scoped to one pile
-  (see above), with image/video support,
+  (see above). **The viewer is served a display-sized version, never the
+  original** (`mediaDisplay()`: `w_1400,c_limit,q_auto,f_auto` for images,
+  `q_auto,w_1280,c_limit` for videos), falling back to the original then the
+  thumbnail. Measured on the trip's real media: −80 to −90 % on images, −50 to
+  −78 % on videos, for no visible difference — opening one photo used to pull
+  5 MB. Only Cloudinary URLs are rewritten; Drive photos served by Pages keep
+  their path. Image/video support,
   captions, date, location provenance and thumbnail fallback. Firebase v2
   media remain in the existing root `photos` collection for compatibility but
   carry `tripId`, `personId`, `vehicleIdAtCapture`, `mode`, `assignmentId`,
