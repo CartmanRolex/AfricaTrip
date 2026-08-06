@@ -5,6 +5,10 @@ Usage:  python src/fetch_routes.py [--dry-run] [--limit N]
 Reads:  Firestore (public read paths) + src/site-overrides.json
 Writes: src/routes.json   -> injected into the site as __ROUTES__ by build.py
 
+Covers the WHOLE line, past and future: the travelled track between GPS points,
+the planned itinerary between its waypoints, and the join from the latest known
+position to the next stop.
+
 Why this exists
 ---------------
 The site draws its real track by joining accepted points with straight lines.
@@ -43,6 +47,7 @@ MIN_PAIR_KM = 1.0        # en dessous, la ligne droite est deja la bonne reponse
 MAX_PAIR_KM = 1500.0     # au dela, ce n'est plus un trajet routier continu
 MAX_DETOUR = 4.0         # route > 4x le vol d'oiseau = itineraire aberrant
 PAIR_WINDOW = 3          # relie i a i+1..i+3 : couvre les points ecartes ensuite
+JOIN_STOPS = 3           # escales visees depuis la derniere position connue
 COORD_DP = 4             # ~11 m, la meme cle que le front-end
 
 
@@ -206,8 +211,26 @@ def key_of(a, b):
             f"{b['lat']:.{COORD_DP}f},{b['lng']:.{COORD_DP}f}")
 
 
-def wanted_pairs(points, track_start):
-    """Pairs to route: per person and per vehicle, chronological, small window."""
+def add_pair(pairs, a, b):
+    km = hav(a, b)
+    if MIN_PAIR_KM <= km <= MAX_PAIR_KM:
+        pairs.setdefault(key_of(a, b), (a, b, km))
+
+
+def wanted_pairs(points, track_start, route):
+    """Every pair the map may have to draw, past and future alike.
+
+    Three families:
+    1. consecutive GPS points, per person and per vehicle (the travelled track);
+    2. consecutive waypoints of the planned itinerary (the dashed future) —
+       these are static, they come straight from data/Config.csv;
+    3. each subject's latest position joined to the stops ahead of it, which is
+       exactly what `addPlannedFuture()` draws between the last known point and
+       the next escale.
+    """
+    pairs = {}
+
+    # 1. trace parcourue
     groups = {}
     for p in points:
         if track_start and p["at"] < track_start.get(p["name"], track_start["*"]):
@@ -215,14 +238,27 @@ def wanted_pairs(points, track_start):
         groups.setdefault(("personne", p["name"]), []).append(p)
         if p["vehicle"]:
             groups.setdefault(("voiture", p["vehicle"]), []).append(p)
-    pairs = {}
     for members in groups.values():
         members.sort(key=lambda p: p["at"])
         for i, a in enumerate(members):
             for b in members[i + 1:i + 1 + PAIR_WINDOW]:
-                km = hav(a, b)
-                if MIN_PAIR_KM <= km <= MAX_PAIR_KM:
-                    pairs.setdefault(key_of(a, b), (a, b, km))
+                add_pair(pairs, a, b)
+
+    # 2. itineraire prevu, waypoint par waypoint
+    for a, b in zip(route, route[1:]):
+        add_pair(pairs, a, b)
+
+    # 3. raccord derniere position -> prochaines escales. Le front-end vise la
+    #    premiere escale devant lui ; on en couvre quelques-unes pour rester
+    #    juste quand la position avance entre deux executions.
+    stops = [(i, p) for i, p in enumerate(route) if p.get("cp")]
+    for members in groups.values():
+        if not members:
+            continue
+        last = members[-1]
+        near = min(range(len(route)), key=lambda i: hav(last, route[i]))
+        for _, stop in [s for s in stops if s[0] > near][:JOIN_STOPS]:
+            add_pair(pairs, last, stop)
     return pairs
 
 
@@ -270,10 +306,12 @@ def main():
     rosters = {n: "hugodouard" for n in data["car1"]}
     rosters.update({n: "paul-pot" for n in data["car2"]})
 
+    route = [p for p in data.get("route", []) if p.get("lat") is not None]
     project, key = firebase_config()
     points = collect_points(project, key, list(rosters), rosters)
-    pairs = wanted_pairs(points, read_track_start())
-    print(f"{len(points)} points bruts -> {len(pairs)} paires candidates")
+    pairs = wanted_pairs(points, read_track_start(), route)
+    print(f"{len(points)} points bruts + {len(route)} etapes d'itineraire "
+          f"-> {len(pairs)} paires candidates")
 
     cache = {}
     if os.path.exists(OUT):

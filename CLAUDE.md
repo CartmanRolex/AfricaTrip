@@ -81,14 +81,18 @@ version.json                       (build id, for the auto-refresh below)
 - **The travelled track is made of GPS points and photos, nothing else.** It
   joins the accepted points in order — no road is ever reconstructed from the
   itinerary, and no straight line is invented to fill a gap.
-- **Between two points it follows the actual road.** `src/routes.json`
+- **The whole line follows real roads, future included.** `src/routes.json`
   (produced by `python src/fetch_routes.py`) holds the driving geometry of each
-  pair of consecutive points, keyed by their rounded coordinates. It is
-  **precomputed and committed**, so the published page calls no routing service:
-  it looks the pair up and falls back to the straight line when it is missing.
-  Without it, sparse points join through the sea — Montpellier to Barcelona in a
-  straight line crosses the Gulf of Lion. A routed geometry is a deduction, not
-  a measurement, but it is far closer to the truth than that.
+  pair of positions the map may join, keyed by their rounded coordinates:
+  consecutive GPS points for the travelled track, consecutive waypoints of
+  `DATA.route` for the dashed future, and the join from the latest position to
+  the next stop. It is **precomputed and committed**, so the published page
+  calls no routing service: it looks each pair up and falls back to a straight
+  line when one is missing. Without it, sparse positions join through the sea —
+  Montpellier to Barcelona in a straight line crosses the Gulf of Lion, and the
+  planned leg down the Moroccan coast cut across the Atlantic. A routed geometry
+  is a deduction, not a measurement, but it is far closer to the truth than
+  that.
 - **People riding together share one track.** Occupants of a car describe the
   same movement, so each of them gets the car's merged track for the days the
   presence grid puts them aboard, plus their own points outside those days. One
