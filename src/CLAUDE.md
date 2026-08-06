@@ -218,7 +218,19 @@ Key JS structures (all near the top of the script):
   patch of bodywork. `addActualMarker()` picks the round avatar from the
   presence of an image, not from the presence of a name.
   `addActualPath()` draws **only** the accepted points, joined in order: no
-  road is reconstructed from the itinerary to fill a gap.
+  road is invented from the itinerary to fill a gap in the data.
+- **Every line follows real roads, past and future** (`ROUTES`, `routeKey()`,
+  `roadPath()`, `roadTo()`, `trimRoad()`, `segmentLatLngs()`). `roadPath()`
+  takes any list of positions and joins them along the driving geometry
+  precomputed in `routes.json`, falling back to a straight line **per pair**
+  when one is missing. It serves the travelled track *and* `addPlannedFuture()`.
+  The key is `lat,lng;lat,lng` rounded to four decimals (~11 m) —
+  `fetch_routes.py` must keep producing exactly that string. A planned range can
+  end **between** two waypoints (a traveler's disembarkation day), so its last
+  vertex is not a waypoint and has no entry: `roadTo()` then takes the full
+  leg's geometry and `trimRoad()` cuts it at the right fraction, which removed a
+  300 km straight line. Nothing is fetched at display time, so
+  `voyage-afrique.html` still works from disk and offline.
   `addPlannedFuture()` **always** begins the dashed tail at the most recent GPS
   point (`tail.unshift`) and interpolates straight to the **next stop**
   (`nextStopKm()`, a checkpoint), then follows the route to the end of the
@@ -464,10 +476,17 @@ like `refresh.py`. Writing to a sheet no longer affects the site: the trip
 data is `data/*.csv` in this repo.
 
 ### `fetch_routes.py`
-Precomputes the road geometry between GPS points into `routes.json`, injected as
+Precomputes the road geometry of every pair the map may join into
+`routes.json`, injected as
 `__ROUTES__`. Reads Firestore through its **public REST API** with the
 `projectId`/`apiKey` taken from `app/www/firebase-config.js` (single source, no
 extra credential, stdlib only), then asks OSRM for each pair.
+
+It generates three families of pairs: consecutive GPS points per person and per
+vehicle (the travelled track), consecutive waypoints of `data.json`'s `route`
+(the dashed future — static, straight from `data/Config.csv`), and each
+subject's latest position joined to the `JOIN_STOPS` stops ahead of it, which is
+the pair the future line starts with.
 
 It deliberately does **not** reimplement the front-end's reconstruction
 (minute bucketing, impossible-transition rejection, roster fallback, shared
@@ -475,8 +494,9 @@ occupant tracks): duplicating that in Python would rot on the next template
 change. It groups the raw points coarsely — per person and per vehicle,
 chronologically — and routes every pair within `PAIR_WINDOW` (3), which covers
 the pairs the site actually draws once it has dropped some points. Coverage is
-measurable: walk `trackSegments()` in the browser and count the pairs present in
-`ROUTES` (currently 23/23 of the segments over 1 km).
+measurable: walk the drawn segments in the browser and count the pairs
+`roadTo()` resolves — currently **25/25 on the travelled track and 83/83 on the
+future**.
 
 Guards: pairs under 1 km keep the straight line, pairs over 1500 km are not a
 continuous drive, and a route more than 4× the great-circle distance is treated
