@@ -90,23 +90,27 @@ public class AfricaMediaPlugin extends Plugin {
     @ActivityCallback
     private void picked(PluginCall call, ActivityResult result) {
         if (call == null) return;
-        JSArray items = new JSArray();
+        final List<Uri> uris = new ArrayList<>();
         Intent data = result.getData();
         if (data != null) {
-            List<Uri> uris = new ArrayList<>();
             if (data.getClipData() != null) {
                 for (int k = 0; k < data.getClipData().getItemCount(); k++)
                     uris.add(data.getClipData().getItemAt(k).getUri());
             } else if (data.getData() != null) {
                 uris.add(data.getData());
             }
+        }
+        // Ce callback arrive sur le thread principal, et l'allègement d'une
+        // vidéo dure des secondes : y rester ferait tuer l'app pour ANR.
+        new Thread(() -> {
+            JSArray items = new JSArray();
             for (Uri uri : uris) {
                 try { items.put(readOne(uri)); } catch (Exception ignore) {}
             }
-        }
-        JSObject ret = new JSObject();
-        ret.put("items", items);
-        call.resolve(ret);
+            JSObject ret = new JSObject();
+            ret.put("items", items);
+            call.resolve(ret);
+        }, "africa-media").start();
     }
 
     private JSObject readOne(Uri uri) throws Exception {
@@ -157,6 +161,15 @@ public class AfricaMediaPlugin extends Plugin {
              FileOutputStream fos = new FileOutputStream(out)) {
             byte[] buf = new byte[65536]; int n;
             while ((n = is.read(buf)) != -1) fos.write(buf, 0, n);
+        }
+
+        // Allègement AVANT l'envoi : seul le débit baisse, la résolution est
+        // conservée. Renvoie null quand il ne faut rien changer (clip déjà
+        // léger, gain insuffisant, codec exotique) -> on garde l'original.
+        File light = VideoTranscoder.lighten(out);
+        if (light != null) {
+            out.delete();
+            out = light;
         }
 
         Double lat = null, lng = null; String date = null, capturedAt = null;

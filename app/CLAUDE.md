@@ -131,14 +131,31 @@ tests des règles avant tout déploiement.
   date sont lus AVANT (ExifInterface en natif, exifr en navigateur) et voyagent
   dans des champs à part — mais `imageOrientation: "from-image"` est
   obligatoire, sinon les photos prises en portrait arrivent couchées.
-- **La vidéo, elle, part encore telle quelle.** C'est le vrai poste de poids :
-  un téléphone filme à un débit très supérieur au nécessaire, et rien ne le
-  réduit aujourd'hui. `MAX_VIDEO_BYTES` (100 Mo) ne compresse pas, il REFUSE.
-  Le transcodage doit se faire côté natif (`MediaCodec`/`MediaMuxer` dans
-  `AfricaMediaPlugin.java`) : à résolution inchangée, seul le débit baisse.
-  Inutile de tenter ffmpeg.wasm côté JS — trop lent et trop gourmand en mémoire
-  sur mobile. Bénéfice secondaire d'un envoi natif : il supprimerait aussi le
-  plafond mémoire de la WebView, qui doit aujourd'hui charger le clip ENTIER.
+- **Une vidéo est allégée sur le téléphone, elle aussi — au DÉBIT seulement.**
+  `VideoTranscoder.lighten()` (`native/VideoTranscoder.java`, appelé depuis
+  `readVideo()`) ré-encode en H.264 à **résolution, durée et cadence
+  identiques** : un téléphone filme à ~50 Mb/s en 4K et ~17 Mb/s en 1080p, très
+  au-delà de ce que l'image exige, et c'est ce seul excès qu'on retire. Cible :
+  0.11 bit/pixel/image (~6,8 Mb/s en 1080p30), plafonnée à 16 Mb/s. Le son est
+  recopié tel quel — il pèse peu, le ré-encoder ne ferait que le dégrader.
+  Trois garde-fous, un ré-encodage étant une perte définitive : en dessous de
+  25 Mo on ne touche à rien, un gain attendu inférieur à 25 % fait renoncer, et
+  toute erreur renvoie l'original. La rotation est reportée sur le conteneur
+  (`setOrientationHint`) sinon un clip filmé en portrait ressort couché.
+  Ne pas tenter ffmpeg.wasm côté JS : trop lent et trop gourmand en mémoire sur
+  mobile.
+- **L'image passe du décodeur à l'encodeur par une Surface**, jamais par la
+  mémoire Java. C'est ce qui rend le ré-encodage tenable en 4K sur un téléphone
+  modeste, et ça évite tout le folklore des formats de couleur YUV.
+- **`picked()` fait son travail sur un thread dédié.** Ce callback arrive sur le
+  thread principal et l'allègement d'une vidéo dure des secondes : y rester
+  ferait tuer l'app pour ANR. `call.resolve()` depuis un autre thread est sûr.
+- `MAX_VIDEO_BYTES` (100 Mo côté JS) ne compresse pas, il REFUSE — c'est le
+  plafond de l'upload non signé Cloudinary, et le filet quand l'allègement a
+  renoncé. Il reste seul en vigueur dans le navigateur, où il n'y a pas de
+  plugin natif. Le clip est encore chargé ENTIÈREMENT en mémoire par la WebView
+  pour être envoyé : un envoi natif en flux supprimerait ce plafond, mais c'est
+  un autre chantier.
 - **Diagnostiquer un échec d'envoi.** Le chemin vidéo natif comporte DEUX
   `fetch` : relire le fichier copié en cache, puis l'envoyer à Cloudinary. Les
   deux échouaient avec le même « Failed to fetch », impossible à départager.
