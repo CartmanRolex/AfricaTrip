@@ -1,0 +1,64 @@
+# Tient les routes réelles à jour toutes seules.
+#
+# Le tracé du site suit la route entre deux points GPS grâce aux géométries
+# précalculées dans src/routes.json. Chaque nouveau point de l'équipage crée une
+# paire absente du cache, qui retombe en ligne droite : la carte se dégrade donc
+# toute seule au fil du voyage tant que personne ne relance le calcul.
+#
+# Ce job le relance à intervalle régulier et ne commite QUE s'il a trouvé
+# quelque chose. Aucune clé n'est nécessaire : fetch_routes.py lit Firestore par
+# ses chemins publics et interroge un routeur public.
+name: routes
+
+on:
+  schedule:
+    - cron: "17 */4 * * *"   # toutes les 4 h, décalé pour éviter l'heure pile
+  workflow_dispatch:          # et à la demande depuis l'onglet Actions
+
+# Une seule exécution à la fois : deux jobs qui poussent en même temps se
+# marcheraient dessus.
+concurrency:
+  group: routes
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Recalculer les données du voyage
+        run: python src/parse_csv.py
+
+      - name: Router les nouveaux segments
+        # Non bloquant : sans réseau ou si le routeur est indisponible, on garde
+        # les routes déjà connues et les nouveaux segments restent droits.
+        continue-on-error: true
+        run: python src/fetch_routes.py
+
+      - name: Régénérer le site
+        run: python src/build.py
+
+      - name: Publier si quelque chose a changé
+        run: |
+          set -e
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          FILES="src/routes.json src/data.json index.html voyage-afrique.html version.json"
+          if git diff --quiet -- $FILES; then
+            echo "Aucune nouvelle route — rien à publier."
+            exit 0
+          fi
+          git add -- $FILES
+          ROUTES=$(python -c "import json;print(len(json.load(open('src/routes.json'))))")
+          git commit -m "Routes: mise à jour automatique (${ROUTES} géométries)"
+          # Quelqu'un a pu pousser entre-temps : on se replace avant d'envoyer.
+          git pull --rebase --autostash origin main
+          git push origin HEAD:main

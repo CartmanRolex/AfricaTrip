@@ -508,6 +508,12 @@ measurable: walk the drawn segments in the browser and count the pairs
 `roadTo()` resolves — currently **25/25 on the travelled track and 83/83 on the
 future**.
 
+It is run automatically by `.github/workflows/routes.yml` every four hours,
+because the cache goes stale by design: each new GPS point adds a pair it does
+not know, and that segment reverts to a straight line. Coverage was measured
+falling from 100 % to 58 % in a few hours of travel. Do not rely on a human
+remembering to run it.
+
 Guards: pairs under 1 km keep the straight line, pairs over 1500 km are not a
 continuous drive, and a route more than 4× the great-circle distance is treated
 as an aberration (a detour around a sea, a point landing on an island) and

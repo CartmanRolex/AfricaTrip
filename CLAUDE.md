@@ -151,6 +151,14 @@ version.json                       (build id, for the auto-refresh below)
   until its 10-minute timeout with `error_count: 10`. The correlation was exact
   (last success just before it, nothing but failures after). If a deploy hangs,
   check that file first, then simply re-run the workflow.
+- **The routes keep themselves up to date.** Every new GPS point creates a pair
+  that is not in `src/routes.json`, and that segment falls back to a straight
+  line — so the map degrades on its own as the trip advances. The
+  `.github/workflows/routes.yml` job re-runs parse_csv + fetch_routes + build
+  every four hours (and on demand) and commits **only if something changed**. No
+  key is needed: `fetch_routes.py` reads Firestore's public paths and a public
+  router. Routing is non-blocking there — if the router is down, known routes are
+  kept and new segments stay straight until the next run.
 - **One-shot update for the user**: `python src/sync.py` (or double-clicking
   `sync.bat` at the root) chains parse_csv + fetch_routes + build + fetch_photos
   (routing is non-blocking: offline, known routes are kept and new segments stay
