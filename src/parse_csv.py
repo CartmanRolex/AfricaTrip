@@ -333,8 +333,14 @@ def main():
     for name, phone in overrides["phones"].items():
         if name in rpg:
             rpg[name]["tel"] = phone
+    # `removed_travelers` veut dire « plus dans une voiture », pas « effacé ».
+    # Quelqu'un qui descend du voyage peut continuer à le suivre depuis chez
+    # lui : sa carte d'observateur lit ses stats dans cette même section `rpg`,
+    # donc lui retirer sa ligne la viderait de tout ce qu'on sait déjà de lui.
+    observers = {n for n in (config.get("observateurs") or []) if isinstance(n, str)}
     for name in removed:
-        rpg.pop(name, None)
+        if name not in observers:
+            rpg.pop(name, None)
 
     route = config.get("route") or ROUTE
     colors = [config.get("couleurs", {}).get(str(i + 1), c)

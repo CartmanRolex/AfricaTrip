@@ -50,7 +50,9 @@ These files still carry the former 2025 calendar text, Thomas, the old capacity
 formulas and the Abidjan/Accra/Lomé continuation, inherited from the original
 export. `src/site-overrides.json` is applied after they are read:
 dates/weekdays/tagline are pinned to the confirmed 2026 trip, Thomas is removed
-from `car2`/RPG, capacities and totals are recomputed, car 2's renderer fills the
+from `car2` but kept as an **observateur** (his `## observateurs` row preserves
+his RPG stats and portrait — leaving a car is not being erased), capacities and
+totals are recomputed, car 2's renderer fills the
 fourth slot with **Place disponible**, the trip ends at Freetown, and the
 formatted phone numbers are supplied. Correct either layer — but never "fix" the
 generated `src/data.json`, it is overwritten on every build.

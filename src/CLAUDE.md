@@ -441,7 +441,14 @@ The committed repo-side trip config. `trip_year: 2026` is the confirmed year and
 drives every generated ISO date plus a recomputation of the French weekday
 token; `textes.titre`/`textes.tagline` pin both header strings so a future CSV
 edit cannot recreate a year mismatch. `removed_travelers` removes names from
-the parsed rosters/RPG config; when a removed name still has a raw presence column,
+the parsed rosters — it means "no longer in a car", **not** "erased". A removed
+name listed in Config.csv's `## observateurs` **keeps its `rpg` row**: someone
+who steps off the trip may still follow it from home, and the observer card
+reads its stats from that very section, so dropping the row would empty the card
+of everything already known about them (Thomas: 42 XP, "Apparition surprise +1",
+portrait re-embedded by `build.py` because observers are in its face whitelist).
+Only a name removed *and* absent from the observers list loses its RPG row.
+When a removed name still has a raw presence column,
 `parse_csv.py` recomputes both `X/4` capacities and the total from confirmed
 `present` states. `phones` replaces `config.rpg[name].tel` while preserving the
 human-readable `+CC …` formatting used by the fiche and its sanitized `tel:`

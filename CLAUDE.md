@@ -52,7 +52,9 @@ version.json                       (build id, for the auto-refresh below)
 - `src/site-overrides.json` is the committed repo-side trip config, applied
   after the CSVs are parsed. It pins the confirmed 2026 trip year/tagline and
   recomputes weekday labels, removes Thomas from the published roster
-  (so car 2 exposes a fourth **Place disponible**), supplies the formatted
+  (so car 2 exposes a fourth **Place disponible**) while `## observateurs` keeps
+  him on the site as an observer with his stats and portrait intact — a name
+  leaving a car is not a name erased, supplies the formatted
   phone numbers shown in traveler fiches, and ends the trip at **Freetown**
   after Conakry (`terminus`) because the imported CSV still describes the
   abandoned Abidjan/Accra/Lomé continuation. `parse_csv.py` also recomputes car
