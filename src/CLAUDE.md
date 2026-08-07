@@ -63,11 +63,13 @@ tall over a 323 px map at the default size, versus 390 px before). If the
 `+/-` buttons ever come back, the toolbar margin and that `max-height` offset
 both have to move down by the control's height.
 
-Only the **selected** subject is ever drawn on `actualTrackLayer` (its track,
-its dashed future, its pulsing marker); everyone else is a `faceCluster`
-marker. That single rule is why `addActualPath()`, `addActualMarker()` and
-`addPlannedFuture()` carry no "focused"/"quiet" variants — if a second subject
-ever has to be drawn at once, that is the assumption to revisit first.
+**Both cars always draw their travelled track**, and the selected subject is
+redrawn on top at full weight with its dashed future and pulsing marker.
+Selecting promotes, it never hides: following one person used to erase the other
+crew from the map entirely. `addActualPath(points, color, {quiet})` carries the
+two treatments — `quiet` is a thin pale 3 px line with no halo, added first so it
+sits underneath. Only the **dashed future** stays single-subject, so there is one
+forecast on screen at a time. Everyone else is still a `faceCluster` marker.
 
 Key JS structures (all near the top of the script):
 - `DATA.records` — one entry per day: `{date, iso, checkpoint, location,
@@ -212,8 +214,9 @@ Key JS structures (all near the top of the script):
   hides where the other is. A car's marker comes from `vehicleGpsPoints()`
   only: a geolocated photo enriches the *line* but must never become the
   vehicle's current position.
-  **Only the selected subject is drawn here** (path + dashed future + pulsing
-  marker). Everyone else — people *and* cars — is a `faceCluster` marker built
+  **Both cars' tracks are drawn here, always** (`{quiet:true}`), then the
+  selected subject on top at full weight with its dashed future and pulsing
+  marker. Everyone else — people *and* cars — is a `faceCluster` marker built
   by `refreshFaces()`, so cars get the same round avatar as travelers and the
   cluster's own fan-out handles overlaps. There is deliberately no vehicle
   shape and no bespoke spreading code: a car is one more character on the map.

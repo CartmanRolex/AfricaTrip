@@ -12,7 +12,7 @@ name: routes
 
 on:
   schedule:
-    - cron: "17 */4 * * *"   # toutes les 4 h, décalé pour éviter l'heure pile
+    - cron: "17 * * * *"   # toutes les heures, décalé pour éviter l'heure pile
   workflow_dispatch:          # et à la demande depuis l'onglet Actions
 
 # Une seule exécution à la fois : deux jobs qui poussent en même temps se

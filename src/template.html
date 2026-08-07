@@ -296,14 +296,23 @@ header .sec-tl .scrub{margin:2px 0 3px}
 span.fiche-face{display:block;overflow:hidden}
 .fiche-face .live-wrap.vid-ok video{display:block}
 .fiche-face .live-wrap.vid-ok img{visibility:hidden}
-/* portrait de la fiche : agrandi + élargi au survol (desktop) ou au tap
-   (.wide, seul moyen sur mobile — cf. le clic dans le JS) */
-.fiche-face{transition:transform .25s ease;transform-origin:center left;position:relative;
-  cursor:zoom-in}
-.fiche-face:hover,.fiche-face.wide{transform:scale(2.15);z-index:60;
-  box-shadow:0 10px 34px rgba(0,0,0,.7),0 0 0 2px var(--sand-dim)}
-.fiche-face.wide{cursor:zoom-out}
-.fiche-face:hover .f-wide,.fiche-face.wide .f-wide{opacity:1}
+/* Portrait de la fiche. Deux gestes, deux traitements — et c'est volontaire :
+   le survol (desktop) est un aperçu fugace, un transform suffit ; le tap est un
+   état qu'on GARDE, donc il agrandit pour de vrai et pousse la carte. En
+   transform, il débordait de 31 px par-dessus la bordure arrondie et recouvrait
+   le nom et les XP, ce qui est précisément ce qu'on veut lire à côté. */
+.fiche-face{transition:transform .25s ease,width .25s ease,height .25s ease;
+  transform-origin:center left;position:relative;cursor:zoom-in}
+@media (hover:hover){
+  .fiche-face:hover{transform:scale(2.15);z-index:60;
+    box-shadow:0 10px 34px rgba(0,0,0,.7),0 0 0 2px var(--sand-dim)}
+  .fiche-face:hover .f-wide{opacity:1}
+}
+/* 42vw : sur un écran étroit le portrait cède la place au nom plutôt que de
+   l'écraser. */
+.fiche-face.wide{width:min(168px,42vw);height:min(168px,42vw);cursor:zoom-out;
+  box-shadow:0 10px 30px rgba(0,0,0,.55),0 0 0 2px var(--sand-dim)}
+.fiche-face.wide .f-wide{opacity:1}
 .live-wrap video{transition:width .25s ease,left .25s ease,top .25s ease}
 .seat-chip.present{background:var(--present)}
 .seat-chip.observer{background:var(--sand-dim)}
@@ -1154,10 +1163,18 @@ function roadPath(ll){
   return out;
 }
 const segmentLatLngs=seg=>roadPath(seg.map(p=>[p.lat,p.lng]));
-function addActualPath(points,color){
+// `quiet` : la trace de l'autre voiture, gardée visible en fond. Trait fin et
+// pâle, sans halo — elle doit situer le convoi sans disputer la vedette au
+// sujet suivi. Dessinée en premier, elle passe donc dessous.
+function addActualPath(points,color,{quiet=false}={}){
   trackSegments(points).forEach(seg=>{
     if(seg.length<2)return;
     const ll=segmentLatLngs(seg);
+    if(quiet){
+      L.polyline(ll,{pane:'actualTrackPane',color,weight:3,opacity:.42,
+        lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
+      return;
+    }
     // halo sous le trait, pour detacher la trace du fond de carte
     L.polyline(ll,{pane:'actualTrackPane',color,weight:11,opacity:.17,lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
     L.polyline(ll,{pane:'actualTrackPane',color,weight:5,opacity:1,
@@ -1408,10 +1425,14 @@ function renderHybridTracks(){
   actualTrackLayer.clearLayers();
   const {kind,id}=subjectParts();
   const end=dayWindowEnd();
-  // Seul le sujet suivi dessine ici (tracé + futur + marqueur pulsant). Tous
-  // les autres — personnes ET voitures — sont des marqueurs de `faceCluster`,
-  // qui gère lui-même les superpositions : une voiture n'a pas de traitement
-  // particulier, c'est un personnage de plus sur la carte.
+  // Les DEUX voitures tracent toujours leur trajet : suivre quelqu'un ne doit
+  // jamais faire disparaître l'autre équipage de la carte. Le sujet choisi est
+  // ensuite redessiné par-dessus, en plein trait, avec son futur et son
+  // marqueur pulsant — la sélection met en avant, elle ne masque plus.
+  Object.entries(VEHICLES).forEach(([vid,meta])=>{
+    if(kind==='vehicle'&&vid===id)return;   // celui-ci sera tracé en entier
+    addActualPath(vehiclePoints(vid).filter(p=>p.at<=end),meta.color,{quiet:true});
+  });
   if(kind==='vehicle'){
     const st=vehicleStateAtDay(id,end);
     if(st.meta){
