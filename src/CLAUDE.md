@@ -417,7 +417,7 @@ Key JS structures (all near the top of the script):
   −78 % on videos, for no visible difference — opening one photo used to pull
   5 MB. Only Cloudinary URLs are rewritten; Drive photos served by Pages keep
   their path. Image/video support,
-  captions, date, location provenance and thumbnail fallback. The lightbox caption leads with **who sent the medium** (`personName`), the first thing anyone asks in front of a photo; Drive files arrive anonymous, so when there is no author the date keeps the emphasis rather than a name being invented. Firebase v2
+  **Duplicates are dropped on the way in**: same author, same capture second, same rounded position is the SAME medium sent twice — an upload cut mid-flight can have landed on Cloudinary without the app knowing, and the retry wrote a second document, so two thumbnails sat on top of each other. The fingerprint keeps the position on purpose: two of Gal's photos share a 14:00 fallback timestamp but are 36 km apart, and they are not duplicates. Nothing is deleted server-side, only the second copy is not drawn. The app now writes with a deterministic id so it stops creating them at all. captions, date, location provenance and thumbnail fallback. The lightbox caption leads with **who sent the medium** (`personName`), the first thing anyone asks in front of a photo; Drive files arrive anonymous, so when there is no author the date keeps the emphasis rather than a name being invented. Firebase v2
   media remain in the existing root `photos` collection for compatibility but
   carry `tripId`, `personId`, `vehicleIdAtCapture`, `mode`, `assignmentId`,
   `capturedAt` and `locationSource`. Only documents for this trip with a known

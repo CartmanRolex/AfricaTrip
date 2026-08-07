@@ -1394,8 +1394,16 @@ async function uploadPhoto(blob, lat, lng, date, video = isVideoBlob(blob), cont
     upBar.finish();
     const link = JSON.parse(res).secure_url;   // postSlice renvoie le corps brut
 
-    const { db, addDoc, collection, ts } = await fb();
-    await addDoc(collection(db, "photos"), {
+    // Identifiant DÉTERMINÉ par le média, pas tiré au hasard : un envoi
+    // interrompu puis retenté peut avoir abouti côté Cloudinary sans que l'app
+    // l'apprenne, et un addDoc créait alors un second document — deux vignettes
+    // superposées sur la carte. Avec setDoc, le retour écrase au lieu d'ajouter.
+    // La taille entre dans la clé : deux photos différentes prises dans la même
+    // seconde (rafale) gardent ainsi des identifiants distincts.
+    const { db, doc, setDoc, ts } = await fb();
+    const mediaId = `${context.personId}-${context.capturedAtMs}-${payload.size}`
+      .replace(/[^A-Za-z0-9_-]/g, "");
+    await setDoc(doc(db, "photos", mediaId), {
       // Champs historiques conservés pour l'ancien site.
       name: context.displayName,
       car: legacyCar(context),

@@ -1172,9 +1172,13 @@ function roadPath(ll){
 // n'est même pas interrogé parce que la ligne droite EST la bonne réponse.
 const STRAIGHT_OK_KM=1;
 // Combien une route déjà calculée peut passer loin d'un point pour qu'on
-// considère qu'elle l'emprunte. 2 km couvre l'imprécision GPS et la géométrie
-// simplifiée que renvoie le routeur.
-const TWEEN_NEAR_KM=2;
+// considère qu'elle l'emprunte. 2 km ne suffisait pas : à l'ARRIVÉE dans une
+// ville, la position réelle est à 2-3 km du point de passage nominal de
+// l'itinéraire, et le raccord était refusé alors qu'il collait à 20 m près à
+// l'autre bout — laissant un trou de 238 km dans le trait. 5 km reste
+// négligeable devant les segments concernés, et l'ordre le long du tracé
+// continue d'interdire les rapprochements fortuits.
+const TWEEN_NEAR_KM=5;
 const tweenCache=new Map();
 // Point le plus proche d'un tracé, avec son avancement le long de celui-ci.
 function projectOnRoad(p,g){
@@ -1447,7 +1451,12 @@ function predictedRoad(last,stop){
   // Le seuil se mesure ici sur la route routée elle-même, pas sur l'itinéraire
   // éditorial : c'est la distinction qui avait fait échouer une version
   // précédente.
-  return best&&best.km<=TWEEN_NEAR_KM?[[best.lat,best.lng],...best.road.slice(best.i)]:null;
+  // Ancré sur la position RÉELLE, puis le point le plus proche sur la route.
+  // À l'arrivée en ville la voiture est à 2-3 km du tracé nominal ; démarrer le
+  // pointillé sur la route laissait ce trou entre elle et son propre marqueur.
+  // Le raccord est borné par TWEEN_NEAR_KM, donc toujours court.
+  return best&&best.km<=TWEEN_NEAR_KM
+    ?[[last.lat,last.lng],[best.lat,best.lng],...best.road.slice(best.i)]:null;
 }
 // La suite du trajet : déjà parcourue, mais pas encore atteinte au jour que la
 // frise affiche. Il n'y a RIEN à recalculer — c'est exactement la géométrie de
@@ -1820,6 +1829,7 @@ refreshPhotos(); refreshFaces();
     // portent tripId/personId/vehicleIdAtCapture et deviennent filtrables.
     fs.onSnapshot(fs.collection(db, "photos"), snap => {
       GALLERY.length = BUILD_GALLERY_N;
+      const vues=new Set();
       snap.forEach(doc => {
         const d=doc.data(); if(d.tripId&&d.tripId!==TRIP_ID)return;
         if(!validCoords(d.lat,d.lng))return;
@@ -1832,6 +1842,14 @@ refreshPhotos(); refreshFaces();
         const captured=toMs(firstValue(d.capturedAtMs,d.capturedAt,d.at,d.createdAt));
         const date=typeof d.date==='string'&&d.date?d.date.slice(0,10):(captured?new Date(captured).toISOString().slice(0,10):'');
         const capturedVehicle=vehicleId(firstValue(d.vehicleIdAtCapture,d.car));
+        // Même auteur, même seconde de capture, même endroit : c'est le MÊME
+        // média, envoyé deux fois. Un envoi interrompu puis retenté peut avoir
+        // abouti côté Cloudinary sans que l'app le sache, et le second essai
+        // crée un document de plus — d'où deux vignettes superposées sur la
+        // carte. On garde la première, sans rien supprimer côté données.
+        const empreinte=captured?`${author||'?'}|${Math.round(captured/1000)}|`
+          +`${lat.toFixed(4)},${lng.toFixed(4)}`:null;
+        if(empreinte){ if(vues.has(empreinte))return; vues.add(empreinte); }
         GALLERY.push({id:doc.id,name:d.name||author||'',date,lat,lng,
           gps:!!d.gps||d.locationSource==='gps'||d.locationSource==='media-gps',
           manual:!!d.manual||d.locationSource==='manual',caption:d.caption||'',video,thumb,file:d.url,

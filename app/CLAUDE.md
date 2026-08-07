@@ -187,6 +187,14 @@ tests des règles avant tout déploiement.
   fonction renvoie le corps BRUT (`responseText`), d'où le `JSON.parse` côté
   appelant. `xhr.onerror` reprend volontairement le libellé « Failed to
   fetch » pour que les rapports d'erreur déjà connus restent comparables.
+- **L'écriture du média est IDEMPOTENTE.** L'identifiant du document Firestore
+  est calculé (`personId-capturedAtMs-taille`) au lieu d'être tiré au hasard par
+  `addDoc` : un envoi interrompu puis retenté peut avoir abouti côté Cloudinary
+  sans que l'app l'apprenne, et le second essai créait alors un document de plus
+  — deux vignettes superposées sur la carte, constaté trois fois sur les données
+  réelles. Avec `setDoc`, le retour écrase au lieu d'ajouter. La taille entre
+  dans la clé pour qu'une rafale (deux photos dans la même seconde) garde des
+  identifiants distincts, et la clé est filtrée sur `[A-Za-z0-9_-]`.
 - **Diagnostiquer un échec d'envoi.** Le chemin vidéo natif comporte DEUX
   `fetch` : relire le fichier copié en cache, puis l'envoyer à Cloudinary. Les
   deux échouaient avec le même « Failed to fetch », impossible à départager.
