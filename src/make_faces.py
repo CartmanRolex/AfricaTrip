@@ -53,11 +53,11 @@ CROPS = {
     "Giordano": ("giordano_frame.png", 0.469, 0.524, 0.625),
     "Jehan":    ("jehan_frame.png", 0.50, 0.21, 0.40),
     "Thomas":   ("thomas_frame.png", 0.50, 0.453, 0.44),
-    # Source recadree en PORTRAIT (1000x1153) avant tout calcul : sur la photo
-    # d'origine, en 16:9, un carre assez grand pour contenir le menton faisait
-    # deborder le cadrage large (x1.9) hors de la hauteur, et PIL completait en
-    # noir. En portrait, meme size=1.0 tient.
-    "Helen":    ("helen_frame.png", 0.50, 0.411, 0.90),
+    # Portrait vivant : le crop vient de la PREMIERE FRAME de la video et
+    # reprend EXACTEMENT le cadrage LIVE (w:102% l:-1.9% t:-6.7%), donc
+    # cx=(-l+50)/w, size=100/w, cy=(50-t)/(w*hauteur/largeur) -> aucun saut
+    # visuel photo->video au survol.
+    "Helen":    ("helen_frame.png", 0.5088, 0.469, 0.980),
     "Malen":   ("malen_frame.png", 0.512, 0.63, 0.60),
     "Paul":     ("paul_frame.png", 0.50, 0.291, 0.5625),
 }

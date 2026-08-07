@@ -16,12 +16,12 @@ then rerun `python src/make_faces.py` (which errors with these same
 instructions if the sources are missing), and delete the originals again
 after re-cropping. `helen_frame.png` is the exception kept in the tree: it
 arrived after that cleanup, and `make_faces.py` refuses to run while ANY
-source is missing, so removing it would buy nothing. It is already cropped
-to PORTRAIT (1000×1153) from the original 16:9 photo, and that matters: the
-crop side is a fraction of the WIDTH, so on the landscape original any square
-big enough to hold the chin made the 1.9× wide frame overflow the height, and
-PIL padded it black. Cropping the source to portrait first removes the
-constraint entirely — even `size` 1.0 fits. To reframe a face, adjust `CROPS` in `src/make_faces.py`,
+source is missing, so removing it would buy nothing. Like every other face it
+is now the FIRST FRAME of her living-portrait video (864×1024). Her original
+photo lives on as `/home/students/Gal/video-gen/helen_pool.png`, already
+cropped to portrait — on the 16:9 original, the crop side being a fraction of
+the WIDTH, any square big enough to hold her chin made the 1.9× wide frame
+overflow the height and PIL padded it black. To reframe a face, adjust `CROPS` in `src/make_faces.py`,
 not the images.
 
 ## Contents

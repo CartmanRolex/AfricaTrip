@@ -22,6 +22,7 @@ falls back to the static photo (`oncanplay` gate → `.vid-ok`).
 | `giordano_live.mp4`| Giordano| 800x1088 physics lecture hall (blackboard of equations) -> w:160% l:-25% t:-64% |
 | `jehan_live.mp4`   | Jehan   | 960×928 sailing boat at sea, captain's cap -> w:250% l:-75% t:-0.7% |
 | `thomas_live.mp4`  | Thomas  | 960×928 favela rooftop at sunset, sunglasses -> w:227.3% l:-63.6% t:-49.5% |
+| `helen_live.mp4`   | Helen   | 864×1024, transat au bord d'une piscine ; sa tête remplit déjà le cadre source, donc `w` ne peut pas descendre sous 100 % sans laisser un vide sur les côtés du cercle : c'est le cadrage le plus LARGE possible → w:102% l:-1.9% t:-6.7% |
 | `malen_live.mp4`   | Malen   | 832×1056 soviet-square smoke break (lighter + cigarette in frame) → w:167% l:-35% t:-83% |
 
 ## Poids : encodage volontairement sobre (2026-08-06)
@@ -72,6 +73,48 @@ seconds" a fait fermer les yeux à Younous pour tout le clip.
 Pour juger, extraire des images entières (`full.py` sur la machine
 Basement) : une planche de 12 vignettes rate un clignement, qui ne dure
 que 3 à 6 images sur 121.
+
+## Helen — lunettes de soleil et expression figée (2026-08-07)
+
+Deux leçons, valables au-delà de son cas.
+
+**Des lunettes de soleil annulent la leçon des clignements.** Les yeux sont
+invisibles, il n'y a donc rien à faire cligner : le mouvement ne peut venir que
+de la respiration, des cheveux et de l'arrière-plan. Une photo où l'on voit les
+yeux donne un portrait nettement plus vivant.
+
+**Une photo prise sur une expression fugace est instable.** Sa source a la
+bouche ouverte, et le modèle « résout » naturellement cette pose : au premier
+essai (seed 7777) la bouche se refermait puis virait au sourire dents apparentes
+sur la fin — exactement l'expression bizarre à proscrire. Ce qui a marché, seed
+1234 : verrouiller le visage en majuscules et par énumération, `HER FACIAL
+EXPRESSION IS COMPLETELY FROZEN AND NEVER CHANGES`, puis lister ce qui est
+interdit (sourire, dents qui apparaissent, mâchoire, lèvres) ET la liste
+exhaustive des seuls mouvements autorisés. Décrire ce qu'on veut ne suffit pas ;
+il faut nommer ce qu'on refuse.
+
+Source : `helen_pool.png` (recadrée en portrait 1000×1153 depuis la photo
+16:9 d'origine). Encodée en **CRF 20** et non 23 : ses cheveux bouclés et le
+feuillage sont pleins de détail fin, et le clip pèse 5,1 Mo là où les autres
+tiennent en 0,6-1,5 Mo. C'est le prix d'une vraie photo face à des images
+générées, plus lisses.
+
+## GPU partagé : le site 3D doit être arrêté (2026-08-07)
+
+La génération demande environ 19 Go de VRAM et échoue en
+`torch.OutOfMemoryError` tant que `Project3D` tourne (ses workers en occupent
+13,5 Go). Réduire `--frame_num` **ne sert à rien** : l'échec se produit au
+décodage final, dont l'allocation (2,55 Gio) ne dépend pas de la durée, et les
+deux seules tailles supportées par ti2v-5B sont 704*1280 et 1280*704.
+
+```bash
+cd /home/students/Gal/Project3D && ./site.sh stop all   # refuse si une génération tourne
+# ... générer ...
+cd /home/students/Gal/Project3D && ./site.sh start
+```
+
+`./site.sh free` décharge les modèles sans éteindre le site, mais un worker les
+recharge à la première requête — préférer `stop all` pour une génération longue.
 
 ## Dorvan — arrière-plan de savane animé (2026-07-28)
 
