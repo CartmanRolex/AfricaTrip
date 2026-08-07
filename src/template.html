@@ -616,7 +616,10 @@ const VEHICLES = {
 // reliquat d'avant le voyage : photos d'essai, trajets domicile-travail.
 const TRACK_START = (() => {
   const cfg = CFG.trackStart || {};
-  const day = v => { const t = v ? Date.parse(`${v}T00:00:00`) : NaN;
+  // `2026-08-07` = du jour entier ; `2026-08-07T14:00` = rejoint le convoi en
+  // cours de route (rendez-vous a une etape). Sans l'heure, la personne serait
+  // montree en voiture des l'aube, des centaines de km avant d'y monter.
+  const day = v => { const t = v ? Date.parse(v.length > 10 ? `${v}:00` : `${v}T00:00:00`) : NaN;
     return Number.isFinite(t) ? t : null; };
   const byPerson = new Map();
   Object.entries(cfg.by_person || {}).forEach(([n, v]) => { const t = day(v);
@@ -628,6 +631,21 @@ function trackStartFor(name){
   return own != null ? own : (TRACK_START.def != null ? TRACK_START.def : -Infinity);
 }
 function beforeOwnStart(p){ return p.at < trackStartFor(p.name); }
+// Instant de reference du jour affiche : la FIN de ce jour, sauf aujourd'hui ou
+// c'est l'heure qu'il est. Un jour passe ou futur se juge donc en entier, et le
+// jour courant s'arrete a maintenant — c'est ce qui evite d'annoncer quelqu'un
+// en voiture le matin alors qu'il ne monte qu'a l'etape de l'apres-midi.
+function momentOfDay(i){
+  const iso = (REC[i]||{}).iso;
+  if(!iso) return Date.now();
+  if(iso === TODAY_ISO) return Date.now();
+  const end = Date.parse(`${iso}T23:59:59`);
+  return Number.isFinite(end) ? end : Date.now();
+}
+// UN SEUL mecanisme (`track_start`) decide de la trace ET de la presence a
+// bord : pas d'exception a maintenir en double, et une arrivee se corrige a un
+// seul endroit.
+function joinedBy(name,i){ return momentOfDay(i) >= trackStartFor(name); }
 function rosterVehicleId(name){
   if(!name)return null;
   if(CAR1.includes(name))return 'hugodouard';
@@ -949,6 +967,7 @@ function localDay(ms){
   return new Date(ms-d.getTimezoneOffset()*60000).toISOString().slice(0,10);
 }
 function aboardVehicleAt(name,at){
+  if(at<trackStartFor(name))return null;   // pas encore du voyage a cet instant
   const i=REC_BY_DAY.get(localDay(at));
   if(i==null)return rosterVehicleId(name);
   const r=REC[i],s1=r.car1[name],s2=r.car2[name];
@@ -1256,6 +1275,7 @@ function dayWindowEnd(){
 function dayIsFuture(){ return ((REC[idx]||{}).iso||'')>TODAY_ISO; }
 function onboardAt(name,i){
   const r=REC[i]; if(!r)return false;
+  if(!joinedBy(name,i))return false;   // pas encore monte a bord
   const state=r.car1[name]||r.car2[name];
   return state==='present'||state==='tentative';
 }
@@ -2044,11 +2064,13 @@ function renderCar(carNo,rec){
   const meta = CARS[carNo];
   // fiche ouverte pour un membre de cette voiture -> elle prend la place du bloc
   if(ficheFor&&roster.includes(ficheFor)) return ficheHTML(ficheFor,meta.color);
-  const onboard = roster.filter(p=>states[p]!=='absent');
+  const onboard = roster.filter(p=>states[p]!=='absent'&&joinedBy(p,idx));
   let seats='';
   onboard.slice(0,4).forEach((p,k)=> seats+=seatHTML(p,states[p],k===0,meta.color));
   for(let k=onboard.length;k<4;k++) seats+=emptySeat();
-  const cap = carNo===1?rec.cap1:rec.cap2;
+  // La capacite se recompte sur les sieges REELLEMENT montres : afficher le
+  // 2/4 de la grille en face d'un seul visage serait un mensonge visible.
+  const cap = `${onboard.filter(p=>states[p]==='present').length}/4`;
   const carImg = PHOTOS.cars[carNo];
   const cr = CAR_RPG[carNo]||{xp:0,pv:5,skill:'—',malus:''};
   const hpc = cr.pv>=7?'var(--present)':cr.pv>=4?'var(--unknown)':'#D95B43';

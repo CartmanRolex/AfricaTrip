@@ -103,11 +103,17 @@ def read_site_overrides():
 
 
 def read_track_start(raw):
-    """Validate `track_start`: from when a person's points build their route.
+    """Validate `track_start`: the instant a person joins the trip.
 
-    Media and GPS older than that date are ignored by the site — they are
-    pre-trip leftovers, not part of the journey. `default` applies to everyone;
-    `by_person` overrides it for those who left earlier.
+    Media and GPS older than that instant are ignored by the site — they are
+    pre-trip leftovers, not part of the journey — and the person is not shown
+    aboard a car before it either. `default` applies to everyone; `by_person`
+    overrides it for those who leave earlier or join later.
+
+    A bare `YYYY-MM-DD` means "from that day on". `YYYY-MM-DDTHH:MM` is for
+    someone who meets the convoy at a stop rather than travelling from dawn:
+    marking them present for the whole day would put them in a car hundreds of
+    kilometres before they actually got in.
     """
     if raw is None:
         return None
@@ -115,8 +121,10 @@ def read_track_start(raw):
         raise ValueError("site-overrides.json track_start must be a JSON object")
 
     def day(value, label):
-        if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value.strip()):
-            raise ValueError(f"site-overrides.json track_start.{label} must be YYYY-MM-DD")
+        if not isinstance(value, str) or not re.fullmatch(
+                r"\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?", value.strip()):
+            raise ValueError(f"site-overrides.json track_start.{label} must be "
+                             f"YYYY-MM-DD or YYYY-MM-DDTHH:MM")
         return value.strip()
 
     default = day(raw.get("default"), "default") if raw.get("default") is not None else None

@@ -104,11 +104,25 @@ version.json                       (build id, for the auto-refresh below)
   plan.** `addPlannedFuture()` starts the dashed line exactly at the most recent
   point and joins the next checkpoint (`nextStopKm()`), then follows the
   itinerary to the end of the subject's range.
-- **Each person's track starts on their own date** (`track_start` in
+- **Each person joins the trip at their own instant** (`track_start` in
   `site-overrides.json`: `default` 2026-08-02, with Jehan and Dorvan from
   2026-07-30). Anything older is a pre-trip leftover — test photos, commutes —
   and is dropped before any reconstruction. This is the single place that
   decides it; there is no hardcoded departure constant any more.
+- **`track_start` decides the track AND the seat, deliberately as one thing.**
+  A value may carry an hour (`2026-08-07T14:00`, Hugo and Paul meeting the
+  convoy at Malaga) for someone who joins mid-day. The presence grid is
+  day-granular, so marking them present on their arrival day put them in a car
+  from dawn, hundreds of kilometres before they got in. Rather than bolt a
+  special case onto the grid, the join instant already owned by `track_start`
+  now gates both — one mechanism, one place to correct an arrival. A bare
+  `YYYY-MM-DD` behaves exactly as before.
+- **The reference instant of a displayed day is the END of that day, except
+  today where it is now** (`momentOfDay()`). A past or future day is therefore
+  judged whole — the dashed future keeps its full crew — while the current day
+  stops at the clock, which is what keeps someone out of a car until they
+  actually get in. The car header recounts its capacity from the seats really
+  shown, since the grid's own figure would contradict the faces next to it.
 - **Cars are characters, not a special case.** They use the same round avatar
   marker as people, and the same `faceCluster` handles their overlaps — no
   bespoke shape, no bespoke spreading. Only the image framing differs

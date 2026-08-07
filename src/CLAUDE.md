@@ -295,6 +295,16 @@ Key JS structures (all near the top of the script):
   writes `car:"obs"` both for “À pied / autre” and as its own default, so crew
   photos were landing outside their own vehicle. Near-duplicates are coalesced
   without losing an explicit vehicle assignment.
+- **Nobody sits in a car before they get in** (`momentOfDay()`, `joinedBy()`).
+  The reference instant of a displayed day is the **end** of that day, except
+  today where it is now: a past or future day is judged whole (the dashed
+  future keeps its full crew) while the current day stops at the clock.
+  `joinedBy()` compares it to `trackStartFor()`, and gates `onboardAt()`,
+  `renderCar()`'s seats and `aboardVehicleAt()`. `renderCar()` recounts the
+  `X/4` header from the seats really shown, since the grid's own figure would
+  contradict the faces beside it. `presenceOf()` and `plannedRangeForPerson()`
+  are deliberately NOT gated: they describe the whole trip window, and clipping
+  them at "now" would truncate the planned future.
 - **Occupants share their car's track** (`personTrack()`, `aboardVehicleAt()`):
   people riding together describe the *same* movement, so one phone's points
   serve everyone aboard. `personPoints(name)` is the car's **derived** track
@@ -435,10 +445,16 @@ the parsed rosters/RPG config; when a removed name still has a raw presence colu
 `parse_csv.py` recomputes both `X/4` capacities and the total from confirmed
 `present` states. `phones` replaces `config.rpg[name].tel` while preserving the
 human-readable `+CC …` formatting used by the fiche and its sanitized `tel:`
-link. `track_start` `{default, by_person}` (dates `YYYY-MM-DD`) sets, per
-person, the day from which their GPS points and photos build their route —
-anything older is a pre-trip leftover. Current value: everyone from
-2026-08-02, Jehan and Dorvan from 2026-07-30.
+link. `track_start` `{default, by_person}` sets, per person, the instant they join
+the trip: their GPS points and photos build their route from it, and they are
+not shown aboard a car before it either. Values are `YYYY-MM-DD`, or
+`YYYY-MM-DDTHH:MM` for someone who meets the convoy at a stop instead of
+travelling from dawn — the presence grid only knows whole days, so without the
+hour they would be seated hundreds of kilometres before getting in. One
+mechanism gates both the track and the seat, deliberately: an arrival is then
+corrected in exactly one place. Current value: everyone from 2026-08-02, Jehan
+and Dorvan from 2026-07-30, Hugo and Paul from 2026-08-07T14:00 (they join at
+Malaga in the afternoon).
 `terminus` `{after, cp, label, lat, lng}` shortens the plan to a single
 confirmed final checkpoint: `apply_terminus()` cuts the route right after the
 `after` checkpoint, appends the terminus waypoint, drops the abandoned
