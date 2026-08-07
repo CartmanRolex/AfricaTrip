@@ -235,25 +235,29 @@ Key JS structures (all near the top of the script):
   leg's geometry and `trimRoad()` cuts it at the right fraction, which removed a
   300 km straight line. Nothing is fetched at display time, so
   `voyage-afrique.html` still works from disk and offline.
-- **The live join has a projection fallback** (`roadAhead()`,
-  `plannedRoadBetween()`, `nearestOnSegment()`, `NEAR_ROAD_KM`). The pair
-  "current position → next stop" is **never** in `routes.json`: its key carries
-  the live position, which changes with every GPS point, so the generator can
-  only ever cache it for a position already left. Measured mid-drive: the key
-  was absent and the tail fell back to a 217 km chord where the road runs
-  303 km, straying up to 41 km. But a subject already **on** the planned road
-  needs no new geometry — that road is cached once and for all — so the tail now
-  resumes the known geometry at the nearest point instead of cutting a chord.
-  The `NEAR_ROAD_KM` (3 km) guard is not stylistic: beyond it the subject is not
-  on that corridor at all, and attaching their tail to it would assert a journey
-  they are not making. Gal drove through central Spain while the plan hugs the
-  coast — 128 km off — so the fallback correctly declines and the chord stays.
-  Distance is measured against the **cached road geometry**, never against
-  `projectOnPlannedRoute()`'s distance: the editorial route is a coarse polygon
-  (23 waypoints for the whole trip), so a point sitting exactly on the road
-  still reads 72 km from that polyline. Verified: on the road and 1 km off it
-  the fallback fires and follows 73 road vertices (380 km of road versus a
-  313 km chord); 20 km off and at Gal's real position it declines.
+- **The dashed future never draws a chord** (`predictedRoad()`,
+  `nearestOnSegment()`). The pair "current position → next stop" is never in
+  `routes.json` at its exact key: that key carries the live position, which
+  changes with every GPS point, so the generator can only ever cache it for a
+  position already left. The fix is not to compute a new route but to **reuse
+  the one already routed** from an earlier position of the same drive: as long
+  as the crew drives the shortest way — which is what the router picked too —
+  that geometry passes within metres of them. Measured on Gal: **80 m** from a
+  join computed an hour earlier, and 80 m again from one computed 200 km back.
+  `predictedRoad()` therefore takes every cached join ending at the stop, finds
+  the nearest point across their geometries, and resumes there.
+  This is a **prediction drawn as dashes**: being a little stale does not matter,
+  the next four-hourly run corrects it, whereas a chord is never a road at any
+  moment. Do not add a proximity guard — an earlier `NEAR_ROAD_KM` version was
+  removed, because it measured against `projectOnPlannedRoute()` and the
+  editorial route is a coarse 23-waypoint polygon: Gal reads 128 km off it while
+  sitting 80 m from the actual routed path, so the guard rejected precisely the
+  case it was meant to serve. With no cached join at all, the tail falls back to
+  the planned itinerary from the projection — cached roads again, still no
+  chord. Verified on live data: 217 km of road drawn where the chord was 161 km,
+  starting 75 m from the marker; a fresh routing of the same segment returns
+  239 km, so a reused prediction runs about 9 % off — well inside what a dashed
+  forecast is for.
   `addPlannedFuture()` **always** begins the dashed tail at the most recent GPS
   point (`tail.unshift`) and interpolates straight to the **next stop**
   (`nextStopKm()`, a checkpoint), then follows the route to the end of the
