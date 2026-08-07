@@ -489,7 +489,11 @@ When a removed name still has a raw presence column,
 `parse_csv.py` recomputes both `X/4` capacities and the total from confirmed
 `present` states. `phones` replaces `config.rpg[name].tel` while preserving the
 human-readable `+CC …` formatting used by the fiche and its sanitized `tel:`
-link. `track_start` `{default, by_person}` sets, per person, the instant they join
+link. `roles` `{name: label}` overrides the role word on a seat card and in a
+fiche (`roleLabel()`), the site's own strings being masculine by default
+("observateur", "aventurier"); Helen is `observatrice`. It is the **only**
+place that decides how someone is named — nothing is ever inferred from a first
+name or a photo. `track_start` `{default, by_person}` sets, per person, the instant they join
 the trip: their GPS points and photos build their route from it, and they are
 not shown aboard a car before it either. Values are `YYYY-MM-DD`, or
 `YYYY-MM-DDTHH:MM` for someone who meets the convoy at a stop instead of

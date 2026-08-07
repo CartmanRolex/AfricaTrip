@@ -1969,7 +1969,8 @@ function ficheHTML(name,color){
     <div class="fiche-head">
       ${ph?`<span class="fiche-face">${faceMarkup(name,ph,true)}</span>`:''}
       <div><div class="fiche-name">${name}</div>
-        <div class="fiche-role">${isObs?'🛰️ observateur':'aventurier'} · ${r.xp} XP</div>
+        <div class="fiche-role">${isObs?`🛰️ ${roleLabel(name,'observateur')}`
+          :roleLabel(name,'aventurier')} · ${r.xp} XP</div>
         <span class="hp">PV <i class="hp-bar"><i class="hp-fill" style="width:${r.pv*10}%;background:${hpc}"></i></i> ${r.pv}/10</span>
         <div class="fiche-skill">${r.skill}</div></div>
     </div>
@@ -2190,8 +2191,14 @@ function faceMarkup(name,ph,auto){
   return `<span class="live-wrap"><img src="${ph}" alt="${name}">${
     wide?`<img class="f-wide" src="${wide}" alt="">`:''}</span>`;
 }
+// Les libellés de rôle sont au masculin en dur. `roles` dans site-overrides.json
+// nomme autrement qui le demande — c'est le seul endroit qui en décide, et rien
+// n'est jamais déduit d'un prénom ou d'une photo.
+const ROLES=CFG.roles||{};
+const roleLabel=(name,fallback)=>ROLES[name]||fallback;
 function seatHTML(name,state,isDriver,color){
-  const lbl={present:'présent',unknown:'incertain',tentative:'pressenti',observer:'observateur'}[state]||'';
+  const lbl=state==='observer'?roleLabel(name,'observateur')
+    :{present:'présent',unknown:'incertain',tentative:'pressenti'}[state]||'';
   const ph=PHOTOS.faces[name];
   const face=ph?faceMarkup(name,ph):name[0];
   const r=RPG[name]||{xp:0,pv:5,skill:'—'};

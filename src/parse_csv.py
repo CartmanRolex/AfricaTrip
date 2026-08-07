@@ -77,7 +77,7 @@ def read_site_overrides():
     except FileNotFoundError:
         return {"trip_year": DEFAULT_TRIP_YEAR, "textes": {},
                 "removed_travelers": set(), "phones": {}, "terminus": None,
-                "track_start": None}
+                "track_start": None, "roles": {}}
     if not isinstance(raw, dict):
         raise ValueError("site-overrides.json must contain a JSON object")
     removed = raw.get("removed_travelers", [])
@@ -94,12 +94,20 @@ def read_site_overrides():
     if not isinstance(phones, dict) or not all(
             isinstance(k, str) and isinstance(v, str) for k, v in phones.items()):
         raise ValueError("site-overrides.json phones must map names to strings")
+    # Libelle de role par personne. Le site n'a que des formes masculines en dur
+    # ("observateur", "aventurier") ; c'est le seul endroit ou nommer quelqu'un
+    # autrement, sans deviner quoi que ce soit a partir d'un prenom.
+    roles = raw.get("roles", {})
+    if not isinstance(roles, dict) or not all(
+            isinstance(k, str) and isinstance(v, str) for k, v in roles.items()):
+        raise ValueError("site-overrides.json roles must map names to strings")
     return {"trip_year": trip_year,
             "textes": {k.strip(): v.strip() for k, v in textes.items() if k.strip()},
             "removed_travelers": {v.strip() for v in removed if v.strip()},
             "phones": {k.strip(): v.strip() for k, v in phones.items() if k.strip()},
             "terminus": read_terminus(raw.get("terminus")),
-            "track_start": read_track_start(raw.get("track_start"))}
+            "track_start": read_track_start(raw.get("track_start")),
+            "roles": {k.strip(): v.strip() for k, v in roles.items() if k.strip()}}
 
 
 def read_track_start(raw):
@@ -333,6 +341,8 @@ def main():
     for name, phone in overrides["phones"].items():
         if name in rpg:
             rpg[name]["tel"] = phone
+    if overrides["roles"]:
+        config["roles"] = dict(overrides["roles"])
     # `removed_travelers` veut dire « plus dans une voiture », pas « effacé ».
     # Quelqu'un qui descend du voyage peut continuer à le suivre depuis chez
     # lui : sa carte d'observateur lit ses stats dans cette même section `rpg`,

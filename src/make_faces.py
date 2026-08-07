@@ -53,6 +53,10 @@ CROPS = {
     "Giordano": ("giordano_frame.png", 0.469, 0.524, 0.625),
     "Jehan":    ("jehan_frame.png", 0.50, 0.21, 0.40),
     "Thomas":   ("thomas_frame.png", 0.50, 0.453, 0.44),
+    # Photo paysage 16:9 : la taille est une fraction de la LARGEUR, donc le
+    # cadrage large (x1.9) deborderait en hauteur au-dela de 0.296 et PIL
+    # completerait en noir. 0.29 est le maximum utilisable ici.
+    "Helen":    ("helen_frame.jpg", 0.547, 0.486, 0.29),
     "Malen":   ("malen_frame.png", 0.512, 0.63, 0.60),
     "Paul":     ("paul_frame.png", 0.50, 0.291, 0.5625),
 }

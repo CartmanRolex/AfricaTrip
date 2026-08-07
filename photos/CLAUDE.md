@@ -14,7 +14,12 @@ git checkout 20d79de -- photos/
 
 then rerun `python src/make_faces.py` (which errors with these same
 instructions if the sources are missing), and delete the originals again
-after re-cropping. To reframe a face, adjust `CROPS` in `src/make_faces.py`,
+after re-cropping. `helen_frame.jpg` is the exception kept in the tree: it
+arrived after that cleanup, and `make_faces.py` refuses to run while ANY
+source is missing, so removing it would buy nothing. It is a 16:9 landscape
+photo, hence the 0.29 crop size — the wide frame is 1.9× the size as a
+fraction of the WIDTH, so anything above 0.296 would overflow the height and
+PIL would pad it black. To reframe a face, adjust `CROPS` in `src/make_faces.py`,
 not the images.
 
 ## Contents
