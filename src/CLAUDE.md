@@ -287,6 +287,13 @@ Key JS structures (all near the top of the script):
     off-route subject drew a spur out to the road and then doubled back.
   Without any real point the tail starts exactly at `startKm`, so a traveler who
   has sent nothing still shows their planned leg from their embarkation.
+  **A traveler who is not yet under way is treated as having no point at all**
+  (`enRoute`, from `onboardAt()`): their position says nothing about their
+  journey yet. Younous has no v2 point but a legacy `positions` fix in Lausanne,
+  and the tail resumed from km 87 instead of km 4453 — the whole European
+  itinerary drawn dashed for someone who boards at Dakar. Measured after the
+  fix: every traveler still ashore starts their dashed line exactly on their
+  embarkation checkpoint, to the kilometre.
   The tail must not start from the *planned* progress of the displayed day —
   that erases a stretch nobody has driven yet and opens a hole on every future
   day.

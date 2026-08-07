@@ -1551,14 +1551,20 @@ function renderHybridTracks(){
       const all=personPoints(name);
       const pts=all.filter(p=>p.at<=end);
       const real=currentForPerson(name,end);
-      const {point,planned}=stateAtDay(real,onboardAt(name,idx));
+      const enRoute=onboardAt(name,idx);
+      const {point,planned}=stateAtDay(real,enRoute);
       const color=colorOf(name),range=plannedRangeForPerson(name);
       addActualPath(pts,color);
       // le pointillé enchaîne la suite déjà parcourue, puis le plan depuis la
       // DERNIÈRE position connue — jamais depuis celle du jour affiché, sinon
       // il repart en arrière et rouvre le trou.
       addTravelledAhead(all,lastTrackPoint(pts)||real,color);
-      if(range)addPlannedFuture(lastTrackPoint(all)||real,color,range);
+      // Tant que la personne n'est pas EN ROUTE, sa position ne dit rien de son
+      // trajet : le futur part de son embarquement, pas de chez elle. Younous
+      // n'a aucun point v2 mais une position héritée à Lausanne, et le
+      // pointillé repartait du km 87 au lieu du km 4453 — tout l'itinéraire
+      // européen en pointillés pour quelqu'un qui embarque à Dakar.
+      if(range)addPlannedFuture(enRoute?(lastTrackPoint(all)||real):null,color,range);
       addActualMarker(point,color,name,name,{planned});
     }
   }
