@@ -554,7 +554,7 @@ const ROUTES = {"11.3180,-12.2830;9.6410,-13.5780":[[11.3178,-12.28318],[11.3189
 // (jamais mis en cache) et, si un build plus recent est publie, on recharge une
 // seule fois. Sans reseau, depuis le disque, ou si quoi que ce soit echoue, on
 // ne fait rien.
-const BUILD = "22b8b8efe444";
+const BUILD = "8ef910f5ce74";
 if(location.protocol!=='file:'){
   fetch(`version.json?t=${Date.now()}`,{cache:'no-store'})
     .then(r=>r.ok?r.json():null)
@@ -1610,13 +1610,15 @@ function subjectFocusData(){
   const {kind,id}=subjectParts(),end=dayWindowEnd();
   if(kind==='person'){
     const name=NAME_BY_ID.get(id); if(!name)return null;
-    const {point}=stateAtDay(currentForPerson(name,end),onboardAt(name,idx));
-    return {point,range:plannedRangeForPerson(name),zoom:13};
+    const enRoute=onboardAt(name,idx);
+    const {point}=stateAtDay(currentForPerson(name,end),enRoute);
+    return {point,range:plannedRangeForPerson(name),zoom:13,enRoute};
   }
   if(kind==='vehicle'){
     if(!VEHICLES[id])return null;
     const {point}=stateAtDay(lastCoherentPoint(vehicleGpsPoints(id).filter(p=>p.at<=end)),true);
-    return {point,range:plannedRangeForVehicle(id),zoom:11};
+    // une voiture est toujours du voyage
+    return {point,range:plannedRangeForVehicle(id),zoom:11,enRoute:true};
   }
   return null;
 }
@@ -1625,13 +1627,27 @@ function subjectFocusData(){
 // position courante est incluse dans le cadre pour que le marqueur ne tombe
 // pas hors ecran quand le sujet est loin du plan.
 // mode 'point' : on zoome sur lui. Reserve au clic sur sa tete sur la carte.
+// Un premier clic cadre le TRAJET entier, un second sur le même sujet va se
+// poser sur sa position du moment : deux gestes pour deux questions, où va-t-il
+// et où est-il. Un clic sur une tête de la carte reste explicitement 'point',
+// et remet le compteur pour que le clic suivant redézoome.
+let lastFocus={subject:null,mode:null};
+function nextFocusMode(subject){
+  const mode=(lastFocus.subject===subject&&lastFocus.mode==='route')?'point':'route';
+  lastFocus={subject,mode};
+  return mode;
+}
 function focusTrackSubject(mode='route'){
   const data=subjectFocusData();
   if(!data){focusBounds(latlngs,7);return;}
-  const {point,range,zoom}=data;
+  const {point,range,zoom,enRoute}=data;
   if(mode==='point'&&point){focusPoint(point,zoom);return;}
   const ll=range?routeSlice(range.startKm,range.endKm):[];
-  if(point)ll.push([point.lat,point.lng]);
+  // La position n'élargit le cadrage que si la personne est EN ROUTE. Sinon
+  // elle est encore chez elle et n'a rien à voir avec son trajet : Younous
+  // embarque à Dakar, et sa position suisse faisait dézoomer sur toute
+  // l'Europe plus l'Afrique de l'Ouest.
+  if(point&&enRoute!==false)ll.push([point.lat,point.lng]);
   if(ll.length>1){focusBounds(L.latLngBounds(ll),8);return;}
   if(point){focusPoint(point,zoom);return;}
   focusBounds(latlngs,7);
@@ -1642,7 +1658,7 @@ function setTrackSubject(subject,focus=true){
   document.querySelectorAll('.track-choice').forEach(b=>b.setAttribute('aria-selected',b.dataset.subject===subject?'true':'false'));
   updateTrackPicker();
   renderHybridTracks();refreshPhotos();refreshFaces();
-  if(focus)focusTrackSubject();
+  if(focus)focusTrackSubject(nextFocusMode(subject));
 }
 function subjectDescriptor(subject=trackSubject){
   const [kind,id]=subject.split(':');
@@ -2016,11 +2032,15 @@ function revealOpenFiche(){
 }
 // `focus` vaut 'route' partout (ouvrir une fiche = voir le voyage de la
 // personne) sauf au clic sur sa tete sur la carte, qui zoome sur elle.
-function openFicheFor(name,focus='route'){
+function openFicheFor(name,focus){
   ficheFor=name;
-  setTrackSubject(`person:${slug(name)}`,false);
+  const subject=`person:${slug(name)}`;
+  setTrackSubject(subject,false);
   render(); renderObs();
-  focusTrackSubject(focus);
+  // focus non precise (carte d'equipier) -> bascule trajet/position ; un appel
+  // explicite ('point' depuis une tete sur la carte) garde la main.
+  if(focus){ lastFocus={subject,mode:focus}; focusTrackSubject(focus); }
+  else focusTrackSubject(nextFocusMode(subject));
   revealOpenFiche();
 }
 document.addEventListener('click',e=>{

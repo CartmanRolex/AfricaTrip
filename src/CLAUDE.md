@@ -368,11 +368,19 @@ Key JS structures (all near the top of the script):
   time uncertainty. `vehicleGpsPoints()`/`personGpsPoints()` remain separate
   from media anchors so current markers never jump to an old photo. Caches are
   also invalidated by v1-track and media snapshots.
-- **Two focus modes** (`focusTrackSubject(mode)`, `subjectFocusData()`):
-  choosing a subject — from the picker or by opening a fiche in the panel —
-  uses mode `'route'` and frames that subject's **whole planned trace** (its
-  range plus its current position, so the marker never falls off-screen when it
-  is far from the plan). Selecting someone is for seeing their journey, not for
+- **Two focus modes, and clicking again switches between them**
+  (`focusTrackSubject(mode)`, `subjectFocusData()`, `nextFocusMode()`):
+  selecting a subject frames its **whole planned trace**; selecting the SAME
+  subject again flies to where it is right now, and a third click zooms back
+  out. Two gestures for the two questions, where is it going and where is it.
+  A click on a head on the map stays explicitly `'point'` and resets the toggle
+  so the next click zooms back out.
+  The current position only widens that framing when the subject is **actually
+  under way** (`enRoute`, from `onboardAt()`; a vehicle always is). Otherwise
+  they are still at home and their position says nothing about their journey:
+  Younous boards at Dakar, and his Swiss position stretched the view over all of
+  Europe plus West Africa. The position is still included for someone under way
+  but off-route, which is what it was added for. Selecting someone is for seeing their journey, not for
   gluing the map to their position of the day. Mode `'point'` flies to them at
   a stable zoom 13 (vehicle 11), offset to the visible map area below the
   toolbar, and is reserved for **clicking their head on the map**. The previous
