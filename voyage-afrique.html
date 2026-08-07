@@ -554,7 +554,7 @@ const ROUTES = {"11.3180,-12.2830;9.6410,-13.5780":[[11.3178,-12.28318],[11.3189
 // (jamais mis en cache) et, si un build plus recent est publie, on recharge une
 // seule fois. Sans reseau, depuis le disque, ou si quoi que ce soit echoue, on
 // ne fait rien.
-const BUILD = "d73edf11724d";
+const BUILD = "70f0fcfb9349";
 if(location.protocol!=='file:'){
   fetch(`version.json?t=${Date.now()}`,{cache:'no-store'})
     .then(r=>r.ok?r.json():null)
@@ -1442,7 +1442,13 @@ function predictedRoad(last,stop){
         best={km:hit.km,lat:hit.lat,lng:hit.lng,road,i,reste};
     }
   }
-  return best?[[best.lat,best.lng],...best.road.slice(best.i)]:null;
+  // Le raccord doit PASSER par la position, pas simplement exister. Sans ce
+  // contrôle, reculer la frise faisait démarrer le pointillé au raccord le plus
+  // récent — 708 km devant le personnage, laissant un trou béant derrière lui.
+  // Le seuil se mesure ici sur la route routée elle-même, pas sur l'itinéraire
+  // éditorial : c'est la distinction qui avait fait échouer une version
+  // précédente.
+  return best&&best.km<=TWEEN_NEAR_KM?[[best.lat,best.lng],...best.road.slice(best.i)]:null;
 }
 function addPlannedFuture(last,color,{startKm=0,endKm=totalKm}={}){
   const end=Math.min(totalKm,endKm);
