@@ -1449,6 +1449,25 @@ function predictedRoad(last,stop){
   // précédente.
   return best&&best.km<=TWEEN_NEAR_KM?[[best.lat,best.lng],...best.road.slice(best.i)]:null;
 }
+// La suite du trajet : déjà parcourue, mais pas encore atteinte au jour que la
+// frise affiche. Il n'y a RIEN à recalculer — c'est exactement la géométrie de
+// la trace, on la dessine simplement en pointillés. C'est ce qui referme le
+// trou de la frise sans inventer de route ni gonfler le cache : reculer dans le
+// temps ne fait que déplacer la tête le long d'une ligne qui existe déjà.
+function addTravelledAhead(all,head,color){
+  if(!head)return;
+  const ahead=all.filter(p=>p.at>=head.at);
+  if(ahead.length<2)return;
+  trackSegments(ahead).forEach(seg=>{
+    if(seg.length<2)return;
+    segmentPieces(seg).forEach(ll=>{
+      if(ll.length<2)return;
+      L.polyline(ll,{pane:'actualTrackPane',color,weight:4,opacity:.8,
+        dashArray:'10 12',lineCap:'round',lineJoin:'round',
+        interactive:false}).addTo(actualTrackLayer);
+    });
+  });
+}
 function addPlannedFuture(last,color,{startKm=0,endKm=totalKm}={}){
   const end=Math.min(totalKm,endKm);
   // Sans position reelle, le trace prevu commence exactement a l'embarquement.
@@ -1509,8 +1528,10 @@ function renderHybridTracks(){
   if(kind==='vehicle'){
     const st=vehicleStateAtDay(id,end);
     if(st.meta){
+      const all=vehiclePoints(id);
       addActualPath(st.pts,st.meta.color);
-      addPlannedFuture(lastTrackPoint(st.pts)||st.real,st.meta.color,
+      addTravelledAhead(all,lastTrackPoint(st.pts)||st.real,st.meta.color);
+      addPlannedFuture(lastTrackPoint(all)||st.real,st.meta.color,
         plannedRangeForVehicle(id));
       addActualMarker(st.point,st.meta.color,st.meta.label,null,
         {faceUrl:st.meta.face,planned:st.planned,wideArt:true});
@@ -1518,12 +1539,17 @@ function renderHybridTracks(){
   }else if(kind==='person'){
     const name=NAME_BY_ID.get(id);
     if(name){
-      const pts=personPoints(name).filter(p=>p.at<=end);
+      const all=personPoints(name);
+      const pts=all.filter(p=>p.at<=end);
       const real=currentForPerson(name,end);
       const {point,planned}=stateAtDay(real,onboardAt(name,idx));
       const color=colorOf(name),range=plannedRangeForPerson(name);
       addActualPath(pts,color);
-      if(range)addPlannedFuture(lastTrackPoint(pts)||real,color,range);
+      // le pointillé enchaîne la suite déjà parcourue, puis le plan depuis la
+      // DERNIÈRE position connue — jamais depuis celle du jour affiché, sinon
+      // il repart en arrière et rouvre le trou.
+      addTravelledAhead(all,lastTrackPoint(pts)||real,color);
+      if(range)addPlannedFuture(lastTrackPoint(all)||real,color,range);
       addActualMarker(point,color,name,name,{planned});
     }
   }

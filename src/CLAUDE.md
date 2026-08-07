@@ -238,6 +238,17 @@ Key JS structures (all near the top of the script):
   leg's geometry and `trimRoad()` cuts it at the right fraction, which removed a
   300 km straight line. Nothing is fetched at display time, so
   `voyage-afrique.html` still works from disk and offline.
+- **Scrubbing into the past recomputes nothing** (`addTravelledAhead()`). The
+  road ahead of a past day is already known — it is the rest of the track — so
+  it is drawn with the very same geometry, dashed instead of solid. The slider
+  only moves the head along one continuous line. Before this, the dashed part
+  was rebuilt as a *prediction from the past position*, which had no cached join
+  (joins are pruned to the latest position) and started hundreds of kilometres
+  away: an 800 km hole on 3 August. `addPlannedFuture()` is now fed the **latest**
+  point, never the displayed day's, or it aims backwards and reopens the hole.
+  Note this deliberately shows road the subject had not yet travelled at the
+  displayed instant — the line is honest about the route, while positions,
+  faces and photos stay restricted to what was known that day.
 - **The dashed future never draws a chord** (`predictedRoad()`,
   `nearestOnSegment()`). The pair "current position → next stop" is never in
   `routes.json` at its exact key: that key carries the live position, which
