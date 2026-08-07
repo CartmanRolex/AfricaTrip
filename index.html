@@ -554,7 +554,7 @@ const ROUTES = {"11.3180,-12.2830;9.6410,-13.5780":[[11.3178,-12.28318],[11.3189
 // (jamais mis en cache) et, si un build plus recent est publie, on recharge une
 // seule fois. Sans reseau, depuis le disque, ou si quoi que ce soit echoue, on
 // ne fait rien.
-const BUILD = "cba54194fc04";
+const BUILD = "66626b83f277";
 if(location.protocol!=='file:'){
   fetch(`version.json?t=${Date.now()}`,{cache:'no-store'})
     .then(r=>r.ok?r.json():null)
@@ -1887,9 +1887,13 @@ function showLb(){
   }
   const d=g.date?new Date(g.date+'T12:00:00'):null;
   const dateLabel=d&&!Number.isNaN(d.getTime())?d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'}):'date inconnue';
+  // Qui a envoyé le média passe en tête : c'est la première question qu'on se
+  // pose devant une photo. Les fichiers déposés sur le Drive n'ont pas d'auteur
+  // (ils arrivent anonymes) — on n'en invente pas, la date reprend la vedette.
+  const who=g.personName?`<b>${esc(g.personName)}</b> · `:'';
   lb.querySelector('.lightbox-cap').innerHTML=
     (g.caption?`<div class="lb-cap-text">${esc(g.caption)}</div>`:'')+
-    `<b>${dateLabel}</b>`+
+    who+(who?dateLabel:`<b>${dateLabel}</b>`)+
     (g.gps?'':(g.manual?' · position choisie':' · position estimée'))+
     (lbList.length>1?` · ${lbIdx+1}/${lbList.length}`:'');
   const nav=lbList.length>1?'grid':'none';

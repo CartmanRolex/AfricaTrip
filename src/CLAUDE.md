@@ -417,7 +417,7 @@ Key JS structures (all near the top of the script):
   −78 % on videos, for no visible difference — opening one photo used to pull
   5 MB. Only Cloudinary URLs are rewritten; Drive photos served by Pages keep
   their path. Image/video support,
-  captions, date, location provenance and thumbnail fallback. Firebase v2
+  captions, date, location provenance and thumbnail fallback. The lightbox caption leads with **who sent the medium** (`personName`), the first thing anyone asks in front of a photo; Drive files arrive anonymous, so when there is no author the date keeps the emphasis rather than a name being invented. Firebase v2
   media remain in the existing root `photos` collection for compatibility but
   carry `tripId`, `personId`, `vehicleIdAtCapture`, `mode`, `assignmentId`,
   `capturedAt` and `locationSource`. Only documents for this trip with a known
