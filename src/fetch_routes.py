@@ -32,7 +32,7 @@ pair within a small window (`PAIR_WINDOW`), which covers the pairs the site
 actually draws after it has dropped some points. Any pair it misses simply
 stays a straight line on the map.
 """
-import argparse, json, os, re, time, urllib.error, urllib.parse, urllib.request
+import argparse, json, math, os, re, time, urllib.error, urllib.parse, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIREBASE_CONFIG = os.path.join(HERE, "..", "app", "www", "firebase-config.js")
@@ -49,6 +49,7 @@ MAX_DETOUR = 4.0         # route > 4x le vol d'oiseau = itineraire aberrant
 PAIR_WINDOW = 3          # relie i a i+1..i+3 : couvre les points ecartes ensuite
 JOIN_STOPS = 3           # escales visees depuis la derniere position connue
 COORD_DP = 4             # ~11 m, la meme cle que le front-end
+SIMPLIFY_KM = 0.2        # tolerance du lissage : compromis fidelite / poids
 
 
 # --------------------------------------------------------------------------
@@ -198,7 +199,6 @@ def collect_points(project, key, roster, rosters):
 # Paires et routage
 # --------------------------------------------------------------------------
 def hav(a, b):
-    import math
     r, d = 6371.0, math.pi / 180
     dla, dlo = (b["lat"] - a["lat"]) * d, (b["lng"] - a["lng"]) * d
     h = (math.sin(dla / 2) ** 2
@@ -262,10 +262,55 @@ def wanted_pairs(points, track_start, route):
     return pairs
 
 
+def simplify(points, tol_km):
+    """Douglas-Peucker, iteratif (une geometrie brute fait des milliers de
+    points et la version recursive depasse la pile de Python)."""
+    if len(points) < 3:
+        return points
+    keep = [False] * len(points)
+    keep[0] = keep[-1] = True
+    stack = [(0, len(points) - 1)]
+    while stack:
+        i, j = stack.pop()
+        if j <= i + 1:
+            continue
+        a, b = points[i], points[j]
+        lat0 = math.radians((a[0] + b[0]) / 2)
+        r, d = 6371.0088, math.pi / 180
+        bx = (b[1] - a[1]) * d * math.cos(lat0) * r
+        by = (b[0] - a[0]) * d * r
+        seg = math.hypot(bx, by)
+        far, best = -1.0, i
+        for k in range(i + 1, j):
+            px = (points[k][1] - a[1]) * d * math.cos(lat0) * r
+            py = (points[k][0] - a[0]) * d * r
+            if seg == 0:
+                dist = math.hypot(px, py)
+            else:
+                t = max(0.0, min(1.0, (px * bx + py * by) / (seg * seg)))
+                dist = math.hypot(px - bx * t, py - by * t)
+            if dist > far:
+                far, best = dist, k
+        if far > tol_km:
+            keep[best] = True
+            stack.append((i, best))
+            stack.append((best, j))
+    return [p for p, k in zip(points, keep) if k]
+
+
 def road_geometry(a, b):
-    """Ask OSRM for the driving geometry. None when it is unusable."""
+    """Ask OSRM for the driving geometry. None when it is unusable.
+
+    `overview=full` puis simplification maison a SIMPLIFY_KM. Le `simplified`
+    d'OSRM raccourcit proportionnellement a la longueur du trajet : sur une
+    etape de 900 km il rendait 59 points et coupait tout droit sur 77 km, a
+    travers la campagne. Mesure sur Montpellier -> Barcelone : 28 points et
+    46 km de raccourci avant, 126 points et 9 km apres, pour 0,6 -> 2,5 Ko.
+    Changer SIMPLIFY_KM n'a d'effet que sur les NOUVELLES paires : supprimer
+    routes.json est le seul moyen de refaire les anciennes.
+    """
     url = (f"{OSRM}{a['lng']:.6f},{a['lat']:.6f};{b['lng']:.6f},{b['lat']:.6f}"
-           "?overview=simplified&geometries=geojson")
+           "?overview=full&geometries=geojson")
     with urllib.request.urlopen(url, timeout=30) as r:
         payload = json.load(r)
     if payload.get("code") != "Ok" or not payload.get("routes"):
@@ -276,8 +321,9 @@ def road_geometry(a, b):
         # un detour enorme signale un itineraire aberrant (contournement d'une
         # mer, point tombe sur une ile) : la ligne droite reste plus honnete.
         return None, "detour"
-    return [[round(lat, 5), round(lng, 5)]
-            for lng, lat in route["geometry"]["coordinates"]], "ok"
+    full = [[round(lat, 5), round(lng, 5)]
+            for lng, lat in route["geometry"]["coordinates"]]
+    return simplify(full, SIMPLIFY_KM), "ok"
 
 
 def read_track_start():
@@ -289,7 +335,11 @@ def read_track_start():
     if not raw:
         return None
     from datetime import datetime
-    day = lambda s: datetime.fromisoformat(f"{s}T00:00:00").timestamp() * 1000
+    # `track_start` accepte une date seule OU une date+heure (quelqu'un qui
+    # rejoint le convoi a une escale). Completer aveuglement en T00:00:00
+    # fabriquait "2026-08-07T14:00T00:00:00" et faisait planter tout le script.
+    day = lambda s: datetime.fromisoformat(
+        s if "T" in s else f"{s}T00:00:00").timestamp() * 1000
     out = {"*": day(raw["default"]) if raw.get("default") else 0}
     for name, value in (raw.get("by_person") or {}).items():
         out[name] = day(value)

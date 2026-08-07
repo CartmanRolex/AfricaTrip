@@ -563,6 +563,20 @@ not know, and that segment reverts to a straight line. Coverage was measured
 falling from 100 % to 58 % in a few hours of travel. Do not rely on a human
 remembering to run it.
 
+**Geometry is fetched at `overview=full` then simplified locally**
+(`simplify()`, Douglas-Peucker, `SIMPLIFY_KM = 0.2`). OSRM's own `simplified`
+overview thins in proportion to route length, so a 900 km leg came back as 59
+points that cut 77 km straight across country. The local pass keeps the stored
+line within a fixed tolerance instead: measured on Montpellier → Barcelona, 126
+points whose worst deviation from the true road is **196 m** (55 m average).
+Long straight sub-segments remain — 24 km on the A62 near Toulouse — and that is
+correct: the road there really is straight, and the tolerance bounds the error,
+not the segment length. Cost of the whole cache: 84 KB → 233 KB, published page
+532 KB → 671 KB. The DP pass is **iterative on purpose**: a raw geometry holds
+thousands of points and the recursive form blows Python's stack.
+`SIMPLIFY_KM` only affects pairs fetched from then on — **delete `routes.json`**
+to re-cut the existing ones, as was done when this landed.
+
 Guards: pairs under 1 km keep the straight line, pairs over 1500 km are not a
 continuous drive, and a route more than 4× the great-circle distance is treated
 as an aberration (a detour around a sea, a point landing on an island) and
