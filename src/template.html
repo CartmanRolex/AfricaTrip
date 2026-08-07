@@ -1320,6 +1320,51 @@ function nextStopKm(km){
   for(const i of cpRouteIdx)if(ROUTE_KM[i]>km+.001)return ROUTE_KM[i];
   return totalKm;
 }
+// ---- repli par projection ------------------------------------------------
+// La géométrie « position vivante -> escale » n'est JAMAIS en cache : sa clé
+// contient la position, qui change à chaque point GPS. Mais quand la personne
+// roule déjà sur l'itinéraire prévu, cette route-là est en cache une fois pour
+// toutes — inutile d'en calculer une nouvelle, il suffit de reprendre celle
+// qu'on a au point le plus proche.
+// Le garde-fou n'est pas une précaution de style : au-delà de NEAR_ROAD_KM la
+// personne n'est pas sur ce corridor (Gal est passé par le centre de l'Espagne
+// quand le plan longe la côte), et y raccrocher son tracé affirmerait un trajet
+// qu'elle ne fait pas. On garde alors la corde : elle est fausse en tant que
+// route, mais elle n'invente rien.
+const NEAR_ROAD_KM=3;
+function nearestOnSegment(p,A,B){
+  const cosLat=Math.max(.01,Math.abs(Math.cos(p.lat*Math.PI/180)));
+  const ax=(A[1]-p.lng)*cosLat,ay=A[0]-p.lat;
+  const bx=(B[1]-p.lng)*cosLat,by=B[0]-p.lat;
+  const vx=bx-ax,vy=by-ay,den=vx*vx+vy*vy;
+  const t=den?Math.max(0,Math.min(1,-(ax*vx+ay*vy)/den)):0;
+  const lat=A[0]+(B[0]-A[0])*t,lng=A[1]+(B[1]-A[1])*t;
+  return {lat,lng,km:hav(p,{lat,lng})};
+}
+// Géométrie routière déjà connue des tronçons de l'itinéraire couvrant [a,b].
+function plannedRoadBetween(aKm,bKm){
+  const out=[];
+  for(let i=0;i<ROUTE.length-1;i++){
+    if(ROUTE_KM[i+1]<=aKm+.001||ROUTE_KM[i]>=bKm-.001)continue;
+    const g=ROUTES[routeKey([ROUTE[i].lat,ROUTE[i].lng],[ROUTE[i+1].lat,ROUTE[i+1].lng])];
+    if(!g)return null;   // un seul trou rendrait toute la suite fausse
+    out.push(...(out.length?g.slice(1):g));
+  }
+  return out.length>1?out:null;
+}
+// La route connue, reprise au point le plus proche de `last` et suivie jusqu'à
+// l'escale. null quand la position est trop loin de ce corridor.
+function roadAhead(last,fromKm,toKm){
+  const road=plannedRoadBetween(fromKm,toKm);
+  if(!road)return null;
+  let best=null;
+  for(let i=1;i<road.length;i++){
+    const hit=nearestOnSegment(last,road[i-1],road[i]);
+    if(!best||hit.km<best.km)best={...hit,i};
+  }
+  if(!best||best.km>NEAR_ROAD_KM)return null;
+  return [[best.lat,best.lng],...road.slice(best.i)];
+}
 function addPlannedFuture(last,color,{startKm=0,endKm=totalKm}={}){
   const end=Math.min(totalKm,endKm);
   // Sans position reelle, le trace prevu commence exactement a l'embarquement.
@@ -1338,9 +1383,14 @@ function addPlannedFuture(last,color,{startKm=0,endKm=totalKm}={}){
   const from=projection?projection.progressKm:startKm;
   if(from>=end)return;
   const stop=Math.min(nextStopKm(from),end);
-  const tail=routeSlice(stop,end);
-  tail.unshift([last.lat,last.lng]);
-  if(tail.length>1)L.polyline(roadPath(tail),{pane:'actualTrackPane',color,weight:4,opacity:.8,
+  const rest=routeSlice(stop,end);
+  // Déjà sur l'itinéraire -> on reprend la route connue depuis la position ;
+  // sinon la corde d'avant, faute de savoir quelle route est prise.
+  const ahead=roadAhead(last,from,stop);
+  const line=ahead
+    ? [[last.lat,last.lng],...ahead,...roadPath(rest).slice(1)]
+    : roadPath([[last.lat,last.lng],...rest]);
+  if(line.length>1)L.polyline(line,{pane:'actualTrackPane',color,weight:4,opacity:.8,
     dashArray:'10 12',lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
 }
 function trackSummary(points){

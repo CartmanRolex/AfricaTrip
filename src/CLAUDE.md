@@ -235,6 +235,25 @@ Key JS structures (all near the top of the script):
   leg's geometry and `trimRoad()` cuts it at the right fraction, which removed a
   300 km straight line. Nothing is fetched at display time, so
   `voyage-afrique.html` still works from disk and offline.
+- **The live join has a projection fallback** (`roadAhead()`,
+  `plannedRoadBetween()`, `nearestOnSegment()`, `NEAR_ROAD_KM`). The pair
+  "current position → next stop" is **never** in `routes.json`: its key carries
+  the live position, which changes with every GPS point, so the generator can
+  only ever cache it for a position already left. Measured mid-drive: the key
+  was absent and the tail fell back to a 217 km chord where the road runs
+  303 km, straying up to 41 km. But a subject already **on** the planned road
+  needs no new geometry — that road is cached once and for all — so the tail now
+  resumes the known geometry at the nearest point instead of cutting a chord.
+  The `NEAR_ROAD_KM` (3 km) guard is not stylistic: beyond it the subject is not
+  on that corridor at all, and attaching their tail to it would assert a journey
+  they are not making. Gal drove through central Spain while the plan hugs the
+  coast — 128 km off — so the fallback correctly declines and the chord stays.
+  Distance is measured against the **cached road geometry**, never against
+  `projectOnPlannedRoute()`'s distance: the editorial route is a coarse polygon
+  (23 waypoints for the whole trip), so a point sitting exactly on the road
+  still reads 72 km from that polyline. Verified: on the road and 1 km off it
+  the fallback fires and follows 73 road vertices (380 km of road versus a
+  313 km chord); 20 km off and at Gal's real position it declines.
   `addPlannedFuture()` **always** begins the dashed tail at the most recent GPS
   point (`tail.unshift`) and interpolates straight to the **next stop**
   (`nextStopKm()`, a checkpoint), then follows the route to the end of the
