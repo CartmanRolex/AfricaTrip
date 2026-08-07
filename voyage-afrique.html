@@ -554,7 +554,7 @@ const ROUTES = {"11.3180,-12.2830;9.6410,-13.5780":[[11.3178,-12.28318],[11.3106
 // (jamais mis en cache) et, si un build plus recent est publie, on recharge une
 // seule fois. Sans reseau, depuis le disque, ou si quoi que ce soit echoue, on
 // ne fait rien.
-const BUILD = "fe697c37f09b";
+const BUILD = "d8e2e6784846";
 if(location.protocol!=='file:'){
   fetch(`version.json?t=${Date.now()}`,{cache:'no-store'})
     .then(r=>r.ok?r.json():null)
@@ -1163,23 +1163,90 @@ function roadPath(ll){
   }
   return out;
 }
-const segmentLatLngs=seg=>roadPath(seg.map(p=>[p.lat,p.lng]));
+// Une paire pas encore routée ne se dessine PAS en corde : le trait s'arrête
+// là et reprend au point suivant. C'est le cas de la tête du tracé, entre le
+// dernier point routé et la position la plus récente — le calcul horaire n'est
+// pas encore passé dessus. La position vraie reste montrée par le marqueur ;
+// inventer une droite de 56 km pour l'y relier serait dessiner un trajet qui
+// n'a pas eu lieu.
+// Le seuil est celui de fetch_routes.py (MIN_PAIR_KM) : en dessous, le routeur
+// n'est même pas interrogé parce que la ligne droite EST la bonne réponse.
+const STRAIGHT_OK_KM=1;
+// Combien une route déjà calculée peut passer loin d'un point pour qu'on
+// considère qu'elle l'emprunte. 2 km couvre l'imprécision GPS et la géométrie
+// simplifiée que renvoie le routeur.
+const TWEEN_NEAR_KM=2;
+const tweenCache=new Map();
+// Point le plus proche d'un tracé, avec son avancement le long de celui-ci.
+function projectOnRoad(p,g){
+  let best=null,acc=0;
+  for(let i=1;i<g.length;i++){
+    const A={lat:g[i-1][0],lng:g[i-1][1]},B={lat:g[i][0],lng:g[i][1]};
+    const hit=nearestOnSegment(p,g[i-1],g[i]);
+    const along=acc+hav(A,hit);
+    if(!best||hit.km<best.km)best={km:hit.km,i,along};
+    acc+=hav(A,B);
+  }
+  return best;
+}
+// Paire absente du cache — mais une route DÉJÀ calculée passe peut-être par les
+// deux points. C'est exactement le cas derrière la voiture : le raccord vers
+// l'escale routé à l'exécution précédente suit la route qu'elle vient de
+// prendre. On en découpe le morceau utile au lieu de couper le trait.
+function roadTween(a,b){
+  const ck=`${a[0].toFixed(4)},${a[1].toFixed(4)};${b[0].toFixed(4)},${b[1].toFixed(4)}`;
+  if(tweenCache.has(ck))return tweenCache.get(ck);
+  const A={lat:a[0],lng:a[1]},B={lat:b[0],lng:b[1]};
+  let best=null;
+  for(const k in ROUTES){
+    const g=ROUTES[k];
+    // Projeter SUR les segments, pas sur les sommets : deux points GPS voisins
+    // tombent sinon sur le même sommet d'une géométrie simplifiée et le
+    // morceau paraît vide. On mesure aussi l'avancement le long du tracé, seule
+    // façon de savoir lequel des deux est devant.
+    const pa=projectOnRoad(A,g),pb=projectOnRoad(B,g);
+    if(!pa||!pb||pa.along>=pb.along)continue;
+    const score=Math.max(pa.km,pb.km);
+    if(score<=TWEEN_NEAR_KM&&(!best||score<best.score))
+      best={score,path:[a,...g.slice(pa.i,pb.i),b]};   // ancré aux vrais points GPS
+  }
+  const out=best?best.path:null;
+  tweenCache.set(ck,out);
+  return out;
+}
+function roadPieces(ll){
+  if(ll.length<2)return [];
+  const pieces=[];let cur=[ll[0]];
+  for(let i=1;i<ll.length;i++){
+    const road=roadTo(ll[i-1],ll[i])||roadTween(ll[i-1],ll[i]);
+    if(road&&road.length>1){cur.push(...road.slice(1));continue;}
+    if(hav({lat:ll[i-1][0],lng:ll[i-1][1]},{lat:ll[i][0],lng:ll[i][1]})<=STRAIGHT_OK_KM){
+      cur.push(ll[i]);continue;
+    }
+    if(cur.length>1)pieces.push(cur);
+    cur=[ll[i]];
+  }
+  if(cur.length>1)pieces.push(cur);
+  return pieces;
+}
+const segmentPieces=seg=>roadPieces(seg.map(p=>[p.lat,p.lng]));
 // `quiet` : la trace de l'autre voiture, gardée visible en fond. Trait fin et
 // pâle, sans halo — elle doit situer le convoi sans disputer la vedette au
 // sujet suivi. Dessinée en premier, elle passe donc dessous.
 function addActualPath(points,color,{quiet=false}={}){
   trackSegments(points).forEach(seg=>{
     if(seg.length<2)return;
-    const ll=segmentLatLngs(seg);
-    if(quiet){
-      L.polyline(ll,{pane:'actualTrackPane',color,weight:3,opacity:.42,
+    segmentPieces(seg).forEach(ll=>{
+      if(quiet){
+        L.polyline(ll,{pane:'actualTrackPane',color,weight:3,opacity:.42,
+          lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
+        return;
+      }
+      // halo sous le trait, pour detacher la trace du fond de carte
+      L.polyline(ll,{pane:'actualTrackPane',color,weight:11,opacity:.17,lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
+      L.polyline(ll,{pane:'actualTrackPane',color,weight:5,opacity:1,
         lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
-      return;
-    }
-    // halo sous le trait, pour detacher la trace du fond de carte
-    L.polyline(ll,{pane:'actualTrackPane',color,weight:11,opacity:.17,lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
-    L.polyline(ll,{pane:'actualTrackPane',color,weight:5,opacity:1,
-      lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
+    });
   });
 }
 // Un seul marqueur pour tout le monde : une voiture est un personnage de plus.
