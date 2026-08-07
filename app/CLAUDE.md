@@ -156,6 +156,24 @@ tests des règles avant tout déploiement.
   plugin natif. Le clip est encore chargé ENTIÈREMENT en mémoire par la WebView
   pour être envoyé : un envoi natif en flux supprimerait ce plafond, mais c'est
   un autre chantier.
+- **Un fichier de plus de 6 Mo part en TRANCHES** (`sendInChunks()`). En un seul
+  bloc, une coupure à 90 % perd tout et il faut tout recommencer : sur un réseau
+  instable, un gros clip ne passe alors jamais. Constaté en itinérance, un envoi
+  de 22 Mo mourait sur `Failed to fetch`. Découpé, une coupure ne coûte que la
+  tranche en cours ; chacune est retentée jusqu'à `CHUNK_TRIES` fois avec une
+  attente croissante, et les tranches déjà acceptées sont acquises. Cloudinary
+  recolle grâce à `X-Unique-Upload-Id` (identique pour tout le fichier) +
+  `Content-Range` ; la dernière réponse porte le `secure_url`. `CHUNK_BYTES` ne
+  peut pas descendre sous 5 Mo, Cloudinary refuse les tranches plus petites.
+  Un refus explicite (HTTP 4xx) porte `err.refused` et n'est jamais retenté —
+  insister ne changerait rien et masquerait le vrai message.
+- **Ceci couvre aussi le passage en arrière-plan**, la cause la plus probable
+  des envois morts : Android suspend la WebView dès qu'on bascule sur une autre
+  app, et un gros blob en mémoire fait du processus une cible de choix pour le
+  tueur de mémoire. La boucle de reprise repart de la dernière tranche acceptée
+  au retour au premier plan. Si le processus est vraiment TUÉ, tout est perdu :
+  seul un service de premier plan (notification « envoi en cours ») l'éviterait,
+  et il reste à faire.
 - **Diagnostiquer un échec d'envoi.** Le chemin vidéo natif comporte DEUX
   `fetch` : relire le fichier copié en cache, puis l'envoyer à Cloudinary. Les
   deux échouaient avec le même « Failed to fetch », impossible à départager.

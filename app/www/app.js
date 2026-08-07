@@ -308,6 +308,61 @@ async function compressImage(blob) {
     return blob;   // format exotique / WebView récalcitrante -> original
   }
 }
+// Envoi par TRANCHES. En un seul bloc, une coupure à 90 % perd tout le fichier
+// et il faut tout recommencer — sur un réseau instable, un gros clip ne passe
+// alors jamais. Découpé, une coupure ne coûte que la tranche en cours, et les
+// tranches déjà acceptées sont acquises. Cloudinary recolle les morceaux grâce
+// à X-Unique-Upload-Id (le même pour tout le fichier) + Content-Range.
+// Cela couvre aussi le passage en arrière-plan : Android suspend la WebView
+// quand on bascule sur une autre app, l'envoi en cours meurt, et la boucle de
+// reprise repart de la dernière tranche acceptée au retour au premier plan.
+const CHUNK_BYTES = 6 * 1024 * 1024;   // Cloudinary refuse les tranches < 5 Mo
+const CHUNK_TRIES = 4;
+
+async function postSlice(endpoint, slice, headers) {
+  const form = new FormData();
+  form.append("file", slice);
+  form.append("upload_preset", CLOUDINARY.preset);
+  const res = await fetch(endpoint, { method: "POST", body: form, headers });
+  if (!res.ok) {
+    let why = "";
+    try { why = " — " + ((await res.json()).error || {}).message; } catch (_) {}
+    const err = new Error(`Cloudinary a refusé l'envoi (HTTP ${res.status})${why}`);
+    err.refused = true;   // un refus explicite ne se règle pas en réessayant
+    throw err;
+  }
+  return res;
+}
+
+async function sendInChunks(endpoint, blob, onStep) {
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+  const total = blob.size, count = Math.ceil(total / CHUNK_BYTES);
+  let last = null;
+  for (let i = 0; i < count; i++) {
+    const start = i * CHUNK_BYTES, end = Math.min(start + CHUNK_BYTES, total);
+    let failure = null;
+    for (let attempt = 1; attempt <= CHUNK_TRIES; attempt++) {
+      try {
+        onStep(i + 1, count, attempt);
+        last = await postSlice(endpoint, blob.slice(start, end), {
+          "X-Unique-Upload-Id": id,
+          "Content-Range": `bytes ${start}-${end - 1}/${total}`,
+        });
+        failure = null;
+        break;
+      } catch (e) {
+        failure = e;
+        if (e.refused) throw e;
+        // attente croissante : laisser au réseau (ou au retour au premier plan)
+        // le temps de revenir avant de réessayer la MÊME tranche.
+        await new Promise(r => setTimeout(r, 1000 * attempt));
+      }
+    }
+    if (failure) throw failure;
+  }
+  return last;   // la dernière réponse porte le secure_url du fichier recollé
+}
+
 // Vignette : photo -> crop carré ; vidéo -> poster (1re frame) en .jpg.
 function mediaThumb(url, video, px) {
   if (!url) return "";
@@ -1252,28 +1307,25 @@ async function uploadPhoto(blob, lat, lng, date, video = isVideoBlob(blob), cont
     // le FICHIER va sur Cloudinary (gratuit, sans carte) ; seules les
     // MÉTADONNÉES (nom, position, date, url, type) vont dans Firestore.
     // Endpoint distinct pour la vidéo (/video/upload) vs l'image (/image/upload).
-    // la vidéo part telle quelle (le transcodage reste à faire côté natif) ;
-    // la photo est allégée ici, avant de partir sur le réseau.
+    // la vidéo est allégée côté natif (VideoTranscoder) au moment du choix ;
+    // la photo l'est ici, avant de partir sur le réseau.
     const payload = video ? blob : await compressImage(blob);
-    const form = new FormData();
-    form.append("file", payload);
-    form.append("upload_preset", CLOUDINARY.preset);
+    const endpoint =
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY.cloudName}/${video ? "video" : "image"}/upload`;
     let res;
     try {
-      res = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUDINARY.cloudName}/${video ? "video" : "image"}/upload`,
-        { method: "POST", body: form });
+      res = payload.size > CHUNK_BYTES
+        ? await sendInChunks(endpoint, payload, (n, count, attempt) =>
+            currentUploadStatus(context,
+              `envoi ${n}/${count}${attempt > 1 ? ` — reprise ${attempt}` : ""}…`, true))
+        : await postSlice(endpoint, payload);
     } catch (e) {
-      // fetch qui echoue sans reponse = reseau coupe ou envoi interrompu. Le
-      // distinguer d'une erreur de lecture du fichier evite de chercher au
-      // mauvais endroit la prochaine fois.
+      // Un refus de Cloudinary porte déjà son propre message ; le reste est un
+      // fetch mort sans réponse (réseau coupé, app passée en arrière-plan). Les
+      // distinguer évite de chercher au mauvais endroit la prochaine fois.
+      if (e && e.refused) throw e;
       throw new Error(`envoi vers Cloudinary interrompu (${Math.round(payload.size / 1048576)} Mo) — `
-        + `réseau instable ? détail : ${e && e.message ? e.message : e}`);
-    }
-    if (!res.ok) {
-      let why = "";
-      try { why = " — " + ((await res.json()).error || {}).message; } catch (_) {}
-      throw new Error(`Cloudinary a refusé le ${noun} (HTTP ${res.status})${why}`);
+        + `réseau instable ou app mise en arrière-plan ? détail : ${e && e.message ? e.message : e}`);
     }
     const link = (await res.json()).secure_url;
 
