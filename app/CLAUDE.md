@@ -174,6 +174,19 @@ tests des règles avant tout déploiement.
   au retour au premier plan. Si le processus est vraiment TUÉ, tout est perdu :
   seul un service de premier plan (notification « envoi en cours ») l'éviterait,
   et il reste à faire.
+- **La barre d'envoi montre l'envoi tel qu'il est fait** (`upBar`, `.upbar*`
+  dans `styles.css`). Ses repères ne décorent pas : ils tombent sur les
+  frontières des tranches, donc ils donnent à voir ce qui est déjà à l'abri
+  d'une coupure. Un fichier envoyé d'un bloc n'en a aucun. Une reprise vire à
+  l'ambre plutôt que de reculer en silence — un recul muet est ce qui fait
+  croire à un blocage. Vert puis effacement à la fin ; toute erreur appelle
+  `upBar.hide()`, une barre figée à l'écran serait pire que pas de barre.
+- **`postSlice()` utilise XHR et non `fetch()`.** C'est la seule raison :
+  `fetch` ne sait pas dire où en est un envoi (`upload.onprogress`), et sans
+  cela la barre ne pourrait qu'inventer sa progression. Le prix est que la
+  fonction renvoie le corps BRUT (`responseText`), d'où le `JSON.parse` côté
+  appelant. `xhr.onerror` reprend volontairement le libellé « Failed to
+  fetch » pour que les rapports d'erreur déjà connus restent comparables.
 - **Diagnostiquer un échec d'envoi.** Le chemin vidéo natif comporte DEUX
   `fetch` : relire le fichier copié en cache, puis l'envoyer à Cloudinary. Les
   deux échouaient avec le même « Failed to fetch », impossible à départager.

@@ -319,22 +319,33 @@ async function compressImage(blob) {
 const CHUNK_BYTES = 6 * 1024 * 1024;   // Cloudinary refuse les tranches < 5 Mo
 const CHUNK_TRIES = 4;
 
-async function postSlice(endpoint, slice, headers) {
-  const form = new FormData();
-  form.append("file", slice);
-  form.append("upload_preset", CLOUDINARY.preset);
-  const res = await fetch(endpoint, { method: "POST", body: form, headers });
-  if (!res.ok) {
-    let why = "";
-    try { why = " — " + ((await res.json()).error || {}).message; } catch (_) {}
-    const err = new Error(`Cloudinary a refusé l'envoi (HTTP ${res.status})${why}`);
-    err.refused = true;   // un refus explicite ne se règle pas en réessayant
-    throw err;
-  }
-  return res;
+// XHR et non fetch() : fetch ne sait pas dire OÙ EN EST un envoi, et sans
+// cela la barre de progression ne pourrait qu'inventer. Renvoie le corps brut.
+function postSlice(endpoint, slice, headers, onBytes) {
+  return new Promise((resolve, reject) => {
+    const form = new FormData();
+    form.append("file", slice);
+    form.append("upload_preset", CLOUDINARY.preset);
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", endpoint);
+    Object.entries(headers || {}).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+    if (onBytes) xhr.upload.onprogress = e => { if (e.lengthComputable) onBytes(e.loaded); };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) return resolve(xhr.responseText);
+      let why = "";
+      try { why = " — " + (JSON.parse(xhr.responseText).error || {}).message; } catch (_) {}
+      const err = new Error(`Cloudinary a refusé l'envoi (HTTP ${xhr.status})${why}`);
+      err.refused = true;   // un refus explicite ne se règle pas en réessayant
+      reject(err);
+    };
+    // meme libelle que fetch() : les messages d'erreur deja vus ne changent pas
+    xhr.onerror = () => reject(new Error("Failed to fetch"));
+    xhr.onabort = () => reject(new Error("envoi interrompu"));
+    xhr.send(form);
+  });
 }
 
-async function sendInChunks(endpoint, blob, onStep) {
+async function sendInChunks(endpoint, blob, report) {
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
   const total = blob.size, count = Math.ceil(total / CHUNK_BYTES);
   let last = null;
@@ -343,11 +354,14 @@ async function sendInChunks(endpoint, blob, onStep) {
     let failure = null;
     for (let attempt = 1; attempt <= CHUNK_TRIES; attempt++) {
       try {
-        onStep(i + 1, count, attempt);
+        report({ index: i + 1, count, attempt, sent: start, total });
         last = await postSlice(endpoint, blob.slice(start, end), {
           "X-Unique-Upload-Id": id,
           "Content-Range": `bytes ${start}-${end - 1}/${total}`,
-        });
+          // le corps multipart pèse un peu plus que la tranche : borner évite
+          // une barre qui dépasse la frontière de sa propre tranche.
+        }, loaded => report({ index: i + 1, count, attempt, total,
+          sent: Math.min(start + loaded, end) }));
         failure = null;
         break;
       } catch (e) {
@@ -362,6 +376,53 @@ async function sendInChunks(endpoint, blob, onStep) {
   }
   return last;   // la dernière réponse porte le secure_url du fichier recollé
 }
+
+// Barre d'envoi. Elle montre l'envoi TEL QU'IL EST FAIT : un repère par
+// frontière de tranche, et un remplissage qui n'avance qu'avec les octets
+// réellement partis (XHR). Une reprise vire à l'ambre au lieu de reculer en
+// silence — reculer sans rien dire est ce qui donne l'impression d'un blocage.
+const upBar = {
+  total: 0,
+  show(total, count) {
+    const el = $("up-bar"); if (!el) return;
+    this.total = total;
+    el.hidden = false;
+    el.classList.remove("retry", "done");
+    $("up-track").classList.add("busy");
+    const ticks = $("up-ticks");
+    ticks.innerHTML = "";
+    for (let i = 1; i < count; i++) {
+      const t = document.createElement("i");
+      t.style.left = `${(i / count) * 100}%`;
+      ticks.appendChild(t);
+    }
+    $("up-step").textContent = count > 1 ? `tranche 1 / ${count}` : "envoi";
+    this.at(0);
+  },
+  at(sent, step, retry) {
+    const el = $("up-bar"); if (!el || el.hidden) return;
+    const pct = this.total ? Math.min(100, Math.round(sent / this.total * 100)) : 0;
+    $("up-fill").style.width = `${pct}%`;
+    $("up-pct").innerHTML = `<b>${pct}</b> %`;
+    if (step) $("up-step").textContent = step;
+    el.classList.toggle("retry", !!retry);
+  },
+  finish() {
+    const el = $("up-bar"); if (!el || el.hidden) return;
+    $("up-track").classList.remove("busy");
+    el.classList.remove("retry");
+    el.classList.add("done");
+    this.at(this.total);
+    $("up-step").textContent = "envoyé";
+    setTimeout(() => { if (el.classList.contains("done")) el.hidden = true; }, 1200);
+  },
+  hide() {
+    const el = $("up-bar"); if (!el) return;
+    el.hidden = true;
+    el.classList.remove("retry", "done");
+    $("up-track").classList.remove("busy");
+  },
+};
 
 // Vignette : photo -> crop carré ; vidéo -> poster (1re frame) en .jpg.
 function mediaThumb(url, video, px) {
@@ -1312,14 +1373,17 @@ async function uploadPhoto(blob, lat, lng, date, video = isVideoBlob(blob), cont
     const payload = video ? blob : await compressImage(blob);
     const endpoint =
       `https://api.cloudinary.com/v1_1/${CLOUDINARY.cloudName}/${video ? "video" : "image"}/upload`;
+    const count = Math.ceil(payload.size / CHUNK_BYTES) || 1;
+    upBar.show(payload.size, count);
     let res;
     try {
-      res = payload.size > CHUNK_BYTES
-        ? await sendInChunks(endpoint, payload, (n, count, attempt) =>
-            currentUploadStatus(context,
-              `envoi ${n}/${count}${attempt > 1 ? ` — reprise ${attempt}` : ""}…`, true))
-        : await postSlice(endpoint, payload);
+      res = count > 1
+        ? await sendInChunks(endpoint, payload, p => upBar.at(p.sent,
+            `tranche ${p.index} / ${p.count}${p.attempt > 1 ? ` · reprise ${p.attempt}` : ""}`,
+            p.attempt > 1))
+        : await postSlice(endpoint, payload, null, loaded => upBar.at(loaded));
     } catch (e) {
+      upBar.hide();
       // Un refus de Cloudinary porte déjà son propre message ; le reste est un
       // fetch mort sans réponse (réseau coupé, app passée en arrière-plan). Les
       // distinguer évite de chercher au mauvais endroit la prochaine fois.
@@ -1327,7 +1391,8 @@ async function uploadPhoto(blob, lat, lng, date, video = isVideoBlob(blob), cont
       throw new Error(`envoi vers Cloudinary interrompu (${Math.round(payload.size / 1048576)} Mo) — `
         + `réseau instable ou app mise en arrière-plan ? détail : ${e && e.message ? e.message : e}`);
     }
-    const link = (await res.json()).secure_url;
+    upBar.finish();
+    const link = JSON.parse(res).secure_url;   // postSlice renvoie le corps brut
 
     const { db, addDoc, collection, ts } = await fb();
     await addDoc(collection(db, "photos"), {
@@ -1359,6 +1424,7 @@ async function uploadPhoto(blob, lat, lng, date, video = isVideoBlob(blob), cont
           ? `<span class="ok">${noun} ajoutée</span> (carte indisponible → ajoute le lieu plus tard)`
           : `<span class="ok">${noun} ajoutée</span> (sans lieu → n'apparaîtra pas sur la carte)`);
   } catch (e) {
+    upBar.hide();   // une erreur ne doit pas laisser une barre figée à l'écran
     currentUploadStatus(context, `<span class="err">erreur: ${e.code || e}</span>`);
   }
 }

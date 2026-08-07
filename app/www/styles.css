@@ -168,3 +168,30 @@ button.primary:disabled{opacity:.5}
   white-space:nowrap}
 .foot-link:active{color:var(--c1)}
 .ok{color:var(--present)} .err{color:var(--danger)}
+
+/* Barre d'envoi. Les repères ne décorent pas : ils tombent sur les frontières
+   des tranches réellement envoyées, donc ils montrent ce qui est déjà à l'abri
+   d'une coupure. Sur un fichier envoyé d'un bloc, il n'y en a aucun. */
+.upbar{margin-top:10px}
+.upbar-track{position:relative;height:8px;border-radius:99px;overflow:hidden;
+  background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line)}
+.upbar-fill{height:100%;width:0;border-radius:99px;background:var(--c1);
+  transition:width .25s ease,background-color .35s ease}
+/* reflet : seulement pendant que ça avance, pour que l'arrêt se voie */
+.upbar-track.busy::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(239,231,214,.16),transparent);
+  transform:translateX(-100%);animation:upsheen 1.5s ease-in-out infinite}
+@keyframes upsheen{to{transform:translateX(100%)}}
+.upbar-ticks{position:absolute;inset:0;pointer-events:none}
+.upbar-ticks i{position:absolute;top:0;bottom:0;width:1px;background:var(--bg);opacity:.6}
+.upbar.retry .upbar-fill{background:var(--unknown)}
+.upbar.done .upbar-fill{background:var(--present)}
+.upbar.done .upbar-track{box-shadow:inset 0 0 0 1px rgba(143,195,106,.45)}
+.upbar-meta{display:flex;justify-content:space-between;gap:8px;margin-top:5px;
+  font-size:11px;color:var(--muted)}
+.upbar-meta b{font-family:var(--display);font-weight:600;color:var(--sand-dim);
+  font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){
+  .upbar-track.busy::after{animation:none}
+  .upbar-fill{transition:none}
+}
