@@ -112,6 +112,21 @@ tests des règles avant tout déploiement.
   assignmentId, capturedAt, locationSource}`. `locationSource` vaut
   `media-gps`, `manual` ou `none`.
 
+## Jauges PV / Mana / Éveil
+
+Trois curseurs 0-10 pilotés par le MÊME mécanisme (`STATS` + une seule boucle
+dans `initStats()`), chacun écrivant son champ dans `crew/{prénom}` en
+`{merge:true}` — le site les relit en direct. Une boucle plutôt que trois copies,
+c'est ce qui garantit qu'elles se comportent pareil.
+
+**Une minuterie par jauge** (`statsTimer_<clé>`) : une seule minuterie partagée
+faisait qu'en bougeant le Mana on annulait l'enregistrement des PV réglés une
+demi-seconde plus tôt. `cleanupDashboard()` les annule TOUTES, sinon un curseur
+bougé juste avant un changement de personne écrirait sous l'identité suivante.
+
+Les règles Firestore de `crew` acceptent n'importe quel champ : ajouter une
+jauge ne demande aucun déploiement de règles.
+
 ## Médias
 
 - Les fichiers vont sur Cloudinary via le preset non signé `expedition` ; seul

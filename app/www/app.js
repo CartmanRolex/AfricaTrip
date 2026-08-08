@@ -806,7 +806,9 @@ function cleanupDashboard() {
   activeDashboard = null;
   if (!lifecycle) return;
   lifecycle.active = false;
-  clearTimeout(lifecycle.statsTimer);
+  // une minuterie par jauge : les annuler TOUTES, sinon un curseur bougé juste
+  // avant un changement de personne écrirait sous l'identité suivante.
+  for (const stat of STATS) clearTimeout(lifecycle[`statsTimer_${stat.key}`]);
   clearInterval(lifecycle.ageTimer);
   if (lifecycle.photoUnsub) {
     try { lifecycle.photoUnsub(); } catch (_) {}
@@ -919,7 +921,6 @@ async function start() {
     assignment: makeAssignment(person, sessionId, choice, "session-start"),
     assignmentReady: false,
     pointSeq: 0,
-    statsTimer: null,
     ageTimer: null,
     photoUnsub: null,
     position: null,
@@ -1163,42 +1164,61 @@ function dist(a, b) { // mètres, approx équirectangulaire
   return Math.sqrt(dx * dx + dy * dy) * R;
 }
 
-// ---- PV / XP (sauvegarde automatique à chaque modification) ----------------
+// ---- PV / Mana / Éveil (sauvegarde automatique à chaque modification) -----
+// Les trois jauges sont le MÊME mécanisme : un curseur 0-10 qui écrit son champ
+// dans `crew/{prénom}`, que le site relit en direct. Une seule boucle plutôt que
+// trois copies — c'est ce qui garantit qu'elles se comportent pareil.
+const STATS = [
+  { key: "pv", slider: "pv", out: "pv-val" },
+  { key: "mana", slider: "mana", out: "mana-val" },
+  { key: "eveil", slider: "eveil", out: "eveil-val" },
+];
 function initStats(lifecycle, person) {
-  const pv = $("pv"), pvVal = $("pv-val");
-  pv.value = 5;
-  pvVal.textContent = "5";
   $("stats-status").textContent = "chargement…";
-  pv.oninput = () => {
-    pvVal.textContent = pv.value;
-    clearTimeout(lifecycle.statsTimer);
-    $("stats-status").textContent = "…";
-    const value = +pv.value;
-    lifecycle.statsTimer = setTimeout(async () => {
-      try {
-        const { db, doc, setDoc, ts } = await fb();
-        await setDoc(doc(db, "crew", person),
-          { name: person, car: CREW[person], pv: value, at: ts() }, { merge: true });
-        if (!lifecycle.active || activeDashboard !== lifecycle) return;
-        $("stats-status").innerHTML = `<span class="ok">enregistré ✓</span>`;
-      } catch (e) {
-        if (lifecycle.active && activeDashboard === lifecycle) {
-          $("stats-status").innerHTML = `<span class="err">${e.code || e}</span>`;
+  for (const stat of STATS) {
+    const el = $(stat.slider), out = $(stat.out);
+    if (!el || !out) continue;
+    el.value = 5;
+    out.textContent = "5";
+    el.oninput = () => {
+      out.textContent = el.value;
+      // Une minuterie PAR jauge : bouger le mana ne doit pas annuler
+      // l'enregistrement des PV qu'on vient de régler.
+      clearTimeout(lifecycle[`statsTimer_${stat.key}`]);
+      $("stats-status").textContent = "…";
+      const value = +el.value;
+      lifecycle[`statsTimer_${stat.key}`] = setTimeout(async () => {
+        try {
+          const { db, doc, setDoc, ts } = await fb();
+          await setDoc(doc(db, "crew", person),
+            { name: person, car: CREW[person], [stat.key]: value, at: ts() },
+            { merge: true });
+          if (!lifecycle.active || activeDashboard !== lifecycle) return;
+          $("stats-status").innerHTML = `<span class="ok">enregistré ✓</span>`;
+        } catch (e) {
+          if (lifecycle.active && activeDashboard === lifecycle) {
+            $("stats-status").innerHTML = `<span class="err">${e.code || e}</span>`;
+          }
         }
-      }
-    }, 500);   // léger délai pour ne pas écrire à chaque cran du curseur
-  };
+      }, 500);   // léger délai pour ne pas écrire à chaque cran du curseur
+    };
+  }
 
-  // charge mes PV déjà enregistrés
+  // recharge les valeurs déjà enregistrées
   (async () => {
     try {
       const { db, doc, getDoc } = await fb();
       const snap = await getDoc(doc(db, "crew", person));
       if (!lifecycle.active || activeDashboard !== lifecycle) return;
-      if (snap.exists() && snap.data().pv != null) {
-        pv.value = snap.data().pv; pvVal.textContent = snap.data().pv;
-        $("stats-status").textContent = "enregistré automatiquement";
+      if (!snap.exists()) return;
+      const d = snap.data();
+      for (const stat of STATS) {
+        const el = $(stat.slider), out = $(stat.out);
+        if (!el || !out || d[stat.key] == null) continue;
+        el.value = d[stat.key];
+        out.textContent = d[stat.key];
       }
+      $("stats-status").textContent = "enregistré automatiquement";
     } catch (_) {}
   })();
 }

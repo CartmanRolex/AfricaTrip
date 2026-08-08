@@ -265,7 +265,12 @@ def read_config():
     cfg["couleurs"] = {r["voiture"]: r["couleur"] for r in sections.get("couleurs", [])}
     cfg["etapes"] = [{"emoji": r["emoji"], "diff": num(r["difficulté"], int, 3),
                       "lbl": r["label"]} for r in sections.get("etapes", [])]
+    # mana/eveil : jauges 0-10 pilotees par les curseurs de l'app. Colonnes
+    # optionnelles (`.get`) pour qu'un Config.csv qui ne les a pas encore
+    # continue de se parser, avec 5 comme neutre — comme pv.
     cfg["rpg"] = {r["nom"]: {"xp": num(r["xp"], int), "pv": num(r["pv"], int, 5),
+                             "mana": num(r.get("mana"), int, 5),
+                             "eveil": num(r.get("eveil"), int, 5),
                              "skill": r["compétence"],
                              "lien": r.get("lien", ""),
                              "tel": r.get("téléphone", ""),

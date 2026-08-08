@@ -71,10 +71,14 @@
       </div>
     </div>
 
-    <!-- PV (sauvegarde automatique) -->
+    <!-- PV / Mana / Éveil (sauvegarde automatique) -->
     <div class="card">
-      <div class="row"><span class="label">❤️ Mes PV</span><b id="pv-val">5</b><span class="muted">/10</span></div>
+      <div class="row"><span class="label">❤️ Mes PV</span><b id="pv-val" class="stat-val">5</b><span class="muted">/10</span></div>
       <input type="range" id="pv" min="0" max="10" value="5" class="slider">
+      <div class="row"><span class="label">🔵 Mon Mana</span><b id="mana-val" class="stat-val">5</b><span class="muted">/10</span></div>
+      <input type="range" id="mana" min="0" max="10" value="5" class="slider">
+      <div class="row"><span class="label">🟣 Mon Éveil</span><b id="eveil-val" class="stat-val">5</b><span class="muted">/10</span></div>
+      <input type="range" id="eveil" min="0" max="10" value="5" class="slider">
       <div class="hint" id="stats-status">enregistré automatiquement</div>
     </div>
 

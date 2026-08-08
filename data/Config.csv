@@ -72,7 +72,7 @@ emoji,difficulté,label,note,,,
 🧭,3,Inconnu,au-delà : carte non révélée,,,
 ,,,,,,
 ## rpg,,,,,,
-nom,xp,pv,compétence,lien,téléphone,note
+nom,xp,pv,compétence,lien,téléphone,note,mana,eveil
 Gal,1337,8,Chomage à durée indéterminée +4,,41772655407,
 Hugo,420,6,Poncho violet niv. 5,,41754124617,
 Malen,666,5,Pause clope stratégique +3,,41786457340,

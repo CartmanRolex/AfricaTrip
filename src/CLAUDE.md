@@ -92,9 +92,14 @@ Key JS structures (all near the top of the script):
 - `LEG_META` — per-leg theme emoji + difficulty 1-5 + label (◆ pips,
   color-coded green/amber/red via `DIFF_COLOR`, hex on purpose: reused as
   SVG stroke on the map where `var()` doesn't work).
-- `RPG` — per-traveler `{xp, pv, skill, lien, tel, note}` (PV bar color
-  thresholds ≥7 green, ≥4 amber, else red), from Config.csv's `## rpg`
-  section (columns: nom, xp, pv, compétence, lien, téléphone, note).
+- `RPG` — per-traveler `{xp, pv, mana, eveil, skill, lien, tel, note}`, from
+  Config.csv's `## rpg` section (columns: nom, xp, pv, compétence, lien,
+  téléphone, note, mana, eveil; the last two default to 5 when absent).
+  **Three 0-10 gauges**, all driven by sliders in the app through `crew/{name}`:
+  PV keeps its threshold colours (≥7 green, ≥4 amber, else red) because it means
+  health, while Mana and Éveil are neutral magnitudes and get one fixed hue each
+  (`--mana`, `--eveil`) so the three read apart at a glance. `statBar()` clamps
+  to 0-10: a stray value from Firestore must not overflow its bar.
   `lien` (optional URL) is NOT on the card any more — the card opens the
   fiche; the link lives there as the "Ouvrir le lien ↗" button.
 - **Fiche aventurier** — clicking (tapping) any face chip REPLACES that
@@ -461,8 +466,9 @@ Key JS structures (all near the top of the script):
     take that person's roster vehicle.
   - root `photos` is rebuilt on each media snapshot after preserving the
     build-time `GALLERY` prefix, which also handles deleted Firebase media.
-  - root `crew` remains the live PV source: numeric `pv` overwrites the CSV
-    value in `RPG` and rerenders seats/fiches.
+  - root `crew` is the live source for the three gauges: numeric `pv`, `mana`
+    and `eveil` overwrite the CSV values in `RPG` and rerender seats/fiches.
+    Its rules accept any field, so adding a gauge needs no rules change.
 
   Every listener ends on `refreshLiveLayers()`, which simply redraws the map
   layers (or delegates to `render()` when a fiche is open, so the layers are not
