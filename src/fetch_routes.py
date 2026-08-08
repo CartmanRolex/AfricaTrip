@@ -256,7 +256,11 @@ def wanted_pairs(points, track_start, route):
         # Une traversee en ferry n'a pas de route : le profil voiture d'OSRM
         # l'ignore, et sa reponse s'arretait a Tarifa. La ligne droite EST la
         # bonne geometrie ici — c'est ce que fait le bateau.
-        if b.get("ferry") or a.get("ferry"):
+        # SEULE la paire qui ARRIVE sur l'escale marquee compte : le drapeau dit
+        # « on atteint ce point par bateau ». Tester aussi le depart faisait de
+        # Tanger Med -> Rabat une traversee, soit 240 km de route marocaine
+        # remplaces par une ligne droite.
+        if b.get("ferry"):
             FERRY_KEYS.add(key_of(a, b))
 
     # 3. raccord derniere position -> prochaines escales. Le front-end vise la
