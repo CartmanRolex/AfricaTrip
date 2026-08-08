@@ -46,6 +46,7 @@ OSRM = "https://router.project-osrm.org/route/v1/driving/"
 MIN_PAIR_KM = 1.0        # en dessous, la ligne droite est deja la bonne reponse
 MAX_PAIR_KM = 1500.0     # au dela, ce n'est plus un trajet routier continu
 MAX_DETOUR = 4.0         # route > 4x le vol d'oiseau = itineraire aberrant
+SNAP_MAX_KM = 50.0       # au-dela, OSRM a repondu a une autre question
 PAIR_WINDOW = 3          # relie i a i+1..i+3 : couvre les points ecartes ensuite
 JOIN_STOPS = 3           # escales visees depuis la derniere position connue
 COORD_DP = 4             # ~11 m, la meme cle que le front-end
@@ -217,6 +218,11 @@ def add_pair(pairs, a, b):
         pairs.setdefault(key_of(a, b), (a, b, km))
 
 
+# Cles des traversees maritimes, remplies par wanted_pairs() : elles ne peuvent
+# pas etre routees et se dessinent en ligne droite, ce qui est exact.
+FERRY_KEYS = set()
+
+
 def wanted_pairs(points, track_start, route):
     """Every pair the map may have to draw, past and future alike.
 
@@ -247,6 +253,11 @@ def wanted_pairs(points, track_start, route):
     # 2. itineraire prevu, waypoint par waypoint
     for a, b in zip(route, route[1:]):
         add_pair(pairs, a, b)
+        # Une traversee en ferry n'a pas de route : le profil voiture d'OSRM
+        # l'ignore, et sa reponse s'arretait a Tarifa. La ligne droite EST la
+        # bonne geometrie ici — c'est ce que fait le bateau.
+        if b.get("ferry") or a.get("ferry"):
+            FERRY_KEYS.add(key_of(a, b))
 
     # 3. raccord derniere position -> prochaines escales. Le front-end vise la
     #    premiere escale devant lui ; on en couvre quelques-unes pour rester
@@ -323,7 +334,26 @@ def road_geometry(a, b):
         return None, "detour"
     full = [[round(lat, 5), round(lng, 5)]
             for lng, lat in route["geometry"]["coordinates"]]
-    return simplify(full, SIMPLIFY_KM), "ok"
+    # OSRM ramene chaque extremite au point ROUTABLE le plus proche, et la
+    # geometrie rendue s'arrete la. Son profil voiture ignorant les ferries,
+    # Algeciras -> Tanger Med finissait a Tarifa, 16 km avant la cote
+    # marocaine : le trace mourait dans le vide et le detroit de Gibraltar
+    # n'etait jamais franchi.
+    # On ANCRE donc le resultat sur les points demandes. Le raccord ainsi ajoute
+    # est court — 3 a 14 km sur ce voyage — et il est honnete : au detroit c'est
+    # la traversee elle-meme, ailleurs c'est un acces non cartographie.
+    ends = max(hav(a, {"lat": full[0][0], "lng": full[0][1]}),
+               hav(b, {"lat": full[-1][0], "lng": full[-1][1]}))
+    if ends > SNAP_MAX_KM:
+        return None, f"extremite a {ends:.0f} km du point demande"
+    geom = simplify(full, SIMPLIFY_KM)
+    ends_a = [round(a["lat"], 5), round(a["lng"], 5)]
+    ends_b = [round(b["lat"], 5), round(b["lng"], 5)]
+    if hav(a, {"lat": geom[0][0], "lng": geom[0][1]}) > 0.05:
+        geom.insert(0, ends_a)
+    if hav(b, {"lat": geom[-1][0], "lng": geom[-1][1]}) > 0.05:
+        geom.append(ends_b)
+    return geom, "ok"
 
 
 def read_track_start():
@@ -374,6 +404,16 @@ def main():
     added = skipped = 0
     for k in todo[:args.limit or len(todo)]:
         a, b, km = pairs[k]
+        if k in FERRY_KEYS:
+            # Une traversee ne se route pas, et il ne faut meme pas demander :
+            # le profil voiture longeait la cote jusqu'a Tarifa, et l'ancrage
+            # transformait cette reponse en un detour de 37 km vers l'ouest
+            # avant de revenir. La ligne droite EST le trajet du bateau.
+            cache[k] = [[round(a["lat"], 5), round(a["lng"], 5)],
+                        [round(b["lat"], 5), round(b["lng"], 5)]]
+            added += 1
+            print(f"  {k}: {km:.0f} km de traversee en ferry — ligne droite")
+            continue
         try:
             geom, why = road_geometry(a, b)
         except Exception as e:

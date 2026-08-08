@@ -613,6 +613,24 @@ thousands of points and the recursive form blows Python's stack.
 `SIMPLIFY_KM` only affects pairs fetched from then on — **delete `routes.json`**
 to re-cut the existing ones, as was done when this landed.
 
+**A ferry crossing is never routed, and never asked for** (`FERRY_KEYS`, filled
+from the `ferry` flag on a route waypoint). OSRM's driving profile ignores
+ferries: asked for Algeciras → Tanger Med it answered with the coast road to
+**Tarifa** and stopped 16 km short of Morocco, so the line died in the water and
+the Strait of Gibraltar was never crossed. Anchoring that answer only made it
+worse — a 37 km detour west to Tarifa and back. The straight line IS the boat's
+route, so the pair is written directly without calling the router. The check
+must come BEFORE the OSRM call, not as a fallback when it fails: the reply is
+usable-looking, just wrong.
+
+**Every geometry is anchored on the endpoints that were requested.** OSRM snaps
+each end to the nearest routable point and returns a line that stops there; the
+gap was 3 to 14 km on this trip and left visible breaks. The requested points
+are now prepended/appended, so the connector is short and honest — an unmapped
+access road, or the sea crossing itself. Beyond `SNAP_MAX_KM` (50 km) the router
+answered a different question and the pair is dropped. Changing this rule only
+affects newly fetched pairs: **delete `routes.json`** to re-cut the old ones.
+
 Guards: pairs under 1 km keep the straight line, pairs over 1500 km are not a
 continuous drive, and a route more than 4× the great-circle distance is treated
 as an aberration (a detour around a sea, a point landing on an island) and
