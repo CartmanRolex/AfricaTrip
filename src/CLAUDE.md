@@ -147,16 +147,17 @@ Key JS structures (all near the top of the script):
   `photos/videos/` (relative paths, see that folder's CLAUDE.md). The `<video>`
   carries **`preload="none"`** — with `preload="metadata"` browsers pulled most
   of every visible clip on page load: 5.9 MB measured, 77 % of the whole page.
-  Nothing is fetched until a hover or a fiche asks for it, and the static crop
-  is already the designed fallback until `oncanplay` fires. The seat
-  chip gets class `live`; delegated mouseover/mouseout toggle `.playing`
-  (video plays inside the circle, replacing the hover-zoom img effect —
-  the wrapper `.live-wrap` scales ×3.2 instead); the fiche face plays it
-  continuously (autoplay muted loop). `oncanplay` adds `.vid-ok` so a
-  missing/unloadable video falls back to the static photo.
+  **Only an opened fiche carries a `<video>` at all** (`auto` in
+  `faceMarkup()`): a seat chip stays a photo, so a grid of twelve people reads
+  as an overview rather than twelve clips fidgeting, and nothing is downloaded
+  until a fiche is opened — one clip, the one being looked at. Hover playback on
+  a chip, its `.playing` class and the `live` chip class are gone; the desktop
+  hover ZOOM on the static portrait stays. The fiche face plays continuously
+  (autoplay muted loop), and `oncanplay` adds `.vid-ok` so a missing or
+  unloadable video falls back to the static photo.
 - **Seat interaction** (`openFicheFor()`): clicking ANYWHERE on a seat card,
   including its portrait, opens that person's fiche in one click/tap. Desktop
-  keeps its hover portrait/video preview under `@media (hover:hover)`; touch no
+  keeps its hover portrait preview under `@media (hover:hover)`; touch no
   longer needs the former two-tap `.preview` state.
 - **Zoom-out on a face** (`faceMarkup()`, `liveZoom()`): hovering ANY face —
   seat chip or fiche portrait — enlarges it AND widens the framing. Live

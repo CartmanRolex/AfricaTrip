@@ -3,8 +3,11 @@
 > Rule: update this file in the same commit as any feature change here.
 
 Short MP4 loops used as "living portraits": the seat chip shows the static
-face crop, hovering it (desktop) plays the video inside the circle, and the
-fiche aventurier plays it continuously. Referenced by RELATIVE path from the
+face crop and stays a photo — a grid of twelve people is an overview, not
+twelve clips fidgeting — and ONLY an opened fiche aventurier plays the video.
+The `<video>` element is emitted only in that case (`auto` in `faceMarkup()`),
+so nothing is downloaded until someone opens a fiche: one clip, the one being
+looked at. Hover used to start playback on a chip; it no longer does. Referenced by RELATIVE path from the
 `LIVE` map in `src/template.html` (name → {src, w/l/t framing of the head
 inside the circle, in % of the circle) — NOT embedded as data URIs (too
 big); GitHub Pages serves them, and the standalone `voyage-afrique.html`

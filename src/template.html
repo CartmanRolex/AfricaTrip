@@ -289,12 +289,6 @@ header .sec-tl .scrub{margin:2px 0 3px}
     box-shadow:0 8px 26px rgba(0,0,0,.65),0 0 0 2px var(--sand-dim)}
   .seat-chip.photo:hover .f-wide{opacity:1}
 }
-.seat-chip.live.playing .live-wrap{transform:scale(3.2);z-index:40;
-  box-shadow:0 8px 26px rgba(0,0,0,.65),0 0 0 2px var(--sand-dim)}
-/* .vid-ok (posé par oncanplay) garantit le repli photo si la vidéo ne
-   charge pas (ex. fichier ouvert hors ligne sans le dossier photos/) */
-.seat-chip.live.playing .live-wrap.vid-ok video{display:block}
-.seat-chip.live.playing .live-wrap.vid-ok img{visibility:hidden}
 /* dans la fiche, le portrait vit en continu */
 span.fiche-face{display:block;overflow:hidden}
 .fiche-face .live-wrap.vid-ok video{display:block}
@@ -1129,9 +1123,6 @@ function trackSegments(points){
   });
   if(current.length)segments.push(current);
   return segments;
-}
-function trackKm(points){
-  let km=0; trackSegments(points).forEach(seg=>{for(let i=1;i<seg.length;i++)km+=hav(seg[i-1],seg[i]);}); return km;
 }
 // La trace passee est faite UNIQUEMENT des positions GPS et des photos : on
 // relie les points entre eux, rien d'autre n'est dessine. Aucune route n'est
@@ -2088,7 +2079,6 @@ function closeFiche(){ ficheFor=null; render(); renderObs(); }
 window.addEventListener('keydown',e=>{ if(e.key==='Escape'&&ficheFor)closeFiche(); });
 /* Ouverture d'une fiche. Un seul tap suffit sur mobile et le panneau est
    aligné sur son haut afin de garder le bouton fermer dans la zone visible. */
-const canHover=matchMedia('(hover:hover)');
 // Respecte le réglage système : pas de mouvement imposé à qui n'en veut pas.
 const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)');
 function revealOpenFiche(){
@@ -2162,25 +2152,6 @@ document.addEventListener('click',e=>{
       {duration:220,easing:'ease-out'});
 },true);
 
-// portraits vivants : lecture au survol de la pastille, pause en sortant
-document.addEventListener('mouseover',e=>{
-  if(!canHover.matches)return;
-  const chip=e.target.closest('.seat-chip.live');
-  if(!chip||chip.classList.contains('playing'))return;
-  chip.classList.add('playing');
-  const v=chip.querySelector('video');
-  if(v){ v.currentTime=0; v.play().catch(()=>{}); }
-  liveZoom(chip,chip.dataset.name,true);   // + élargit le cadrage
-});
-document.addEventListener('mouseout',e=>{
-  if(!canHover.matches)return;
-  const chip=e.target.closest('.seat-chip.live');
-  if(!chip||chip.contains(e.relatedTarget))return;
-  chip.classList.remove('playing');
-  const v=chip.querySelector('video');
-  if(v)v.pause();
-  liveZoom(chip,chip.dataset.name,false);
-});
 
 // "open road" overlay past the last checkpoint: a dashed horizon zone + label,
 // shown only during the final, undecided leg so it's clear the trip goes on.
@@ -2312,9 +2283,13 @@ const LIVE={
 //    un fondu de l'un vers l'autre (un JPEG recadré n'a pas de "autour").
 function faceMarkup(name,ph,auto){
   const lv=LIVE[name];
-  if(lv) return `<span class="live-wrap"${auto?' style="pointer-events:none"':''}>
+  // La video n'existe QUE dans une fiche ouverte (`auto`). Dans la grille des
+  // equipiers, la pastille reste une photo : c'est une vue d'ensemble, pas
+  // douze clips qui s'agitent — et rien ne se telecharge tant qu'on n'a ouvert
+  // personne. Le survol desktop lancait la lecture ; il ne le fait plus.
+  if(lv&&auto) return `<span class="live-wrap" style="pointer-events:none">
     <img src="${ph}" alt="${name}">
-    <video src="${lv.src}" muted loop playsinline preload="none"${auto?' autoplay':''}
+    <video src="${lv.src}" muted loop playsinline preload="none" autoplay
       oncanplay="this.parentNode.classList.add('vid-ok')"
       style="width:${lv.w};left:${lv.l};top:${lv.t}"></video></span>`;
   const wide=(PHOTOS.facesWide||{})[name];
@@ -2335,7 +2310,7 @@ function seatHTML(name,state,isDriver,color){
   const hpc=r.pv>=7?'var(--present)':r.pv>=4?'var(--unknown)':'#D95B43';
   // toute la carte ouvre la fiche (le lien éventuel y a son bouton)
   return `<div class="seat" data-name="${name}">
-    <div class="seat-chip ${state}${ph?' photo':''}${LIVE[name]?' live':''}" data-name="${name}">${face}</div>
+    <div class="seat-chip ${state}${ph?' photo':''}" data-name="${name}">${face}</div>
     <div class="seat-info"><span class="seat-name ${isDriver?'driver':''}">${name}</span>
     <span class="seat-stat">${lbl} · ${r.xp} XP</span>
     <span class="hp">PV <i class="hp-bar"><i class="hp-fill" style="width:${r.pv*10}%;background:${hpc}"></i></i> ${r.pv}/10</span>
