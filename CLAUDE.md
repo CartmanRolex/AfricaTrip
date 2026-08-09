@@ -203,6 +203,11 @@ version.json                       (build id, for the auto-refresh below)
 
 ## Verifying changes (headless, no dev server needed)
 
+**Run `node src/check_continuity.mjs` after ANY change to the map drawing.** It
+sweeps every subject on every day so far, and exits 1 on a break the data does
+not justify (see the invariant in `src/CLAUDE.md`) or on any page error. It is
+what replaced hunting gaps one screenshot at a time.
+
 There is no test suite; checks are visual + runtime. Puppeteer is the tool on
 this machine (`npm install` at the root, `node_modules/` is git-ignored):
 
