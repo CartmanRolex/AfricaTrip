@@ -304,18 +304,27 @@ span.fiche-face{display:block;overflow:hidden}
    état qu'on GARDE, donc il agrandit pour de vrai et pousse la carte. En
    transform, il débordait de 31 px par-dessus la bordure arrondie et recouvrait
    le nom et les XP, ce qui est précisément ce qu'on veut lire à côté. */
-.fiche-face{transition:transform .25s ease,width .25s ease,height .25s ease;
-  transform-origin:center left;position:relative;cursor:zoom-in}
+.fiche-face{transform-origin:center left;position:relative;cursor:zoom-in}
 @media (hover:hover){
-  .fiche-face:hover{transform:scale(2.15);z-index:60;
+  .fiche-face:hover{transform:scale(2.15);transition:transform .25s ease;z-index:60;
     box-shadow:0 10px 34px rgba(0,0,0,.7),0 0 0 2px var(--sand-dim)}
   .fiche-face:hover .f-wide{opacity:1}
 }
 /* 42vw : sur un écran étroit le portrait cède la place au nom plutôt que de
    l'écraser. */
 .fiche-face.wide{width:min(168px,42vw);height:min(168px,42vw);cursor:zoom-out;
-  box-shadow:0 10px 30px rgba(0,0,0,.55),0 0 0 2px var(--sand-dim)}
+  box-shadow:0 10px 30px rgba(0,0,0,.55),0 0 0 2px var(--sand-dim);
+  animation:face-grow .22s ease-out}
 .fiche-face.wide .f-wide{opacity:1}
+/* UN SEUL mouvement. La taille et le cadrage sont poses immediatement, et seule
+   une mise a l'echelle est animee — c'est le compositeur qui la joue, sans
+   recalcul de mise en page. Auparavant la boite animait sa LARGEUR pendant que
+   la video animait son propre cadrage : deux animations de natures differentes,
+   d'ou l'impression que la tete grandissait d'abord et que le cadre s'elargissait
+   ensuite. */
+@keyframes face-grow{from{transform:scale(.5)}to{transform:scale(1)}}
+.fiche-face .live-wrap video{transition:none}
+.fiche-face .f-wide{transition:none}
 .live-wrap video{transition:width .25s ease,left .25s ease,top .25s ease}
 .seat-chip.present{background:var(--present)}
 .seat-chip.observer{background:var(--sand-dim)}
@@ -559,7 +568,7 @@ const ROUTES = {"11.3180,-12.2830;9.6410,-13.5780":[[11.3178,-12.28318],[11.3189
 // (jamais mis en cache) et, si un build plus recent est publie, on recharge une
 // seule fois. Sans reseau, depuis le disque, ou si quoi que ce soit echoue, on
 // ne fait rien.
-const BUILD = "f4aa80d2f911";
+const BUILD = "811e6b046a87";
 if(location.protocol!=='file:'){
   fetch(`version.json?t=${Date.now()}`,{cache:'no-store'})
     .then(r=>r.ok?r.json():null)
@@ -861,9 +870,15 @@ const photoCluster = L.markerClusterGroup({ ...CLUST, chunkedLoading: true,
 photoCluster.on('clusterclick', e => openLightbox(pileIndices(e.layer.getAllChildMarkers()), 0));
 // têtes : empilement de visages, ancré légèrement AU-DESSUS du point ; ajouté
 // après -> rendu par-dessus les photos
-const faceCluster = L.markerClusterGroup({ ...CLUST,
+// Cliquer une pile de tetes l'OUVRE SUR PLACE. Le defaut de la bibliotheque
+// (`zoomToBoundsOnClick`) recadrait d'abord sur l'amas, puis l'etalait au zoom
+// maximal : deux mouvements enchaines pour un seul clic, et la carte partait
+// ailleurs avant qu'on ait pu viser un visage. photoCluster avait deja renonce
+// a ce defaut pour la meme raison ; les tetes l'avaient garde par oubli.
+const faceCluster = L.markerClusterGroup({ ...CLUST, zoomToBoundsOnClick: false,
   iconCreateFunction: cl => L.divIcon({ className: '', iconSize: [44, 46], iconAnchor: [22, 44],
     html: pileHTML(cl.getAllChildMarkers(), 'face', cl.getChildCount()) }) }).addTo(map);
+faceCluster.on('clusterclick', e => e.layer.spiderfy());
 
 // --- média : photo vs vidéo (Cloudinary) + fabrication d'une vignette/poster.
 // Une vidéo est signalée par le champ Firestore `type:"video"` OU par une URL
@@ -1800,7 +1815,16 @@ function refreshFaces(){
     const st=vehicleStateAtDay(vid,end);
     if(!st.point)return;
     push(st.point,{img:v.face,color:v.color,initial:v.short,label:v.label,
-      planned:st.planned,wideArt:true,onClick:()=>setTrackSubject(`vehicle:${vid}`,true)});
+      // Une tete cliquee sur la CARTE va se poser sur elle, voiture comme
+      // personne. Passer par le cadrage par defaut recadrait sur tout
+      // l'itineraire de la voiture — un dezoom complet en reponse a un clic
+      // qui designait un point precis.
+      planned:st.planned,wideArt:true,onClick:()=>{
+        const subject=`vehicle:${vid}`;
+        setTrackSubject(subject,false);
+        lastFocus={subject,mode:'point'};
+        focusTrackSubject('point');
+      }});
   });
   faceCluster.addLayers(markers);
 }
