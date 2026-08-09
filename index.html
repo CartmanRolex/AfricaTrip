@@ -560,7 +560,7 @@ const ROUTES = {"11.3180,-12.2830;9.6410,-13.5780":[[11.3178,-12.28318],[11.3189
 // (jamais mis en cache) et, si un build plus recent est publie, on recharge une
 // seule fois. Sans reseau, depuis le disque, ou si quoi que ce soit echoue, on
 // ne fait rien.
-const BUILD = "4fdddf941c98";
+const BUILD = "5bb9e643b533";
 if(location.protocol!=='file:'){
   fetch(`version.json?t=${Date.now()}`,{cache:'no-store'})
     .then(r=>r.ok?r.json():null)
@@ -1218,6 +1218,7 @@ function roadTween(a,b){
   const ck=`${a[0].toFixed(4)},${a[1].toFixed(4)};${b[0].toFixed(4)},${b[1].toFixed(4)}`;
   if(tweenCache.has(ck))return tweenCache.get(ck);
   const A={lat:a[0],lng:a[1]},B={lat:b[0],lng:b[1]};
+  const ecart=hav(A,B);
   let best=null;
   for(const k in ROUTES){
     const g=ROUTES[k];
@@ -1228,7 +1229,14 @@ function roadTween(a,b){
     const pa=projectOnRoad(A,g),pb=projectOnRoad(B,g);
     if(!pa||!pb||pa.along>=pb.along)continue;
     const score=Math.max(pa.km,pb.km);
-    if(score<=TWEEN_NEAR_KM&&(!best||score<best.score))
+    // Tolérance PROPORTIONNELLE à la longueur remplacée. Un seuil fixe de 5 km
+    // refusait le tronçon Rabat -> Casablanca de l'itinéraire pour une paire de
+    // 90 km : le convoi était à 120 m de son début, mais à 10 km au-delà de sa
+    // fin, le point de passage visant le centre-ville alors qu'ils étaient à
+    // Dar Bouazza. On jetait ainsi une route qui expliquait 85 des 90 km, pour
+    // tracer une droite. Plus le segment est long, plus un écart aux extrémités
+    // est négligeable devant ce que la route explique.
+    if(score<=Math.max(TWEEN_NEAR_KM,.15*ecart)&&(!best||score<best.score))
       best={score,path:[a,...g.slice(pa.i,pb.i),b]};   // ancré aux vrais points GPS
   }
   const out=best?best.path:null;

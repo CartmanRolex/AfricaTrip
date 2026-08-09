@@ -246,7 +246,16 @@ Key JS structures (all near the top of the script):
   connects: accuracy degrades in steps — exact cached road (`roadTo`), road
   spliced out of the cache (`roadTween`), then a straight segment — but the
   stroke never stops. A straight segment is a poor answer; a hole is not an
-  answer at all. Only two breaks are legitimate: a `trackSegments()` section
+  answer at all — but in practice it has become rare: `roadTween()`'s tolerance
+  is PROPORTIONAL to the distance it replaces (`max(TWEEN_NEAR_KM, 15%)`). A
+  fixed 5 km threshold threw away the itinerary's Rabat → Casablanca leg for a
+  90 km pair, because the convoy sat 120 m from its start but 10 km past its
+  end — the waypoint aims at the city centre while they were in Dar Bouazza —
+  and a road explaining 85 of those 90 km lost to a straight line. The longer
+  the segment, the more an error at its ends is negligible against what the road
+  explains. There is currently no straight segment anywhere on the travelled
+  tracks, and the drawn length stays at 1.2-1.26x crow-flies, the normal ratio
+  for real roads. Only two breaks are legitimate: a `trackSegments()` section
   (impossible transition over six hours, where we genuinely do not know), and a
   subject who has not left yet, whose current position says nothing about their
   embarkation.
