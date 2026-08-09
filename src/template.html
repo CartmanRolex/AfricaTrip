@@ -313,8 +313,7 @@ span.fiche-face{display:block;overflow:hidden}
 /* 42vw : sur un écran étroit le portrait cède la place au nom plutôt que de
    l'écraser. */
 .fiche-face.wide{width:min(168px,42vw);height:min(168px,42vw);cursor:zoom-out;
-  box-shadow:0 10px 30px rgba(0,0,0,.55),0 0 0 2px var(--sand-dim);
-  animation:face-grow .22s ease-out}
+  box-shadow:0 10px 30px rgba(0,0,0,.55),0 0 0 2px var(--sand-dim)}
 .fiche-face.wide .f-wide{opacity:1}
 /* UN SEUL mouvement. La taille et le cadrage sont poses immediatement, et seule
    une mise a l'echelle est animee — c'est le compositeur qui la joue, sans
@@ -322,7 +321,6 @@ span.fiche-face{display:block;overflow:hidden}
    la video animait son propre cadrage : deux animations de natures differentes,
    d'ou l'impression que la tete grandissait d'abord et que le cadre s'elargissait
    ensuite. */
-@keyframes face-grow{from{transform:scale(.5)}to{transform:scale(1)}}
 .fiche-face .live-wrap video{transition:none}
 .fiche-face .f-wide{transition:none}
 .live-wrap video{transition:width .25s ease,left .25s ease,top .25s ease}
@@ -2091,6 +2089,8 @@ window.addEventListener('keydown',e=>{ if(e.key==='Escape'&&ficheFor)closeFiche(
 /* Ouverture d'une fiche. Un seul tap suffit sur mobile et le panneau est
    aligné sur son haut afin de garder le bouton fermer dans la zone visible. */
 const canHover=matchMedia('(hover:hover)');
+// Respecte le réglage système : pas de mouvement imposé à qui n'en veut pas.
+const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)');
 function revealOpenFiche(){
   if(!matchMedia('(max-width:880px)').matches)return;
   requestAnimationFrame(()=>requestAnimationFrame(()=>{
@@ -2149,7 +2149,17 @@ document.addEventListener('mouseout',e=>{
 document.addEventListener('click',e=>{
   const f=e.target.closest('.fiche-face'); if(!f)return;
   e.stopPropagation();
+  // La taille et le cadrage sont posés immédiatement, puis on rejoue le trajet
+  // par une mise à l'échelle : le compositeur s'en charge, sans recalcul de mise
+  // en page, et les deux images bougent ensemble.
+  // Une @keyframes CSS ne se déclenchait qu'à l'AJOUT de la classe, donc la
+  // fermeture claquait sans animation. Animer ici couvre les deux sens.
+  const avant=f.getBoundingClientRect().width;
   liveZoom(f,ficheFor,f.classList.toggle('wide'));
+  const apres=f.getBoundingClientRect().width;
+  if(avant&&apres&&Math.abs(avant-apres)>1&&f.animate&&!reduceMotion.matches)
+    f.animate([{transform:`scale(${avant/apres})`},{transform:'scale(1)'}],
+      {duration:220,easing:'ease-out'});
 },true);
 
 // portraits vivants : lecture au survol de la pastille, pause en sortant
