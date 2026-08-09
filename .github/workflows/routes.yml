@@ -43,6 +43,12 @@ jobs:
         continue-on-error: true
         run: python src/fetch_routes.py
 
+      - name: Photographier l'historique Firestore
+        # Non bloquant : quota epuise (429) ou reseau coupe -> on garde
+        # l'instantane deja publie et on reessaie au tour suivant.
+        continue-on-error: true
+        run: python src/fetch_tracks.py
+
       - name: Régénérer le site
         run: python src/build.py
 
@@ -51,14 +57,15 @@ jobs:
           set -e
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          FILES="src/routes.json src/data.json index.html voyage-afrique.html version.json"
+          FILES="src/routes.json src/tracks.json src/data.json index.html voyage-afrique.html version.json"
           if git diff --quiet -- $FILES; then
             echo "Aucune nouvelle route — rien à publier."
             exit 0
           fi
           git add -- $FILES
           ROUTES=$(python -c "import json;print(len(json.load(open('src/routes.json'))))")
-          git commit -m "Routes: mise à jour automatique (${ROUTES} géométries)"
+          SNAP=$(python -c "import json,os;p='src/tracks.json';print(sum(len(v) if isinstance(v,list) else sum(len(x) for x in v.values()) for v in json.load(open(p)).values()) if os.path.exists(p) else 0)")
+          git commit -m "Routes: ${ROUTES} géométries, instantané ${SNAP} documents"
           # Quelqu'un a pu pousser entre-temps : on se replace avant d'envoyer.
           git pull --rebase --autostash origin main
           git push origin HEAD:main

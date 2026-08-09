@@ -2,7 +2,7 @@
 Build the final standalone site by injecting src/data.json into src/template.html.
 
 Usage:  python src/build.py
-Reads:  src/template.html  (literal tokens __DATA__, __PHOTOS__, __GALLERY__, __ROUTES__)
+Reads:  src/template.html  (literal tokens __DATA__, __PHOTOS__, __GALLERY__, __ROUTES__, __TRACKS__)
         src/data.json
         src/photos.json    (face thumbnails as data URIs; python src/make_faces.py)
         src/routes.json    (road geometry between GPS points; python src/fetch_routes.py)
@@ -26,6 +26,7 @@ DATA = os.path.join(HERE, "data.json")
 PHOTOS = os.path.join(HERE, "photos.json")
 GALLERY = os.path.join(HERE, "gallery.json")
 ROUTES = os.path.join(HERE, "routes.json")
+TRACKS = os.path.join(HERE, "tracks.json")
 OUTS = [os.path.join(HERE, "..", "voyage-afrique.html"),
         os.path.join(HERE, "..", "index.html")]
 VERSION = os.path.join(HERE, "..", "version.json")
@@ -62,13 +63,17 @@ def main():
         photos = "{}"
     gallery = open(GALLERY, encoding="utf-8").read() if os.path.exists(GALLERY) else "[]"
     routes = open(ROUTES, encoding="utf-8").read() if os.path.exists(ROUTES) else "{}"
+    # Instantane de l'historique Firestore (src/fetch_tracks.py). Absent au
+    # premier build : la page retombe alors sur les ecoutes live.
+    tracks = open(TRACKS, encoding="utf-8").read() if os.path.exists(TRACKS) else "{}"
     # Identifiant de build : empreinte des ENTREES, pas de la sortie (la sortie
     # contient l'identifiant). Deux builds identiques donnent donc le meme id.
     build = hashlib.sha256(
-        "\u0000".join([template, data, photos, gallery, routes]).encode("utf-8")
+        "\u0000".join([template, data, photos, gallery, routes, tracks]).encode("utf-8")
     ).hexdigest()[:12]
     html = (template.replace("__DATA__", data).replace("__PHOTOS__", photos)
             .replace("__GALLERY__", gallery).replace("__ROUTES__", routes)
+           .replace("__TRACKS__", tracks)
             .replace("__BUILD__", build))
     with open(VERSION, "w", encoding="utf-8") as f:
         json.dump({"build": build}, f)

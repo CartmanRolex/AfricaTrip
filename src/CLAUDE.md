@@ -490,6 +490,26 @@ Key JS structures (all near the top of the script):
   Drive files remain convoy-only. A GPS media point may bend the chronological
   actual line, while manual/estimated positions remain markers only. Media
   without valid coordinates are omitted until their location is added.
+- **THE PAGE SHIPS ITS HISTORY; IT SUBSCRIBES ONLY TO WHAT IS LIVE.**
+  `src/fetch_tracks.py` snapshots chunks, photos, the v1 tracks and `positions`
+  into `src/tracks.json`, committed and injected as `__TRACKS__`. When that
+  snapshot is present the page seeds from it and opens **two** listeners —
+  `latest` and `crew` — instead of fourteen: **14 documents per visit instead of
+  235**.
+  Why it matters: the free tier allows 50 000 reads a day, so 235 reads a visit
+  capped the site at ~210 visitors before the whole project returned
+  RESOURCE_EXHAUSTED. That happened on 2026-08-10 and it took the crew's GPS
+  uploads down with it — a site that succeeds was breaking itself. Reading cost
+  grew with the audience against a fixed quota; it now does not grow at all.
+  The four readers (`lirePositions`, `lireV1`, `lireChunks`, `lirePhotos`) are
+  named functions called by BOTH paths, so live and snapshot cannot drift, and
+  they live **outside** the Firebase block on purpose: an import that fails —
+  offline, or quota exhausted — must not take the history down with it, since
+  the page already contains it. `seedHistorique()` is called at the very end of
+  the script because seeding triggers a full render.
+  With no snapshot (`HAS_SNAPSHOT` false) the page falls back to the fourteen
+  listeners, exactly as before. `fetch_tracks.py` refuses to write an empty
+  snapshot, so a 429 never erases the published history.
 - **Live Firebase listeners** (dynamic import at the end of the classic
   script):
 

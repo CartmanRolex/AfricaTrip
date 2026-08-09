@@ -553,6 +553,13 @@ const GALLERY = __GALLERY__;
 // Absentes = on garde la ligne droite : le site ne depend d'aucun service de
 // routage a l'affichage.
 const ROUTES = __ROUTES__;
+// Instantané de l'historique Firestore (src/fetch_tracks.py), embarqué dans la
+// page. Quand il est là, le site ne relit PAS la base pour l'historique : il
+// n'écoute plus que ce qui est réellement vivant. Voir la note de coût dans
+// src/CLAUDE.md — 235 lectures par visite avaient épuisé le quota et coupé
+// l'envoi GPS de l'équipage. Vide -> comportement d'avant, en écoute complète.
+const TRACKS = __TRACKS__ || {};
+const HAS_SNAPSHOT = !!(TRACKS.chunks && TRACKS.chunks.length);
 // Identifiant de ce build. GitHub Pages sert index.html avec `max-age=600` et
 // n'autorise aucun reglage d'en-tete : le navigateur garde donc la page 10 min
 // sans rien demander au serveur. On telecharge un minuscule `version.json`
@@ -1840,6 +1847,117 @@ function refreshFaces(){
 }
 refreshPhotos(); refreshFaces();
 
+// ---- lecture de l'HISTORIQUE ---------------------------------------------
+// Ces lecteurs ne dépendent ni de Firebase ni du réseau : ils remplissent les
+// mêmes structures depuis l'instantané embarqué ou depuis une écoute live.
+// Ils vivent DEHORS du bloc Firebase à dessein — sinon un import réseau qui
+// échoue (hors ligne, quota épuisé) emporterait aussi l'historique, alors que
+// la page le contient déjà.
+// Chaque lecteur est une FONCTION NOMMEE, appelee soit par l'ecoute live,
+// soit par l'instantane embarque. Un seul code pour les deux chemins : ils
+// ne peuvent pas diverger.
+const lirePositions=snap=>{
+  Object.keys(legacyPositions).forEach(k=>delete legacyPositions[k]);
+  snap.forEach(doc => {
+    const d=doc.data(),name=personName(d.displayName,d.name,doc.id);
+    if(!name||!validCoords(d.lat,d.lng))return;
+    const lat=Number(d.lat),lng=Number(d.lng),at=toMs(firstValue(d.capturedAtMs,d.capturedAt,d.at));
+    if(!at)return;
+    legacyPositions[name]={name,personId:slug(name),lat,lng,at,
+      accuracyM:d.accuracyM!=null&&Number.isFinite(Number(d.accuracyM))?Number(d.accuracyM):null,
+      vehicleId:null,mode:'legacy',source:'legacy'};
+  });
+  refreshLiveLayers();
+};
+
+// Historique v1 : ces sous-collections ne portent que personne/lat/lng/at.
+// Faute d'affectation capturée, on retient la voiture du roster (repli
+// explicite, pas une invention : la grille du voyage dit où roule la
+// personne).
+const lireV1=(name,snap)=>{
+  {
+    const points=[];
+    snap.forEach(doc=>{
+      const vid=rosterVehicleId(name);
+      const p=normalisePoint(doc.data(),{personId:slug(name),displayName:name,
+        pointId:`v1:${doc.id}`,vehicleId:vid,mode:vid?'vehicle':'legacy-personal',
+        source:'gps-v1'});
+      if(p)points.push(p);
+    });
+    legacyTrackDocs.set(name,points);
+    invalidateTracks();refreshLiveLayers();
+  }
+};
+
+// V2 : derniers points exacts + historique par chunks idempotents.
+// Un instantané se présente aux lecteurs comme un snapshot Firestore : même
+// forme, donc même code. `docChanges` absent -> ils relisent tout, ce qui
+// est exactement ce qu'on veut pour un seed.
+const faux=docs=>({forEach:f=>docs.forEach(d=>f({id:d.id,data:()=>d.data}))});
+
+const lireChunks=snap=>{
+  const readChunk=doc=>{
+    const d=doc.data(),raw=Array.isArray(d.points)?d.points:Object.values(d.points||{});
+    trackChunkDocs.set(doc.id,raw.map(p=>normalisePoint(p,d)).filter(Boolean));
+  };
+  if(typeof snap.docChanges==='function'){
+    snap.docChanges().forEach(change=>change.type==='removed'?trackChunkDocs.delete(change.doc.id):readChunk(change.doc));
+  }else{
+    trackChunkDocs.clear();snap.forEach(readChunk);
+  }
+  invalidateTracks();
+  // Un chunk peut arriver avant/à la place de `latest`; reconstruire aussi
+  // les têtes courantes et le fallback personnel, pas seulement la ligne.
+  refreshLiveLayers();
+};
+const lirePhotos=snap=>{
+  GALLERY.length = BUILD_GALLERY_N;
+  const vues=new Set();
+  snap.forEach(doc => {
+    const d=doc.data(); if(d.tripId&&d.tripId!==TRIP_ID)return;
+    if(!validCoords(d.lat,d.lng))return;
+    const lat=Number(d.lat),lng=Number(d.lng);
+    const isV2=d.tripId===TRIP_ID&&!!d.personId;
+    const author=personName(d.displayName,d.name,d.personId);
+    if(isV2&&!author)return;
+    const video = d.type === 'video' || /\/video\/upload\//.test(d.url || '');
+    const thumb = mediaThumb(d.url, video, 96);
+    const captured=toMs(firstValue(d.capturedAtMs,d.capturedAt,d.at,d.createdAt));
+    const date=typeof d.date==='string'&&d.date?d.date.slice(0,10):(captured?new Date(captured).toISOString().slice(0,10):'');
+    const capturedVehicle=vehicleId(firstValue(d.vehicleIdAtCapture,d.car));
+    // Même auteur, même seconde de capture, même endroit : c'est le MÊME
+    // média, envoyé deux fois. Un envoi interrompu puis retenté peut avoir
+    // abouti côté Cloudinary sans que l'app le sache, et le second essai
+    // crée un document de plus — d'où deux vignettes superposées sur la
+    // carte. On garde la première, sans rien supprimer côté données.
+    const empreinte=captured?`${author||'?'}|${Math.round(captured/1000)}|`
+      +`${lat.toFixed(4)},${lng.toFixed(4)}`:null;
+    if(empreinte){ if(vues.has(empreinte))return; vues.add(empreinte); }
+    GALLERY.push({id:doc.id,name:d.name||author||'',date,lat,lng,
+      gps:!!d.gps||d.locationSource==='gps'||d.locationSource==='media-gps',
+      manual:!!d.manual||d.locationSource==='manual',caption:d.caption||'',video,thumb,file:d.url,
+      _origin:'firebase',_v2:isV2,personName:author,personId:slug(d.personId||author),
+      capturedAtMs:captured,locationSource:d.locationSource||'',car:d.car,
+      mode:d.mode||(capturedVehicle?'vehicle':'independent'),vehicleIdAtCapture:capturedVehicle});
+  });
+  invalidateTracks();refreshLiveLayers();
+};
+
+// Amorçage de l'historique. DIFFÉRÉ à la fin du script : il déclenche un
+// rendu complet, qui a besoin de tout ce qui est déclaré plus bas.
+function seedHistorique(){
+  if(!HAS_SNAPSHOT)return;
+  {
+    // L'historique vient de la page. On n'écoute QUE ce qui est vivant :
+    // la position du moment et les jauges. 14 documents au lieu de 235.
+    lireChunks(faux(TRACKS.chunks||[]));
+    lirePhotos(faux(TRACKS.photos||[]));
+    lirePositions(faux(TRACKS.positions||[]));
+    Object.entries(TRACKS.v1||{}).forEach(([nom,pts])=>
+      lireV1(nom,{forEach:f=>pts.forEach(pt=>f({id:pt.id,data:()=>pt}))}));
+  }
+}
+
 // ---- données LIVE de l'appli équipage (Firebase, lecture seule) ----------
 // import dynamique dans ce script classique -> accès direct à map/GALLERY/etc.
 (async () => {
@@ -1854,40 +1972,17 @@ refreshPhotos(); refreshFaces();
     }));
     const liveError=label=>e=>console.warn(`${label}:`,e);
     // Fallback v1 : conservé pour les anciens téléphones et anciennes données.
-    fs.onSnapshot(fs.collection(db, "positions"), snap => {
-      Object.keys(legacyPositions).forEach(k=>delete legacyPositions[k]);
-      snap.forEach(doc => {
-        const d=doc.data(),name=personName(d.displayName,d.name,doc.id);
-        if(!name||!validCoords(d.lat,d.lng))return;
-        const lat=Number(d.lat),lng=Number(d.lng),at=toMs(firstValue(d.capturedAtMs,d.capturedAt,d.at));
-        if(!at)return;
-        legacyPositions[name]={name,personId:slug(name),lat,lng,at,
-          accuracyM:d.accuracyM!=null&&Number.isFinite(Number(d.accuracyM))?Number(d.accuracyM):null,
-          vehicleId:null,mode:'legacy',source:'legacy'};
-      });
-      refreshLiveLayers();
-    },liveError('positions v1'));
+    if(!HAS_SNAPSHOT){
+      // Pas encore d'instantané : on retombe sur les écoutes complètes.
+      fs.onSnapshot(fs.collection(db,"positions"),lirePositions,liveError('positions v1'));
+      fs.onSnapshot(fs.collection(db,'trips',TRIP_ID,'trackChunks'),lireChunks,liveError('traces v2'));
+      fs.onSnapshot(fs.collection(db,"photos"),lirePhotos,liveError('médias'));
+      [...new Set([...CAR1,...CAR2])].forEach(nom=>
+        fs.onSnapshot(fs.collection(db,'tracks',nom,'points'),
+          snap=>lireV1(nom,snap),liveError(`traces v1 ${nom}`)));
+    }
 
-    // Historique v1 : ces sous-collections ne portent que personne/lat/lng/at.
-    // Faute d'affectation capturée, on retient la voiture du roster (repli
-    // explicite, pas une invention : la grille du voyage dit où roule la
-    // personne).
-    [...new Set([...CAR1,...CAR2])].forEach(name=>{
-      fs.onSnapshot(fs.collection(db,'tracks',name,'points'),snap=>{
-        const points=[];
-        snap.forEach(doc=>{
-          const vid=rosterVehicleId(name);
-          const p=normalisePoint(doc.data(),{personId:slug(name),displayName:name,
-            pointId:`v1:${doc.id}`,vehicleId:vid,mode:vid?'vehicle':'legacy-personal',
-            source:'gps-v1'});
-          if(p)points.push(p);
-        });
-        legacyTrackDocs.set(name,points);
-        invalidateTracks();refreshLiveLayers();
-      },liveError(`traces v1 ${name}`));
-    });
 
-    // V2 : derniers points exacts + historique par chunks idempotents.
     fs.onSnapshot(fs.collection(db,'trips',TRIP_ID,'latest'),snap=>{
       Object.keys(latestPositions).forEach(k=>delete latestPositions[k]);
       snap.forEach(doc=>{
@@ -1897,56 +1992,9 @@ refreshPhotos(); refreshFaces();
       invalidateTracks();
       refreshLiveLayers();
     },liveError('positions v2'));
-    fs.onSnapshot(fs.collection(db,'trips',TRIP_ID,'trackChunks'),snap=>{
-      const readChunk=doc=>{
-        const d=doc.data(),raw=Array.isArray(d.points)?d.points:Object.values(d.points||{});
-        trackChunkDocs.set(doc.id,raw.map(p=>normalisePoint(p,d)).filter(Boolean));
-      };
-      if(typeof snap.docChanges==='function'){
-        snap.docChanges().forEach(change=>change.type==='removed'?trackChunkDocs.delete(change.doc.id):readChunk(change.doc));
-      }else{
-        trackChunkDocs.clear();snap.forEach(readChunk);
-      }
-      invalidateTracks();
-      // Un chunk peut arriver avant/à la place de `latest`; reconstruire aussi
-      // les têtes courantes et le fallback personnel, pas seulement la ligne.
-      refreshLiveLayers();
-    },liveError('traces v2'));
 
     // La collection média reste compatible v1. Les nouveaux documents v2
     // portent tripId/personId/vehicleIdAtCapture et deviennent filtrables.
-    fs.onSnapshot(fs.collection(db, "photos"), snap => {
-      GALLERY.length = BUILD_GALLERY_N;
-      const vues=new Set();
-      snap.forEach(doc => {
-        const d=doc.data(); if(d.tripId&&d.tripId!==TRIP_ID)return;
-        if(!validCoords(d.lat,d.lng))return;
-        const lat=Number(d.lat),lng=Number(d.lng);
-        const isV2=d.tripId===TRIP_ID&&!!d.personId;
-        const author=personName(d.displayName,d.name,d.personId);
-        if(isV2&&!author)return;
-        const video = d.type === 'video' || /\/video\/upload\//.test(d.url || '');
-        const thumb = mediaThumb(d.url, video, 96);
-        const captured=toMs(firstValue(d.capturedAtMs,d.capturedAt,d.at,d.createdAt));
-        const date=typeof d.date==='string'&&d.date?d.date.slice(0,10):(captured?new Date(captured).toISOString().slice(0,10):'');
-        const capturedVehicle=vehicleId(firstValue(d.vehicleIdAtCapture,d.car));
-        // Même auteur, même seconde de capture, même endroit : c'est le MÊME
-        // média, envoyé deux fois. Un envoi interrompu puis retenté peut avoir
-        // abouti côté Cloudinary sans que l'app le sache, et le second essai
-        // crée un document de plus — d'où deux vignettes superposées sur la
-        // carte. On garde la première, sans rien supprimer côté données.
-        const empreinte=captured?`${author||'?'}|${Math.round(captured/1000)}|`
-          +`${lat.toFixed(4)},${lng.toFixed(4)}`:null;
-        if(empreinte){ if(vues.has(empreinte))return; vues.add(empreinte); }
-        GALLERY.push({id:doc.id,name:d.name||author||'',date,lat,lng,
-          gps:!!d.gps||d.locationSource==='gps'||d.locationSource==='media-gps',
-          manual:!!d.manual||d.locationSource==='manual',caption:d.caption||'',video,thumb,file:d.url,
-          _origin:'firebase',_v2:isV2,personName:author,personId:slug(d.personId||author),
-          capturedAtMs:captured,locationSource:d.locationSource||'',car:d.car,
-          mode:d.mode||(capturedVehicle?'vehicle':'independent'),vehicleIdAtCapture:capturedVehicle});
-      });
-      invalidateTracks();refreshLiveLayers();
-    },liveError('médias'));
 
     // PV live envoyés par l'appli -> écrasent les PV du Sheet (source unique)
     fs.onSnapshot(fs.collection(db, "crew"), snap => {
@@ -2471,6 +2519,7 @@ if(panelHandle&&window.PointerEvent){
   panelHandle.addEventListener('pointerup',release);
   panelHandle.addEventListener('pointercancel',release);
 }
+seedHistorique();
 </script>
 </body>
 </html>
