@@ -560,7 +560,7 @@ const ROUTES = {"11.3180,-12.2830;9.6410,-13.5780":[[11.3178,-12.28318],[11.3189
 // (jamais mis en cache) et, si un build plus recent est publie, on recharge une
 // seule fois. Sans reseau, depuis le disque, ou si quoi que ce soit echoue, on
 // ne fait rien.
-const BUILD = "8d49b163d9d5";
+const BUILD = "4fdddf941c98";
 if(location.protocol!=='file:'){
   fetch(`version.json?t=${Date.now()}`,{cache:'no-store'})
     .then(r=>r.ok?r.json():null)
@@ -1235,29 +1235,39 @@ function roadTween(a,b){
   tweenCache.set(ck,out);
   return out;
 }
-function roadPieces(ll){
-  if(ll.length<2)return [];
-  const pieces=[];let cur=[ll[0]];
+// UNE SEULE REGLE, et c'est l'invariant du trace :
+//
+//     la ligne ne se coupe QUE la ou la donnee se coupe.
+//
+// `trackSegments()` decide seul des ruptures, et il ne le fait que sur une
+// transition impossible de plus de six heures — la, on sait vraiment ne pas
+// savoir. Ici, entre deux positions consecutives ACCEPTEES, on relie toujours.
+// La precision se degrade par paliers — route exacte, route recollee depuis le
+// cache, puis ligne droite — mais le trait ne casse jamais.
+//
+// Auparavant cette fonction coupait quand aucune route ne se resolvait. Un
+// echec d'affichage prenait ainsi l'apparence d'un fait, et 39 jours-sujets
+// etaient troues. Chaque trou signale a ete corrige un par un pendant des
+// jours ; c'etait la cause commune.
+function resolveRoad(ll){
+  if(ll.length<2)return ll.slice();
+  const out=[ll[0]];
   for(let i=1;i<ll.length;i++){
     const road=roadTo(ll[i-1],ll[i])||roadTween(ll[i-1],ll[i]);
-    if(road&&road.length>1){cur.push(...road.slice(1));continue;}
-    if(hav({lat:ll[i-1][0],lng:ll[i-1][1]},{lat:ll[i][0],lng:ll[i][1]})<=STRAIGHT_OK_KM){
-      cur.push(ll[i]);continue;
-    }
-    if(cur.length>1)pieces.push(cur);
-    cur=[ll[i]];
+    if(road&&road.length>1)out.push(...road.slice(1));
+    else out.push(ll[i]);   // dernier recours : le segment droit, jamais le vide
   }
-  if(cur.length>1)pieces.push(cur);
-  return pieces;
+  return out;
 }
-const segmentPieces=seg=>roadPieces(seg.map(p=>[p.lat,p.lng]));
+const segmentLine=seg=>resolveRoad(seg.map(p=>[p.lat,p.lng]));
 // `quiet` : la trace de l'autre voiture, gardée visible en fond. Trait fin et
 // pâle, sans halo — elle doit situer le convoi sans disputer la vedette au
 // sujet suivi. Dessinée en premier, elle passe donc dessous.
 function addActualPath(points,color,{quiet=false}={}){
   trackSegments(points).forEach(seg=>{
     if(seg.length<2)return;
-    segmentPieces(seg).forEach(ll=>{
+    {
+      const ll=segmentLine(seg);
       if(quiet){
         L.polyline(ll,{pane:'actualTrackPane',color,weight:3,opacity:.42,
           lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
@@ -1267,7 +1277,7 @@ function addActualPath(points,color,{quiet=false}={}){
       L.polyline(ll,{pane:'actualTrackPane',color,weight:11,opacity:.17,lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
       L.polyline(ll,{pane:'actualTrackPane',color,weight:5,opacity:1,
         lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
-    });
+    }
   });
 }
 // Un seul marqueur pour tout le monde : une voiture est un personnage de plus.
@@ -1513,12 +1523,11 @@ function addTravelledAhead(all,head,color){
   if(ahead.length<2)return;
   trackSegments(ahead).forEach(seg=>{
     if(seg.length<2)return;
-    segmentPieces(seg).forEach(ll=>{
-      if(ll.length<2)return;
-      L.polyline(ll,{pane:'actualTrackPane',color,weight:4,opacity:.8,
-        dashArray:'10 12',lineCap:'round',lineJoin:'round',
-        interactive:false}).addTo(actualTrackLayer);
-    });
+    const ll=segmentLine(seg);
+    if(ll.length<2)return;
+    L.polyline(ll,{pane:'actualTrackPane',color,weight:4,opacity:.8,
+      dashArray:'10 12',lineCap:'round',lineJoin:'round',
+      interactive:false}).addTo(actualTrackLayer);
   });
 }
 function addPlannedFuture(last,color,{startKm=0,endKm=totalKm}={}){
@@ -1540,14 +1549,18 @@ function addPlannedFuture(last,color,{startKm=0,endKm=totalKm}={}){
   if(from>=end)return;
   const stop=Math.min(nextStopKm(from),end);
   const rest=roadPath(routeSlice(stop,end));
-  // Le raccord déjà routé, repris au plus près. À défaut (personne dont aucun
-  // raccord n'a encore été calculé), l'itinéraire prévu depuis la projection :
-  // ce sont des routes en cache, elles aussi. Dans les deux cas le pointillé
-  // commence SUR une route — on ne trace jamais de segment droit.
+  // Trois qualités de raccord, par ordre de préférence : le raccord déjà routé
+  // vers l'escale, sinon la route connue de l'itinéraire reprise au plus près,
+  // sinon l'itinéraire seul. Mais DANS TOUS LES CAS le pointillé part de la
+  // position réelle : c'est `resolveRoad` qui relie, en route si elle est
+  // connue et en segment droit sinon.
+  // Le dernier repli partait autrefois de la projection sur l'itinéraire
+  // éditorial — un polygone grossier — et laissait donc un trou entre le
+  // véhicule et son propre tracé prévu. C'était la dernière cause de coupure.
   const ahead=predictedRoad(last,routePointAt(stop))||plannedRoadAhead(last,stop);
   const line=ahead
     ? [...ahead,...rest.slice(1)]
-    : roadPath(routeSlice(from,end));
+    : resolveRoad([[last.lat,last.lng],...routeSlice(from,end)]);
   if(line.length>1)L.polyline(line,{pane:'actualTrackPane',color,weight:4,opacity:.8,
     dashArray:'10 12',lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
 }
