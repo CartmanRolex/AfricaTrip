@@ -669,6 +669,19 @@ function momentOfDay(i){
 // bord : pas d'exception a maintenir en double, et une arrivee se corrige a un
 // seul endroit.
 function joinedBy(name,i){ return momentOfDay(i) >= trackStartFor(name); }
+// « À bord » n'avait pas de définition unique : six endroits en jugeaient, et
+// l'état « incertain » (?) passait pour à bord dans le tableau de bord mais pas
+// sur la carte. Gal a 27 jours ainsi en septembre, Younous 15 : leur siège
+// s'affichait pendant que leur tracé prévu s'arrêtait 376 km avant Freetown.
+// Une seule règle désormais — présent, pressenti ET incertain sont à bord ;
+// seul « absent » ne l'est pas. La CAPACITÉ X/4 reste comptée sur les présents
+// confirmés, parce qu'elle compte des sièges retenus, pas des personnes.
+const ABOARD=new Set(['present','tentative','unknown']);
+const isAboard=state=>ABOARD.has(state);
+function lastTrackPoint(points){const segments=trackSegments(points);return segments.at(-1)?.at(-1)||null;}
+function subjectParts(){
+  const [kind,id]=trackSubject.split(':'); return {kind,id};
+}
 function rosterVehicleId(name){
   if(!name)return null;
   if(CAR1.includes(name))return 'hugodouard';
@@ -1000,8 +1013,8 @@ function aboardVehicleAt(name,at){
   const i=REC_BY_DAY.get(localDay(at));
   if(i==null)return rosterVehicleId(name);
   const r=REC[i],s1=r.car1[name],s2=r.car2[name];
-  if(s1==='present'||s1==='tentative')return 'hugodouard';
-  if(s2==='present'||s2==='tentative')return 'paul-pot';
+  if(isAboard(s1))return 'hugodouard';
+  if(isAboard(s2))return 'paul-pot';
   return null;
 }
 // Les occupants d'une voiture voyagent ensemble : leurs telephones decrivent le
@@ -1121,11 +1134,6 @@ function trackSegments(points){
 }
 function trackKm(points){
   let km=0; trackSegments(points).forEach(seg=>{for(let i=1;i<seg.length;i++)km+=hav(seg[i-1],seg[i]);}); return km;
-}
-function trackPointCount(points){return trackSegments(points).reduce((n,seg)=>n+seg.length,0);}
-function lastTrackPoint(points){const segments=trackSegments(points);return segments.at(-1)?.at(-1)||null;}
-function subjectParts(){
-  const [kind,id]=trackSubject.split(':'); return {kind,id};
 }
 // La trace passee est faite UNIQUEMENT des positions GPS et des photos : on
 // relie les points entre eux, rien d'autre n'est dessine. Aucune route n'est
@@ -1385,7 +1393,7 @@ function onboardAt(name,i){
   const r=REC[i]; if(!r)return false;
   if(!joinedBy(name,i))return false;   // pas encore monte a bord
   const state=r.car1[name]||r.car2[name];
-  return state==='present'||state==='tentative';
+  return isAboard(state);
 }
 // Où placer un sujet au jour affiché. Passé et présent = réalité GPS ; futur
 // (ou jour sans aucune réalité connue) = position PRÉVUE interpolée sur
@@ -1400,7 +1408,7 @@ function plannedRangeForPerson(name){
   const onboard=[];
   REC.forEach((r,i)=>{
     const state=r.car1[name]||r.car2[name];
-    if(state==='present'||state==='tentative')onboard.push(i);
+    if(isAboard(state))onboard.push(i);
   });
   if(!onboard.length)return null;
   return {startKm:routeProgressAtRecord(onboard[0]),
@@ -1552,13 +1560,6 @@ function addPlannedFuture(last,color,{startKm=0,endKm=totalKm}={}){
     : roadPath(routeSlice(from,end));
   if(line.length>1)L.polyline(line,{pane:'actualTrackPane',color,weight:4,opacity:.8,
     dashArray:'10 12',lineCap:'round',lineJoin:'round',interactive:false}).addTo(actualTrackLayer);
-}
-function trackSummary(points){
-  const accepted=trackSegments(points).flat(),count=accepted.length;
-  if(!count)return 'aucune trace réelle';
-  const media=accepted.filter(p=>p.source==='media').length,gps=count-media;
-  const sources=[gps?`${gps} GPS`:'',media?`${media} photo${media>1?'s':''}`:''].filter(Boolean).join(' + ');
-  return `${count} repère${count>1?'s':''} (${sources}), ${kmFmt(trackKm(points))} km réels`;
 }
 // État carte d'une voiture au jour affiché (tracé + position + drapeau prévu).
 function vehicleStateAtDay(vid,end){
@@ -2021,7 +2022,7 @@ window.addEventListener('keydown',e=>{
 let ficheFor=null;
 function presenceOf(name){
   const on=[]; REC.forEach((r,i)=>{ const st=r.car1[name]||r.car2[name];
-    if(st==='present'||st==='tentative')on.push(i); });
+    if(isAboard(st))on.push(i); });
   return on.length?{n:on.length,i0:on[0],i1:on.at(-1),from:REC[on[0]],to:REC[on.at(-1)],open:on.at(-1)===REC.length-1}:null;
 }
 function colorOf(name){
@@ -2187,7 +2188,7 @@ function setOpenZone(on){
 
 /* ---- render legs ---- */
 function paxCount(rec){
-  let n=0; [...CAR1,...CAR2].forEach(p=>{const s=(CAR1.includes(p)?rec.car1:rec.car2)[p]; if(s==='present'||s==='unknown'||s==='tentative')n++;});
+  let n=0; [...CAR1,...CAR2].forEach(p=>{const s=(CAR1.includes(p)?rec.car1:rec.car2)[p]; if(isAboard(s))n++;});
   return n;
 }
 const legsEl=document.getElementById('legs');
@@ -2356,7 +2357,7 @@ function renderCar(carNo,rec){
   const meta = CARS[carNo];
   // fiche ouverte pour un membre de cette voiture -> elle prend la place du bloc
   if(ficheFor&&roster.includes(ficheFor)) return ficheHTML(ficheFor,meta.color);
-  const onboard = roster.filter(p=>states[p]!=='absent'&&joinedBy(p,idx));
+  const onboard = roster.filter(p=>isAboard(states[p])&&joinedBy(p,idx));
   let seats='';
   onboard.slice(0,4).forEach((p,k)=> seats+=seatHTML(p,states[p],k===0,meta.color));
   for(let k=onboard.length;k<4;k++) seats+=emptySeat();

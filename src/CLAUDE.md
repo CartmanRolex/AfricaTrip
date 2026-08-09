@@ -74,7 +74,13 @@ forecast on screen at a time. Everyone else is still a `faceCluster` marker.
 Key JS structures (all near the top of the script):
 - `DATA.records` — one entry per day: `{date, iso, checkpoint, location,
   cap1, cap2, car1:{Name:state}, car2:{...}}`; states: `present | unknown |
-  tentative | absent`.
+  tentative | absent`. **`isAboard()` is the single reading of those states**:
+  present, tentative and unknown are aboard, only absent is not. Six places used
+  to judge it separately and disagreed — `unknown` counted as aboard in the seat
+  cards and the pax total but not on the map, so Gal's 27 uncertain days in
+  September showed his seat while his planned line stopped 376 km short of
+  Freetown. The `X/4` capacity deliberately stays on confirmed `present` alone:
+  it counts held seats, not people.
 - `DATA.config` — the parsed `data/Config.csv`; editorial content normally
   comes from it (`CFG` in the JS), then `site-overrides.json` applies the
   repo-side trip config on top:
@@ -107,7 +113,7 @@ Key JS structures (all near the top of the script):
   card (`ficheFor` state; `renderCar()`/`renderObs()` return `ficheHTML()`
   when the open name is in their roster — NOT a popup): big face, XP/PV/
   skill, embarkation/disembarkation + days aboard **derived from the
-  presence grid** (`presenceOf()`, first/last present-or-tentative day;
+  presence grid** (`presenceOf()`, first/last day aboard per `isAboard()`;
   "route ouverte…" if still aboard at the end), plus Téléphone (`tel:` link)
   and Note rows when the sheet columns are filled, and a lien button.
   ✕ button or Escape closes (`closeFiche()`); the fiche survives day
@@ -156,7 +162,9 @@ Key JS structures (all near the top of the script):
   seat chip or fiche portrait — enlarges it AND widens the framing. Live
   portraits widen their video's inline w/l/t (`liveZoom()`, head kept
   centered, clamped to the frame); static ones cross-fade to the `.f-wide`
-  image from `PHOTOS.facesWide`. **Mobile has no hover**: tapping the
+  image from `PHOTOS.facesWide` — which today never happens, every one of the
+  twelve having a living portrait, so `build.py` stops embedding those images
+  (see below). **Mobile has no hover**: tapping the
   fiche's portrait toggles `.wide`, which applies the same CSS — that's the
   touch equivalent (a chip tap is already taken: it opens the fiche).
 - `PHOTOS` — `{faces:{Name:dataURI}, facesWide:{Name:dataURI}, cars:{1:…,2:…},
@@ -499,6 +507,11 @@ Key JS structures (all near the top of the script):
 Reads `template.html` + `data.json` + `photos.json` + `gallery.json`,
 writes the two root HTML files. Before injection it filters `faces` et
 `facesWide` to the active `car1` + `car2` + observer names from `data.json`,
+and drops `facesWide` entirely for anyone holding a `LIVE` entry: `faceMarkup()`
+takes the video branch for them and never renders the wide image, so those data
+URIs were 84 KB of pure ballast in every page. The `LIVE` names are read FROM
+the template, so the rule maintains itself — lose a video, get the wide image
+back.
 so retired portraits are not embedded. Run after ANY change to template or
 JSON.
 

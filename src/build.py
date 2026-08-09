@@ -16,7 +16,7 @@ Full pipeline to rebuild from the raw CSV:
     python src/parse_csv.py   # CSV  -> src/data.json
     python src/build.py       # JSON -> voyage-afrique.html + index.html
 """
-import hashlib
+import hashlib, re
 import json
 import os
 
@@ -47,6 +47,16 @@ def main():
                 for name, value in photos_obj.get(group, {}).items()
                 if name in active
             }
+        # Un portrait VIVANT ne montre jamais l'image "cadrage large" :
+        # faceMarkup() prend la branche video et elargit directement le cadrage
+        # du clip. Les douze membres en ont un aujourd'hui, donc ces images
+        # etaient embarquees pour rien — 84 Ko de data URI dans chaque page.
+        # La liste est lue DANS le template : si quelqu'un perd sa video, son
+        # image large revient toute seule.
+        live = set(re.findall(r"^\s*([A-Za-z][\w]*)\s*:\s*\{\s*src:\s*'photos/videos/",
+                              template, re.M))
+        photos_obj["facesWide"] = {n: v for n, v in photos_obj["facesWide"].items()
+                                   if n not in live}
         photos = json.dumps(photos_obj, ensure_ascii=False)
     else:
         photos = "{}"

@@ -14,6 +14,11 @@ boxes in the `CROPS` dict of `src/make_faces.py` and rerun instead.
 Each person also gets a `<name>_wide.jpg`: same center, 1.9× wider frame
 (`WIDE` in make_faces.py), used for the zoom-out on hover/tap.
 
+`build.py` no longer embeds the `_wide` variant for anyone who has a living
+portrait: their markup takes the video branch and widens the clip's own framing
+instead, so the wide image was never displayed. All twelve have one today, so
+none is embedded — the file stays because losing a video brings it back.
+
 They are embedded as data URIs in `src/photos.json` (`faces` / `facesWide`) and shown
 in the seat chips of the car dashboards (30 px circle with a status-colored
 ring, ×3.2 zoom on hover). This folder holds ONLY people — car/sticker
