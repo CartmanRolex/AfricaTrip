@@ -559,7 +559,7 @@ const ROUTES = {"11.3180,-12.2830;9.6410,-13.5780":[[11.3178,-12.28318],[11.3189
 // (jamais mis en cache) et, si un build plus recent est publie, on recharge une
 // seule fois. Sans reseau, depuis le disque, ou si quoi que ce soit echoue, on
 // ne fait rien.
-const BUILD = "84e50df7b7b1";
+const BUILD = "0803ee1a0eb6";
 if(location.protocol!=='file:'){
   fetch(`version.json?t=${Date.now()}`,{cache:'no-store'})
     .then(r=>r.ok?r.json():null)
@@ -1469,6 +1469,32 @@ function predictedRoad(last,stop){
 // la trace, on la dessine simplement en pointillés. C'est ce qui referme le
 // trou de la frise sans inventer de route ni gonfler le cache : reculer dans le
 // temps ne fait que déplacer la tête le long d'une ligne qui existe déjà.
+// Repli quand aucun raccord routé ne passe près : reprendre la route DÉJÀ
+// connue de l'itinéraire, au point le plus proche. Même idée que predictedRoad,
+// appliquée aux tronçons du plan au lieu des raccords.
+// La distance se mesure sur la GÉOMÉTRIE ROUTIÈRE, jamais sur l'itinéraire
+// éditorial : celui-ci est un polygone grossier, et le convoi y lisait 19,9 km
+// d'écart alors qu'il roulait à 1,6 km de la route — d'où un trou de 20 km
+// entre le trait plein et le pointillé.
+function plannedRoadAhead(last,toKm){
+  const legGeom=i=>ROUTES[routeKey([ROUTE[i].lat,ROUTE[i].lng],[ROUTE[i+1].lat,ROUTE[i+1].lng])];
+  let best=null;
+  for(let i=0;i<ROUTE.length-1;i++){
+    if(ROUTE_KM[i]>=toKm-.001)break;
+    const g=legGeom(i); if(!g)continue;
+    for(let j=1;j<g.length;j++){
+      const hit=nearestOnSegment(last,g[j-1],g[j]);
+      if(!best||hit.km<best.km)best={km:hit.km,lat:hit.lat,lng:hit.lng,leg:i,j};
+    }
+  }
+  if(!best||best.km>TWEEN_NEAR_KM)return null;
+  const out=[[last.lat,last.lng],[best.lat,best.lng],...legGeom(best.leg).slice(best.j)];
+  for(let i=best.leg+1;i<ROUTE.length-1&&ROUTE_KM[i]<toKm-.001;i++){
+    const g=legGeom(i); if(!g)break;
+    out.push(...g.slice(1));
+  }
+  return out;
+}
 function addTravelledAhead(all,head,color){
   if(!head)return;
   const ahead=all.filter(p=>p.at>=head.at);
@@ -1506,7 +1532,7 @@ function addPlannedFuture(last,color,{startKm=0,endKm=totalKm}={}){
   // raccord n'a encore été calculé), l'itinéraire prévu depuis la projection :
   // ce sont des routes en cache, elles aussi. Dans les deux cas le pointillé
   // commence SUR une route — on ne trace jamais de segment droit.
-  const ahead=predictedRoad(last,routePointAt(stop));
+  const ahead=predictedRoad(last,routePointAt(stop))||plannedRoadAhead(last,stop);
   const line=ahead
     ? [...ahead,...rest.slice(1)]
     : roadPath(routeSlice(from,end));

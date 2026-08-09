@@ -254,6 +254,14 @@ Key JS structures (all near the top of the script):
   Note this deliberately shows road the subject had not yet travelled at the
   displayed instant — the line is honest about the route, while positions,
   faces and photos stay restricted to what was known that day.
+- **When no routed join passes nearby, the tail resumes the itinerary's own
+  cached road** (`plannedRoadAhead()`). Same idea as `predictedRoad()`, applied
+  to the plan's legs instead of its joins. The distance is measured on the ROAD
+  GEOMETRY, never on the editorial route: that one is a coarse polygon, and the
+  convoy read 19.9 km off it while driving 1.6 km from the actual road — a 20 km
+  hole between solid and dashed. This is the fallback that covers a long leg
+  with no checkpoint in reach: north Morocco to Dakhla is 1634 km, past
+  `MAX_PAIR_KM`, so no join to the next stop is ever computed there.
 - **The dashed future never draws a chord** (`predictedRoad()`,
   `nearestOnSegment()`). The pair "current position → next stop" is never in
   `routes.json` at its exact key: that key carries the live position, which
