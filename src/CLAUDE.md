@@ -240,6 +240,24 @@ Key JS structures (all near the top of the script):
   presence of an image, not from the presence of a name.
   `addActualPath()` draws **only** the accepted points, joined in order: no
   road is invented from the itinerary to fill a gap in the data.
+- **THE LINE BREAKS ONLY WHERE THE DATA BREAKS.** This is the invariant of the
+  whole drawing, and `src/check_continuity.mjs` enforces it over every subject ×
+  every day. Between two consecutive ACCEPTED positions the line always
+  connects: accuracy degrades in steps — exact cached road (`roadTo`), road
+  spliced out of the cache (`roadTween`), then a straight segment — but the
+  stroke never stops. A straight segment is a poor answer; a hole is not an
+  answer at all. Only two breaks are legitimate: a `trackSegments()` section
+  (impossible transition over six hours, where we genuinely do not know), and a
+  subject who has not left yet, whose current position says nothing about their
+  embarkation.
+  Read this before touching the map. Gaps were chased one by one for days, each
+  fix leaving others, because `roadPieces()` used to CUT when it could not
+  resolve a road — a rendering failure wearing the mask of a fact — and because
+  each drawing pass decided its own starting point independently. The watchdog
+  checked two specific junctions and reported "no gap" while 39 subject-days
+  were broken. `resolveRoad()` never cuts, every branch of `addPlannedFuture()`
+  is anchored on the real position, and the checker counts the chain's free ends
+  against the breaks the data actually justifies.
 - **Every line follows real roads, past and future** (`ROUTES`, `routeKey()`,
   `roadPath()`, `roadTo()`, `trimRoad()`, `segmentLatLngs()`). `roadPath()`
   takes any list of positions and joins them along the driving geometry
