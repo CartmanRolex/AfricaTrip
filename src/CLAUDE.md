@@ -474,7 +474,17 @@ Key JS structures (all near the top of the script):
   never make photos disappear from the map, so there is deliberately no
   per-subject media filtering. `refreshPhotos()` renders the allowed
   indices into `photoCluster`; the `#lightbox` it opens is scoped to one pile
-  (see above). **The viewer is served a display-sized version, never the
+  (see above). **A medium being loaded says so** (`.lb-stage.chargement`): its
+  own thumbnail shows instantly — already cached, it is the marker's — blurred
+  under a spinner, so the previous photo leaves the screen the moment the arrow
+  is pressed; it used to stay put with nothing indicating a wait. The caption
+  updates at once too, so you know which medium is coming before it arrives.
+  **Neighbours are prefetched** (`precharger()`): next, next-but-one and
+  previous, so the arrow answers instantly. Nothing further, and videos never —
+  several megabytes for a clip that may never be opened is a poor trade on
+  mobile data. Verified: on photo 1 of a series, photos 2 and 3 are already
+  downloaded and photo 5 is not.
+  **The viewer is served a display-sized version, never the
   original** (`mediaDisplay()`: `w_1400,c_limit,q_auto,f_auto` for images,
   `q_auto,w_1280,c_limit` for videos), falling back to the original then the
   thumbnail. Measured on the trip's real media: −80 to −90 % on images, −50 to
