@@ -119,6 +119,18 @@ dans `initStats()`), chacun écrivant son champ dans `crew/{prénom}` en
 `{merge:true}` — le site les relit en direct. Une boucle plutôt que trois copies,
 c'est ce qui garantit qu'elles se comportent pareil.
 
+**Les jauges sont gardées sur le téléphone AVANT d'être envoyées**
+(`crew-stats-<prénom>` en localStorage). Deux défauts réels que ça corrige : les
+curseurs affichaient **5** en attendant la réponse du serveur, si bien qu'un
+quota épuisé ou un réseau lent laissait ce 5 en place avec l'aplomb d'une vraie
+valeur — c'est la « remise à zéro » constatée en rouvrant l'app ; et un
+enregistrement raté n'était ni conservé ni réessayé, donc la valeur était perdue
+puis écrasée par l'ancienne au rechargement. À l'ouverture on affiche
+immédiatement ce qu'on sait, puis on réconcilie : **une valeur non encore
+envoyée bat celle du serveur**, sinon on écraserait le réglage de l'équipier.
+Les restes en attente repartent au lancement suivant. Les points GPS avaient
+leur file durable depuis toujours ; les jauges n'avaient rien.
+
 **Une minuterie par jauge** (`statsTimer_<clé>`) : une seule minuterie partagée
 faisait qu'en bougeant le Mana on annulait l'enregistrement des PV réglés une
 demi-seconde plus tôt. `cleanupDashboard()` les annule TOUTES, sinon un curseur

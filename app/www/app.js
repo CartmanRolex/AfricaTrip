@@ -1173,55 +1173,116 @@ const STATS = [
   { key: "mana", slider: "mana", out: "mana-val" },
   { key: "eveil", slider: "eveil", out: "eveil-val" },
 ];
+// Les jauges sont gardées SUR LE TÉLÉPHONE d'abord, envoyées ensuite.
+//
+// Deux défauts réels que ça corrige. Les curseurs affichaient 5 en attendant la
+// réponse du serveur : quand celle-ci n'arrivait pas — quota épuisé, hors
+// ligne, réseau lent — l'erreur était avalée en silence et 5 restait, avec
+// l'aplomb d'une vraie valeur. C'est la « remise à zéro » qu'on voyait en
+// rouvrant l'app. Et un enregistrement raté n'était ni conservé ni réessayé :
+// la valeur était perdue, puis écrasée par l'ancienne au rechargement suivant.
+// Les points GPS ont une file durable depuis toujours ; les jauges n'avaient
+// rien.
+const STATS_KEY = person => `crew-stats-${person}`;
+function statsLocales(person) {
+  try { return JSON.parse(storedValue(STATS_KEY(person)) || "{}"); }
+  catch (_) { return {}; }
+}
+function ecrireStatsLocales(person, data) {
+  storeValue(STATS_KEY(person), JSON.stringify(data));
+}
+
 function initStats(lifecycle, person) {
-  $("stats-status").textContent = "chargement…";
+  const local = statsLocales(person);
+  local.valeurs = local.valeurs || {};
+  local.enAttente = local.enAttente || {};
+
+  const afficher = (stat, v) => {
+    const el = $(stat.slider), out = $(stat.out);
+    if (!el || !out) return;
+    el.value = v; out.textContent = String(v);
+  };
+
+  // 1. Ce qu'on sait déjà, tout de suite : pas d'attente, pas de 5 trompeur.
+  const connu = STATS.some(s => local.valeurs[s.key] != null);
+  for (const stat of STATS)
+    afficher(stat, local.valeurs[stat.key] != null ? local.valeurs[stat.key] : 5);
+  $("stats-status").textContent = connu ? "enregistré automatiquement" : "chargement…";
+
+  const envoyer = async (key, value) => {
+    const { db, doc, setDoc, ts } = await fb();
+    await setDoc(doc(db, "crew", person),
+      { name: person, car: CREW[person], [key]: value, at: ts() }, { merge: true });
+  };
+
   for (const stat of STATS) {
     const el = $(stat.slider), out = $(stat.out);
     if (!el || !out) continue;
-    el.value = 5;
-    out.textContent = "5";
     el.oninput = () => {
       out.textContent = el.value;
+      const value = +el.value;
+      // Gardé AVANT l'envoi : même si l'app se ferme ou le réseau lâche, la
+      // valeur est déjà chez soi et repartira au prochain lancement.
+      local.valeurs[stat.key] = value;
+      local.enAttente[stat.key] = value;
+      ecrireStatsLocales(person, local);
       // Une minuterie PAR jauge : bouger le mana ne doit pas annuler
       // l'enregistrement des PV qu'on vient de régler.
       clearTimeout(lifecycle[`statsTimer_${stat.key}`]);
       $("stats-status").textContent = "…";
-      const value = +el.value;
       lifecycle[`statsTimer_${stat.key}`] = setTimeout(async () => {
         try {
-          const { db, doc, setDoc, ts } = await fb();
-          await setDoc(doc(db, "crew", person),
-            { name: person, car: CREW[person], [stat.key]: value, at: ts() },
-            { merge: true });
+          await envoyer(stat.key, value);
+          delete local.enAttente[stat.key];
+          ecrireStatsLocales(person, local);
           if (!lifecycle.active || activeDashboard !== lifecycle) return;
           $("stats-status").innerHTML = `<span class="ok">enregistré ✓</span>`;
         } catch (e) {
           if (lifecycle.active && activeDashboard === lifecycle) {
-            $("stats-status").innerHTML = `<span class="err">${e.code || e}</span>`;
+            $("stats-status").innerHTML =
+              `<span class="err">gardé sur ce téléphone — ${e.code || e}</span>`;
           }
         }
-      }, 500);   // léger délai pour ne pas écrire à chaque cran du curseur
+      }, 500);
     };
   }
 
-  // recharge les valeurs déjà enregistrées
+  // 2. Réconciliation avec le serveur, puis renvoi de ce qui n'est pas passé.
   (async () => {
     try {
       const { db, doc, getDoc } = await fb();
       const snap = await getDoc(doc(db, "crew", person));
       if (!lifecycle.active || activeDashboard !== lifecycle) return;
-      if (!snap.exists()) return;
-      const d = snap.data();
-      for (const stat of STATS) {
-        const el = $(stat.slider), out = $(stat.out);
-        if (!el || !out || d[stat.key] == null) continue;
-        el.value = d[stat.key];
-        out.textContent = d[stat.key];
+      if (snap.exists()) {
+        const d = snap.data();
+        for (const stat of STATS) {
+          // Une valeur non encore envoyée est plus récente que celle du
+          // serveur : elle gagne, sinon on écraserait le réglage de l'équipier.
+          if (local.enAttente[stat.key] != null) continue;
+          if (d[stat.key] == null) continue;
+          local.valeurs[stat.key] = d[stat.key];
+          afficher(stat, d[stat.key]);
+        }
+        ecrireStatsLocales(person, local);
       }
-      $("stats-status").textContent = "enregistré automatiquement";
-    } catch (_) {}
+      for (const [key, value] of Object.entries({ ...local.enAttente })) {
+        try {
+          await envoyer(key, value);
+          delete local.enAttente[key];
+          ecrireStatsLocales(person, local);
+        } catch (_) { /* on retentera au prochain lancement */ }
+      }
+      if (!lifecycle.active || activeDashboard !== lifecycle) return;
+      $("stats-status").textContent = Object.keys(local.enAttente).length
+        ? "en attente d'envoi — gardé sur ce téléphone"
+        : "enregistré automatiquement";
+    } catch (_) {
+      if (lifecycle.active && activeDashboard === lifecycle && !connu)
+        $("stats-status").textContent = "hors ligne — valeurs locales";
+    }
   })();
 }
+
 
 // ---- photos (localisation gardée) -----------------------------------------
 function mediaCapturedAt(value, fallback = Date.now()) {
