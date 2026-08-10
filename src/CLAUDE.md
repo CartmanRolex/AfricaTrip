@@ -521,7 +521,21 @@ Key JS structures (all near the top of the script):
   thumbnail. Measured on the trip's real media: −80 to −90 % on images, −50 to
   −78 % on videos, for no visible difference — opening one photo used to pull
   5 MB. Only Cloudinary URLs are rewritten; Drive photos served by Pages keep
-  their path. Image/video support,
+  their path.
+  **A small download button sits at the top right of the viewer** (`.lb-dl`,
+  `mediaDownload()`, `nomFichier()`) and serves the **original**, not the
+  display version: downloading means wanting the file as it was taken. It is
+  fixed to the viewport like `.lb-nav`, not anchored to the media, because
+  during loading the stage is only as big as the 96 px thumbnail and the button
+  would jump. The HTML `download` attribute is **ignored cross-origin** — the
+  server has to say "attachment" — so Cloudinary URLs get `fl_attachment:<name>`
+  (verified: `Content-Disposition: attachment`, extension appended by
+  Cloudinary), while Drive media served by Pages are same-origin and the
+  attribute suffices. The file lands as `africatrip-<date>-<author>.<ext>`,
+  because a Cloudinary `public_id` means nothing in a phone gallery. Its click
+  stops propagation: the viewer closes on backdrop click, and downloading must
+  not close it.
+  Image/video support,
   **Duplicates are dropped on the way in**: same author, same capture second, same rounded position is the SAME medium sent twice — an upload cut mid-flight can have landed on Cloudinary without the app knowing, and the retry wrote a second document, so two thumbnails sat on top of each other. The fingerprint keeps the position on purpose: two of Gal's photos share a 14:00 fallback timestamp but are 36 km apart, and they are not duplicates. Nothing is deleted server-side, only the second copy is not drawn. The app now writes with a deterministic id so it stops creating them at all. captions, date, location provenance and thumbnail fallback. The lightbox caption leads with **who sent the medium** (`personName`), the first thing anyone asks in front of a photo; Drive files arrive anonymous, so when there is no author the date keeps the emphasis rather than a name being invented. Firebase v2
   media remain in the existing root `photos` collection for compatibility but
   carry `tripId`, `personId`, `vehicleIdAtCapture`, `mode`, `assignmentId`,
