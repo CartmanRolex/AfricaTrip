@@ -388,6 +388,37 @@ Key JS structures (all near the top of the script):
   writes `car:"obs"` both for “À pied / autre” and as its own default, so crew
   photos were landing outside their own vehicle. Near-duplicates are coalesced
   without losing an explicit vehicle assignment.
+- **Who rides in which car can CHANGE mid-trip** (`vehicleOverrideAt()`,
+  `vehicleOfAt()`, `crewOfVehicle()`, `vehicle_from` in `site-overrides.json`).
+  The presence grid cannot express this: each person owns a fixed column under
+  one car block, so the grid can only ever say present/absent. The app is no
+  better — it records whatever the crew member last selected, and nobody
+  re-selects — so Hugo's points alternated between the two cars two seconds
+  apart. `vehicle_from` `{name: [{at, vehicle}]}` states it once, per person and
+  per instant, and **overrides the captured `vehicleId`**: the recorded value is
+  precisely the thing that is wrong. `vehicleOfAt()` is the single answer to
+  "which car is X in at this instant" and everything that displays an
+  assignment goes through it — `normalisePoint()` and `mediaTrackPoint()` (the
+  two places a point is minted, so a media cannot stay in the old car while the
+  GPS moves), `aboardVehicleAt()` (the grid keeps the last word on *presence*,
+  the override on the *car*), `renderCar()`'s seats and `X/4`, the trace picker
+  columns and `plannedRangeForVehicle()`. A day is judged at `momentOfDay()`,
+  like every other time-aware rule here. Current value: Hugo → Paul Pot and
+  Paul → Hugodouard, both from 2026-08-09T22:00.
+- **A point can be disowned, and only explicitly** (`POINTS_EXCLUS`,
+  `excluded_points` in `site-overrides.json`). Changing identity or car in the
+  app writes a point under the NEW identity immediately, so scrolling past a
+  name stamps that person with a position: one phone
+  (`dev-223c3bec`, Gal's, 55 of its 60 points) signed Gal, Hugo, Hugo and Paul
+  within eleven seconds on 10/08 at 14:40, at 103 km/h with 4-6 m accuracy.
+  Nothing in the data distinguishes that from a real point — same device, same
+  road, same plausible speed — and the device is not a reliable owner marker
+  either, Jehan having three deviceIds through reinstalls. So there is no
+  heuristic: a false point is **named**, by its `pointId`, and dropped at the
+  two mint sites (`normalisePoint()`, `mediaTrackPoint()`), which covers the
+  snapshot and the live listeners alike. Declarative, auditable, reversible —
+  and it can never silently throw away real data. The real fix belongs in the
+  app: it should not stamp a point at the instant of an identity/car change.
 - **Nobody sits in a car before they get in** (`momentOfDay()`, `joinedBy()`).
   The reference instant of a displayed day is the **end** of that day, except
   today where it is now: a past or future day is judged whole (the dashed
@@ -593,7 +624,10 @@ link. `roles` `{name: label}` overrides the role word on a seat card and in a
 fiche (`roleLabel()`), the site's own strings being masculine by default
 ("observateur", "aventurier"); Helen is `observatrice`. It is the **only**
 place that decides how someone is named — nothing is ever inferred from a first
-name or a photo. `track_start` `{default, by_person}` sets, per person, the instant they join
+name or a photo. `vehicle_from` `{name: [{at, vehicle}]}` moves someone from one car to the
+other mid-trip; `excluded_points` is the list of point ids the crew disowns.
+Both are documented in detail under `template.html` above.
+`track_start` `{default, by_person}` sets, per person, the instant they join
 the trip: their GPS points and photos build their route from it, and they are
 not shown aboard a car before it either. Values are `YYYY-MM-DD`, or
 `YYYY-MM-DDTHH:MM` for someone who meets the convoy at a stop instead of

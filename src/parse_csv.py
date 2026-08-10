@@ -77,7 +77,8 @@ def read_site_overrides():
     except FileNotFoundError:
         return {"trip_year": DEFAULT_TRIP_YEAR, "textes": {},
                 "removed_travelers": set(), "phones": {}, "terminus": None,
-                "track_start": None, "roles": {}}
+                "track_start": None, "roles": {}, "vehicle_from": {},
+                "excluded_points": []}
     if not isinstance(raw, dict):
         raise ValueError("site-overrides.json must contain a JSON object")
     removed = raw.get("removed_travelers", [])
@@ -97,7 +98,22 @@ def read_site_overrides():
     # Libelle de role par personne. Le site n'a que des formes masculines en dur
     # ("observateur", "aventurier") ; c'est le seul endroit ou nommer quelqu'un
     # autrement, sans deviner quoi que ce soit a partir d'un prenom.
+    # Qui roule dans quelle voiture PEUT CHANGER en cours de route. La grille de
+    # presence ne sait pas l'exprimer : une personne y occupe une colonne fixe
+    # sous un bloc voiture. `vehicle_from` dit, par personne, a partir de quel
+    # instant elle roule dans quelle voiture — meme forme que `track_start`, et
+    # ca prime sur ce que l'appli a enregistre, parce qu'un equipier oublie de
+    # changer son reglage (les points de Hugo alternaient entre les deux
+    # voitures a deux secondes d'intervalle).
+    vehicles = read_vehicle_from(raw.get("vehicle_from"))
     roles = raw.get("roles", {})
+    # Points désavoués : l'équipage sait qu'ils sont faux (identité changée dans
+    # l'appli au mauvais moment, position posée par erreur). On les nomme
+    # explicitement plutôt que de deviner — un point écarté doit être un choix
+    # écrit, jamais une heuristique qui peut jeter de la vraie donnée.
+    excluded = raw.get("excluded_points") or []
+    if not isinstance(excluded, list) or any(not isinstance(x, str) for x in excluded):
+        raise ValueError("excluded_points must be a list of point ids")
     if not isinstance(roles, dict) or not all(
             isinstance(k, str) and isinstance(v, str) for k, v in roles.items()):
         raise ValueError("site-overrides.json roles must map names to strings")
@@ -107,7 +123,41 @@ def read_site_overrides():
             "phones": {k.strip(): v.strip() for k, v in phones.items() if k.strip()},
             "terminus": read_terminus(raw.get("terminus")),
             "track_start": read_track_start(raw.get("track_start")),
-            "roles": {k.strip(): v.strip() for k, v in roles.items() if k.strip()}}
+            "roles": {k.strip(): v.strip() for k, v in roles.items() if k.strip()},
+            "vehicle_from": vehicles,
+            "excluded_points": sorted({x.strip() for x in excluded if x.strip()})}
+
+
+def read_vehicle_from(raw):
+    """Validate `vehicle_from`: {name: [{at, vehicle}]}, sorted by instant.
+
+    `at` is `YYYY-MM-DDTHH:MM` (a car swap happens at an hour, not on a day
+    boundary). `vehicle` is a car id as the site knows it.
+    """
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ValueError("site-overrides.json vehicle_from must be a JSON object")
+    cars = {"hugodouard", "paul-pot"}
+    out = {}
+    for name, entries in raw.items():
+        if not name.strip():
+            continue
+        if not isinstance(entries, list):
+            raise ValueError(f"vehicle_from.{name} must be a list")
+        clean = []
+        for e in entries:
+            if not isinstance(e, dict) or "at" not in e or "vehicle" not in e:
+                raise ValueError(f"vehicle_from.{name} entries need 'at' and 'vehicle'")
+            at = str(e["at"]).strip()
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?", at):
+                raise ValueError(f"vehicle_from.{name}.at must be YYYY-MM-DD[THH:MM]")
+            if e["vehicle"] not in cars:
+                raise ValueError(f"vehicle_from.{name}.vehicle must be one of {sorted(cars)}")
+            clean.append({"at": at, "vehicle": e["vehicle"]})
+        if clean:
+            out[name.strip()] = sorted(clean, key=lambda x: x["at"])
+    return out
 
 
 def read_track_start(raw):
@@ -348,6 +398,10 @@ def main():
             rpg[name]["tel"] = phone
     if overrides["roles"]:
         config["roles"] = dict(overrides["roles"])
+    if overrides["vehicle_from"]:
+        config["vehicleFrom"] = overrides["vehicle_from"]
+    if overrides["excluded_points"]:
+        config["excludedPoints"] = overrides["excluded_points"]
     # `removed_travelers` veut dire « plus dans une voiture », pas « effacé ».
     # Quelqu'un qui descend du voyage peut continuer à le suivre depuis chez
     # lui : sa carte d'observateur lit ses stats dans cette même section `rpg`,

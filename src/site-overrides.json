@@ -23,6 +23,24 @@
       "Paul": "2026-08-07T14:00"
     }
   },
+  "vehicle_from": {
+    "Hugo": [
+      {
+        "at": "2026-08-09T22:00",
+        "vehicle": "paul-pot"
+      }
+    ],
+    "Paul": [
+      {
+        "at": "2026-08-09T22:00",
+        "vehicle": "hugodouard"
+      }
+    ]
+  },
+  "excluded_points": [
+    "ses-hugo-1786365630930-6201fabd-c096-455d-b381-9ecae2c09202-000001-1786365624861",
+    "ses-hugo-1786365630930-6201fabd-c096-455d-b381-9ecae2c09202-000002-1786365632059"
+  ],
   "roles": {
     "Helen": "observatrice"
   },

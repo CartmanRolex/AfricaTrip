@@ -695,11 +695,53 @@ function lastTrackPoint(points){const segments=trackSegments(points);return segm
 function subjectParts(){
   const [kind,id]=trackSubject.split(':'); return {kind,id};
 }
+// Qui roule dans quelle voiture CHANGE en cours de route. La grille de présence
+// ne sait pas l'exprimer — une personne y occupe une colonne fixe sous un bloc
+// voiture — et l'appli enregistre ce que l'équipier a réglé, réglage qu'on
+// oublie de changer : les points de Hugo alternaient entre les deux voitures à
+// deux secondes d'écart. `vehicle_from` dans site-overrides.json tranche, par
+// personne et par instant, et PRIME sur l'affectation capturée.
+const VEHICLE_FROM=(()=>{
+  const m=new Map();
+  Object.entries((CFG.vehicleFrom)||{}).forEach(([nom,list])=>{
+    const e=(list||[]).map(x=>({at:Date.parse(x.at.length>10?`${x.at}:00`:`${x.at}T00:00:00`),
+      vehicle:x.vehicle})).filter(x=>Number.isFinite(x.at)).sort((a,b)=>a.at-b.at);
+    if(e.length)m.set(nom,e);
+  });
+  return m;
+})();
+// La voiture imposée à cet instant, ou null si rien n'est dit pour ce moment.
+function vehicleOverrideAt(name,at){
+  const e=VEHICLE_FROM.get(name);
+  if(!e||!Number.isFinite(at))return null;
+  let v=null;
+  for(const x of e){ if(at>=x.at)v=x.vehicle; else break; }
+  return v;
+}
 function rosterVehicleId(name){
   if(!name)return null;
   if(CAR1.includes(name))return 'hugodouard';
   if(CAR2.includes(name))return 'paul-pot';
   return null;
+}
+// LA reponse a « dans quelle voiture est X a cet instant ». Le roster du
+// voyage est le defaut, `vehicle_from` le corrige. Tout ce qui affiche une
+// appartenance passe par ici — sieges, selecteur de trace, traces heritees —
+// pour qu'un changement de voiture ne puisse pas etre juste sur la carte et
+// faux sur les fiches.
+// Points desavoues par `excluded_points`. Un point peut etre faux sans etre
+// invraisemblable : changer d'identite ou de voiture dans l'appli ecrit
+// aussitot un point sous la NOUVELLE identite, si bien qu'un telephone a
+// signe quatre personnes en onze secondes. Aucun filtre automatique ne peut
+// distinguer ca d'une vraie donnee sans risquer d'en jeter — l'equipage le
+// nomme donc explicitement, ici, et le site l'ignore par TOUS ses chemins.
+const POINTS_EXCLUS=new Set(CFG.excludedPoints||[]);
+function vehicleOfAt(name,at){
+  return vehicleOverrideAt(name,at)||rosterVehicleId(name);
+}
+// L'equipage d'une voiture a cet instant, dans l'ordre des rosters.
+function crewOfVehicle(vid,at){
+  return CAR1.concat(CAR2).filter(n=>vehicleOfAt(n,at)===vid);
 }
 function vehicleId(v){
   const id=slug(v);
@@ -957,10 +999,13 @@ function normalisePoint(raw,base={}){
   const at=toMs(firstValue(raw.capturedAtMs,raw.t,raw.capturedAt,raw.at,base.bucketStartMs,base.bucketStartAt,base.startedAt));
   if(!at)return null; // sans heure fiable, impossible de reconstruire honnêtement l'ordre
   const accuracy=Number(firstValue(raw.accuracyM,raw.accuracy));
-  const vid=vehicleId(firstValue(raw.vehicleId,base.vehicleId));
-  const mode=String(firstValue(raw.mode,base.mode,vid?'vehicle':'independent'));
+  const impose=vehicleOverrideAt(name,at);
+  const vid=impose||vehicleId(firstValue(raw.vehicleId,base.vehicleId));
+  const mode=impose?'vehicle':String(firstValue(raw.mode,base.mode,vid?'vehicle':'independent'));
   if(mode==='paused')return null;
-  return {pointId:String(raw.pointId||base.pointId||`${slug(name)}:${at}:${lat.toFixed(6)}:${lng.toFixed(6)}`),
+  const pointId=String(raw.pointId||base.pointId||`${slug(name)}:${at}:${lat.toFixed(6)}:${lng.toFixed(6)}`);
+  if(POINTS_EXCLUS.has(pointId))return null;
+  return {pointId,
     personId:slug(name),name,lat,lng,at,accuracyM:Number.isFinite(accuracy)&&accuracy>=0?accuracy:null,
     vehicleId:vid,mode,source:String(firstValue(raw.source,base.source,'gps'))};
 }
@@ -996,9 +1041,16 @@ function mediaTrackPoint(g){
   if(!g.gps&&g.locationSource!=='media-gps')return null;
   const identity=mediaIdentity(g);
   if(!identity.name||!identity.at)return null;
-  const vid=identity.vehicleId||rosterVehicleId(identity.name);
+  const mid=`media:${g._origin||'gallery'}:${g.id||identity.name+':'+identity.at}`;
+  if(POINTS_EXCLUS.has(mid)||POINTS_EXCLUS.has(String(g.id||'')))return null;
+  // Même arbitrage que pour un point GPS : l'affectation imposée prime sur
+  // celle capturée. Ce chemin ne passe pas par normalisePoint, il faut donc
+  // l'appliquer ici aussi — sans quoi les médias restaient dans l'ancienne
+  // voiture pendant que les points changeaient.
+  const vid=vehicleOverrideAt(identity.name,identity.at)
+    ||identity.vehicleId||rosterVehicleId(identity.name);
   const noonFromDay=!!g.date&&identity.at===Date.parse(`${g.date}T12:00:00Z`);
-  return {pointId:`media:${g._origin||'gallery'}:${g.id||identity.name+':'+identity.at}`,
+  return {pointId:mid,
     personId:slug(identity.name),name:identity.name,lat:Number(g.lat),lng:Number(g.lng),at:identity.at,
     accuracyM:null,vehicleId:vid,mode:vid?'vehicle':'independent',source:'media',
     timeUncertain:g.timePrecision==='day'||(!g.timePrecision&&noonFromDay)};
@@ -1024,10 +1076,12 @@ function localDay(ms){
 function aboardVehicleAt(name,at){
   if(at<trackStartFor(name))return null;   // pas encore du voyage a cet instant
   const i=REC_BY_DAY.get(localDay(at));
-  if(i==null)return rosterVehicleId(name);
+  if(i==null)return vehicleOfAt(name,at);
   const r=REC[i],s1=r.car1[name],s2=r.car2[name];
-  if(isAboard(s1))return 'hugodouard';
-  if(isAboard(s2))return 'paul-pot';
+  // La grille dit SI la personne voyage ce jour-la ; elle ne sait pas dire
+  // dans quelle voiture, chacun y occupant une colonne fixe. L'override
+  // tranche la voiture, la grille garde le dernier mot sur la presence.
+  if(isAboard(s1)||isAboard(s2))return vehicleOfAt(name,at);
   return null;
 }
 // Les occupants d'une voiture voyagent ensemble : leurs telephones decrivent le
@@ -1447,7 +1501,7 @@ function plannedRangeForPerson(name){
 // faisait la passe du 03/08, ne trouvait jamais rien et supprimait purement et
 // simplement le futur pointillé des deux voitures.)
 function plannedRangeForVehicle(id){
-  const ranges=((VEHICLES[id]||{}).roster||[]).map(plannedRangeForPerson).filter(Boolean);
+  const ranges=crewOfVehicle(id,momentOfDay(idx)).map(plannedRangeForPerson).filter(Boolean);
   if(!ranges.length)return {startKm:0,endKm:totalKm};
   return {startKm:Math.min(...ranges.map(r=>r.startKm)),endKm:Math.max(...ranges.map(r=>r.endKm))};
 }
@@ -1775,7 +1829,7 @@ function setupTrackControls(){
     role="option" aria-selected="${b.subject===trackSubject}" style="--subject-color:${b.color}">${avatarMarkup(b,'track-choice-avatar')}<span class="track-choice-name">${esc(b.label)}</span></button>`;
   const carColumn=([id,v])=>`<div class="track-car-col">
       ${choice({subject:`vehicle:${id}`,label:v.label,color:v.color,icon:v.short,face:v.face},'car')}
-      ${(v.roster||[]).filter(n=>ACTIVE_NAMES.includes(n)).map(n=>choice(personChoice(n))).join('')}
+      ${crewOfVehicle(id,momentOfDay(idx)).filter(n=>ACTIVE_NAMES.includes(n)).map(n=>choice(personChoice(n))).join('')}
     </div>`;
   const initial=subjectDescriptor();
   el.innerHTML=`<button class="track-picker-toggle" id="track-picker-toggle" type="button" aria-haspopup="listbox" aria-expanded="false">
@@ -2453,18 +2507,23 @@ renderObs();
 // fiche RPG des montures (section "rpg_voitures" de Config)
 const CAR_RPG=CFG.rpgVoitures||{};
 function renderCar(carNo,rec){
-  const roster = carNo===1?CAR1:CAR2;
-  const states = carNo===1?rec.car1:rec.car2;
   const meta = CARS[carNo];
+  const vid = carNo===1?'hugodouard':'paul-pot';
+  const at = momentOfDay(idx);
+  // La grille de presence ne sait dire que present/absent : chacun y occupe une
+  // colonne fixe sous UNE voiture. C'est `vehicleOfAt()` qui dit dans laquelle
+  // la personne roule ce jour-la, et son etat reste celui de sa propre colonne.
+  const roster = crewOfVehicle(vid,at);
+  const stateOf = p => CAR1.includes(p)?rec.car1[p]:rec.car2[p];
   // fiche ouverte pour un membre de cette voiture -> elle prend la place du bloc
   if(ficheFor&&roster.includes(ficheFor)) return ficheHTML(ficheFor,meta.color);
-  const onboard = roster.filter(p=>isAboard(states[p])&&joinedBy(p,idx));
+  const onboard = roster.filter(p=>isAboard(stateOf(p))&&joinedBy(p,idx));
   let seats='';
-  onboard.slice(0,4).forEach((p,k)=> seats+=seatHTML(p,states[p],k===0,meta.color));
+  onboard.slice(0,4).forEach((p,k)=> seats+=seatHTML(p,stateOf(p),k===0,meta.color));
   for(let k=onboard.length;k<4;k++) seats+=emptySeat();
   // La capacite se recompte sur les sieges REELLEMENT montres : afficher le
   // 2/4 de la grille en face d'un seul visage serait un mensonge visible.
-  const cap = `${onboard.filter(p=>states[p]==='present').length}/4`;
+  const cap = `${onboard.filter(p=>stateOf(p)==='present').length}/4`;
   const carImg = PHOTOS.cars[carNo];
   const cr = CAR_RPG[carNo]||{xp:0,pv:5,skill:'—',malus:''};
   const hpc = cr.pv>=7?'var(--present)':cr.pv>=4?'var(--unknown)':'#D95B43';
