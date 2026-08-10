@@ -57,7 +57,11 @@ jobs:
           set -e
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          FILES="src/routes.json src/tracks.json src/data.json index.html voyage-afrique.html version.json"
+          FILES="src/routes.json src/data.json index.html voyage-afrique.html version.json"
+          # L'instantane peut manquer : quota epuise au premier tour, ou
+          # etape non bloquante qui a echoue. `git add` sur un fichier
+          # absent fait echouer tout le job — on ne l'ajoute que s'il est la.
+          [ -f src/tracks.json ] && FILES="$FILES src/tracks.json"
           if git diff --quiet -- $FILES; then
             echo "Aucune nouvelle route — rien à publier."
             exit 0

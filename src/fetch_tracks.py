@@ -70,11 +70,11 @@ def main():
     # Chunks v2 : l'historique des points, immuable une fois la fenetre passee.
     for doc in lire(f"trips/{TRIP_ID}/trackChunks"):
         f = fields(doc)
-        snap["chunks"].append({"id": doc.name.rsplit("/", 1)[-1], "data": f})
+        snap["chunks"].append({"id": doc["name"].rsplit("/", 1)[-1], "data": f})
 
     # Medias : leurs metadonnees (URL, position, legende, auteur).
     for doc in lire("photos"):
-        snap["photos"].append({"id": doc.name.rsplit("/", 1)[-1], "data": fields(doc)})
+        snap["photos"].append({"id": doc["name"].rsplit("/", 1)[-1], "data": fields(doc)})
 
     # Traces v1 : format hérité, purement historique — il ne bouge plus.
     for name in roster():
@@ -85,7 +85,7 @@ def main():
 
     # `positions` : dernier repli hérité, une ligne par personne.
     for doc in lire("positions"):
-        snap["positions"].append({"id": doc.name.rsplit("/", 1)[-1], "data": fields(doc)})
+        snap["positions"].append({"id": doc["name"].rsplit("/", 1)[-1], "data": fields(doc)})
 
     total = (len(snap["chunks"]) + len(snap["photos"])
              + sum(len(v) for v in snap["v1"].values()) + len(snap["positions"]))
