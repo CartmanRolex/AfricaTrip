@@ -146,6 +146,17 @@ body.danger-far .danger-label{display:none}
 .lightbox{position:fixed;inset:0;z-index:2000;background:rgba(20,17,14,.93);
   display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px}
 .lightbox.open{display:flex}
+/* Pendant qu'un média charge, on montre SA vignette agrandie et floutée, plus
+   une rondelle : la photo précédente disparaît immédiatement. Auparavant elle
+   restait affichée, et rien ne disait qu'on attendait autre chose. */
+.lb-stage{position:relative;display:flex;align-items:center;justify-content:center}
+.lb-stage.chargement img,.lb-stage.chargement video{filter:blur(14px);opacity:.55}
+.lb-spin{display:none;position:absolute;width:34px;height:34px;border-radius:50%;
+  border:3px solid rgba(239,231,214,.25);border-top-color:var(--c1);
+  animation:lb-tourne .8s linear infinite;pointer-events:none}
+.lb-stage.chargement .lb-spin{display:block}
+@keyframes lb-tourne{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.lb-spin{animation-duration:2.4s}}
 .lightbox img,.lightbox video{max-width:92vw;max-height:82vh;border-radius:10px;
   box-shadow:0 12px 50px rgba(0,0,0,.7);border:1px solid var(--line)}
 .lightbox video{background:#000;outline:none}
@@ -537,8 +548,11 @@ span.fiche-face{display:block;overflow:hidden}
 
 <div class="lightbox" id="lightbox">
   <button class="lb-nav lb-prev" aria-label="Média précédent">‹</button>
-  <img src="" alt="Photo du voyage">
-  <video controls playsinline preload="metadata" style="display:none"></video>
+  <div class="lb-stage">
+    <img src="" alt="Photo du voyage">
+    <video controls playsinline preload="metadata" style="display:none"></video>
+    <i class="lb-spin" aria-hidden="true"></i>
+  </div>
   <div class="lightbox-cap"></div>
   <button class="lb-nav lb-next" aria-label="Média suivant">›</button>
 </div>
@@ -567,7 +581,7 @@ const HAS_SNAPSHOT = !!(TRACKS.chunks && TRACKS.chunks.length);
 // (jamais mis en cache) et, si un build plus recent est publie, on recharge une
 // seule fois. Sans reseau, depuis le disque, ou si quoi que ce soit echoue, on
 // ne fait rien.
-const BUILD = "0320912276bc";
+const BUILD = "f4dd1014cbdd";
 if(location.protocol!=='file:'){
   fetch(`version.json?t=${Date.now()}`,{cache:'no-store'})
     .then(r=>r.ok?r.json():null)
@@ -2025,23 +2039,56 @@ function openLightbox(list,idx){
   if(!list||!list.length)return;          // rien a montrer : ne pas ouvrir a vide
   lbList=list; lbIdx=Math.max(0,Math.min(list.length-1,idx)); showLb();
 }
+// Précharge les médias voisins : à l'arrivée sur une photo, les suivantes sont
+// déjà en cache et la flèche répond instantanément. On regarde plus loin en
+// AVANT qu'en arrière, parce qu'on feuillette presque toujours dans ce sens.
+// Les vidéos ne sont pas préchargées : plusieurs mégaoctets pour un clip qu'on
+// n'ouvrira peut-être pas, ce serait payer cher la fluidité en données mobiles.
+const dejaPrecharge=new Set();
+function precharger(){
+  if(lbList.length<2)return;
+  for(const d of [1,2,-1]){
+    const g=GALLERY[lbList[(lbIdx+d+lbList.length)%lbList.length]];
+    if(!g||g.video)continue;
+    const url=mediaDisplay(g.file,false);
+    if(dejaPrecharge.has(url))continue;
+    dejaPrecharge.add(url);
+    new Image().src=url;
+  }
+}
 function showLb(){
   const g=GALLERY[lbList[lbIdx]];
   if(!g)return;
   const img=lb.querySelector('img');
   const vid=lb.querySelector('video');
+  const stage=lb.querySelector('.lb-stage');
+  // La vignette s'affiche INSTANTANÉMENT (elle est déjà chargée, c'est celle du
+  // marqueur) : on voit tout de suite le bon média, flouté, pendant que la
+  // version pleine arrive. Sans ça la photo précédente restait à l'écran et
+  // rien n'indiquait qu'on attendait la suivante.
+  stage.classList.add('chargement');
+  const fini=()=>stage.classList.remove('chargement');
   if(g.video){
     img.style.display='none'; img.removeAttribute('src');
-    vid.style.display='block'; vid.src=mediaDisplay(g.file,true); vid.poster=g.thumb;
+    vid.style.display='block'; vid.poster=g.thumb;
+    vid.onloadeddata=fini; vid.onerror=fini;
+    vid.src=mediaDisplay(g.file,true);
     try{ vid.currentTime=0; vid.play().catch(()=>{}); }catch(_){}
   }else{
     try{ vid.pause(); }catch(_){}
     vid.removeAttribute('src'); vid.style.display='none';
     img.style.display='block';
+    img.src=g.thumb;                       // repère immédiat, déjà en cache
+    const plein=new Image();
     // repli en cascade : version ecran -> original -> vignette
-    img.src=mediaDisplay(g.file,false);
-    img.onerror=()=>{img.onerror=()=>{img.onerror=null;img.src=g.thumb;};img.src=g.file;};
+    plein.onload=()=>{ img.src=plein.src; fini(); };
+    plein.onerror=()=>{
+      if(plein.src!==g.file){ plein.src=g.file; return; }
+      fini();                              // on reste sur la vignette
+    };
+    plein.src=mediaDisplay(g.file,false);
   }
+  precharger();
   const d=g.date?new Date(g.date+'T12:00:00'):null;
   const dateLabel=d&&!Number.isNaN(d.getTime())?d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'}):'date inconnue';
   // Qui a envoyé le média passe en tête : c'est la première question qu'on se
