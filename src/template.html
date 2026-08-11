@@ -2014,6 +2014,18 @@ const lireChunks=snap=>{
   // les têtes courantes et le fallback personnel, pas seulement la ligne.
   refreshLiveLayers();
 };
+// Les medias connus, par identifiant : l'instantane embarque PLUS le
+// complement live. `lirePhotos()` reconstruit toute la galerie a chaque appel
+// (il lui faut la liste entiere pour deduupliquer), donc la liste vit ici et
+// les deux sources s'y fondent, dans n'importe quel ordre d'arrivee.
+const MEDIAS=new Map();
+const ingererMedias=snap=>{
+  if(typeof snap.docChanges==='function')
+    snap.docChanges().forEach(c=>c.type==='removed'
+      ?MEDIAS.delete(c.doc.id):MEDIAS.set(c.doc.id,c.doc.data()));
+  else snap.forEach(d=>MEDIAS.set(d.id,d.data()));
+  lirePhotos(faux([...MEDIAS].map(([id,data])=>({id,data}))));
+};
 const lirePhotos=snap=>{
   GALLERY.length = BUILD_GALLERY_N;
   const vues=new Set();
@@ -2055,7 +2067,7 @@ function seedHistorique(){
     // L'historique vient de la page. On n'écoute QUE ce qui est vivant :
     // la position du moment et les jauges. 14 documents au lieu de 235.
     lireChunks(faux(TRACKS.chunks||[]));
-    lirePhotos(faux(TRACKS.photos||[]));
+    ingererMedias(faux(TRACKS.photos||[]));
     lirePositions(faux(TRACKS.positions||[]));
     Object.entries(TRACKS.v1||{}).forEach(([nom,pts])=>
       lireV1(nom,{forEach:f=>pts.forEach(pt=>f({id:pt.id,data:()=>pt}))}));
@@ -2080,12 +2092,32 @@ function seedHistorique(){
       // Pas encore d'instantané : on retombe sur les écoutes complètes.
       fs.onSnapshot(fs.collection(db,"positions"),lirePositions,liveError('positions v1'));
       fs.onSnapshot(fs.collection(db,'trips',TRIP_ID,'trackChunks'),lireChunks,liveError('traces v2'));
-      fs.onSnapshot(fs.collection(db,"photos"),lirePhotos,liveError('médias'));
+      fs.onSnapshot(fs.collection(db,"photos"),ingererMedias,liveError('médias'));
       [...new Set([...CAR1,...CAR2])].forEach(nom=>
         fs.onSnapshot(fs.collection(db,'tracks',nom,'points'),
           snap=>lireV1(nom,snap),liveError(`traces v1 ${nom}`)));
     }
 
+
+    if(HAS_SNAPSHOT){
+      // L'instantane porte l'historique, mais il date au pire d'une heure :
+      // les medias envoyes depuis n'y sont pas, et le site avait cesse de les
+      // montrer en direct. On ne rouvre PAS l'ecoute complete pour autant
+      // (141 medias + 129 tranches par visite, soit le probleme de quota
+      // qu'on venait de resoudre) : on ecoute le COMPLEMENT, ce qui a ete
+      // ecrit APRES les bornes que l'instantane s'est fixees.
+      // Mesure du jour : 10 medias et 12 tranches au lieu de 270 documents.
+      const c=TRACKS.cursors||{};
+      // `at` est un serverTimestamp pose a l'ENVOI. Surtout pas `capturedAt` :
+      // huit photos prises hier apres-midi ont ete envoyees ce matin, un
+      // curseur sur la prise de vue les aurait toutes ratees.
+      fs.onSnapshot(fs.query(fs.collection(db,'photos'),
+        fs.where('at','>',new Date(c.photosAt||0))),
+        ingererMedias,liveError('médias récents'));
+      fs.onSnapshot(fs.query(fs.collection(db,'trips',TRIP_ID,'trackChunks'),
+        fs.where('bucketStartMs','>=',c.chunksBucketMs||0)),
+        lireChunks,liveError('traces récentes'));
+    }
 
     fs.onSnapshot(fs.collection(db,'trips',TRIP_ID,'latest'),snap=>{
       Object.keys(latestPositions).forEach(k=>delete latestPositions[k]);

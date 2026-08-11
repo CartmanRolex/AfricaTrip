@@ -87,8 +87,29 @@ def main():
     for doc in lire("positions"):
         snap["positions"].append({"id": doc["name"].rsplit("/", 1)[-1], "data": fields(doc)})
 
+    # Curseurs de rattrapage. L'instantane date au pire d'une heure, et la page
+    # ne doit PAS reprendre l'ecoute complete pour autant (141 medias + 129
+    # tranches par visite, soit le probleme de quota qu'on vient de resoudre).
+    # Elle ecoute le COMPLEMENT : ce qui a ete ecrit apres ces bornes.
+    #
+    # Pour les medias, la borne est `at` — un serverTimestamp pose a l'ENVOI —
+    # et surtout pas `capturedAt` : Gal a pris huit photos hier apres-midi et
+    # les a envoyees ce matin, un curseur sur la date de prise de vue les
+    # aurait toutes ratees.
+    # Les tranches n'ont pas d'equivalent serveur, seulement `bucketStartMs`
+    # (derive de l'heure de capture). On recule d'une tranche entiere pour que
+    # celle en cours de remplissage soit toujours reprise, meme si un autre
+    # equipier en a ouvert une plus recente.
+    BUCKET_MS = 2 * 60 * 60 * 1000
+    photos_at = max((p["data"].get("at") or "" for p in snap["photos"]), default="")
+    buckets = [int(c["data"].get("bucketStartMs") or 0) for c in snap["chunks"]]
+    snap["cursors"] = {"photosAt": photos_at or None,
+                       "chunksBucketMs": (max(buckets) - BUCKET_MS) if buckets else 0}
+
     total = (len(snap["chunks"]) + len(snap["photos"])
              + sum(len(v) for v in snap["v1"].values()) + len(snap["positions"]))
+    print(f"curseurs : medias apres {snap['cursors']['photosAt']}, "
+          f"tranches depuis {snap['cursors']['chunksBucketMs']}")
     print(f"chunks {len(snap['chunks'])}, medias {len(snap['photos'])}, "
           f"v1 {sum(len(v) for v in snap['v1'].values())} sur {len(snap['v1'])} personnes, "
           f"positions {len(snap['positions'])}")

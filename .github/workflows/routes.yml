@@ -68,7 +68,10 @@ jobs:
           fi
           git add -- $FILES
           ROUTES=$(python -c "import json;print(len(json.load(open('src/routes.json'))))")
-          SNAP=$(python -c "import json,os;p='src/tracks.json';print(sum(len(v) if isinstance(v,list) else sum(len(x) for x in v.values()) for v in json.load(open(p)).values()) if os.path.exists(p) else 0)")
+          # Compter les COLLECTIONS nommement : tracks.json porte aussi des
+          # curseurs de rattrapage, et un `for v in .values()` generique
+          # trebuche dessus.
+          SNAP=$(python -c "import json,os;p='src/tracks.json';d=json.load(open(p)) if os.path.exists(p) else {};print(len(d.get('chunks',[]))+len(d.get('photos',[]))+len(d.get('positions',[]))+sum(len(x) for x in d.get('v1',{}).values()))")
           git commit -m "Routes: ${ROUTES} géométries, instantané ${SNAP} documents"
           # Quelqu'un a pu pousser entre-temps : on se replace avant d'envoyer.
           git pull --rebase --autostash origin main

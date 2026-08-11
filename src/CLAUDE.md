@@ -548,9 +548,8 @@ Key JS structures (all near the top of the script):
 - **THE PAGE SHIPS ITS HISTORY; IT SUBSCRIBES ONLY TO WHAT IS LIVE.**
   `src/fetch_tracks.py` snapshots chunks, photos, the v1 tracks and `positions`
   into `src/tracks.json`, committed and injected as `__TRACKS__`. When that
-  snapshot is present the page seeds from it and opens **two** listeners —
-  `latest` and `crew` — instead of fourteen: **14 documents per visit instead of
-  235**.
+  snapshot is present the page seeds from it and opens **four** listeners —
+  `latest`, `crew`, and the two catch-up queries below — instead of fourteen.
   Why it matters: the free tier allows 50 000 reads a day, so 235 reads a visit
   capped the site at ~210 visitors before the whole project returned
   RESOURCE_EXHAUSTED. That happened on 2026-08-10 and it took the crew's GPS
@@ -562,6 +561,33 @@ Key JS structures (all near the top of the script):
   offline, or quota exhausted — must not take the history down with it, since
   the page already contains it. `seedHistorique()` is called at the very end of
   the script because seeding triggers a full render.
+  **THE SNAPSHOT IS UP TO AN HOUR OLD, SO THE PAGE ALSO SUBSCRIBES TO THE
+  CATCH-UP** (`TRACKS.cursors`, written by `fetch_tracks.py`). The first version
+  of this did not, and the site silently stopped showing new photos: Gal
+  uploaded eight and saw none of them until the next hourly run. Reopening the
+  full listeners would have restored the very quota problem this was built to
+  fix (141 media + 129 chunks per visit, and both grow forever). So the page
+  listens to the **delta**: everything written *after* the bounds the snapshot
+  recorded for itself. Measured the day it landed: **10 media and 12 chunks**
+  instead of 270 documents, and it does not grow with history — only with an
+  hour of crew activity.
+  The media cursor is **`at`, a `serverTimestamp()` set at UPLOAD** — never
+  `capturedAt`. That distinction is the whole point: those eight photos were
+  taken yesterday afternoon and uploaded this morning, so a capture-time cursor
+  would have missed every one of them. Chunks have no server timestamp, only
+  `bucketStartMs` derived from capture time, so their cursor steps back a full
+  2 h bucket to be sure the one still being filled is picked up. A back-dated
+  chunk (an offline phone flushing its outbox into an old bucket) still falls
+  through to the hourly snapshot — the failure mode is exactly the old
+  behaviour, never worse.
+  `MEDIAS` (a Map keyed by document id) is what makes the two sources merge:
+  `lirePhotos()` rebuilds the whole gallery on every call because it needs the
+  full list to deduplicate, so the list has to live somewhere. Seed and delta
+  both flow through `ingererMedias()` and can arrive in any order.
+  `lireChunks()` already merged by id through `docChanges()`, so it needed
+  nothing. `tracks.json` now carries a `cursors` key that is NOT a collection —
+  the workflow's document counter names the four collections explicitly rather
+  than iterating over the file's values, or it trips on it.
   With no snapshot (`HAS_SNAPSHOT` false) the page falls back to the fourteen
   listeners, exactly as before. `fetch_tracks.py` refuses to write an empty
   snapshot, so a 429 never erases the published history.
