@@ -546,6 +546,34 @@ Key JS structures (all near the top of the script):
   because a Cloudinary `public_id` means nothing in a phone gallery. Its click
   stops propagation: the viewer closes on backdrop click, and downloading must
   not close it.
+- **BULK DOWNLOAD: ONE FILE AT A TIME, NEVER A ZIP** (`.dl-sheet`, `DL`,
+  `dlLancer()`, entry point `.dl-open` in the panel). The trip is 212 media for
+  925 MB — a zip is built in memory and no phone holds a gigabyte, and JPEG/MP4
+  are already compressed so a zip would save nothing anyway. Each file is
+  `fetch`ed, turned into a blob, clicked through an `<a download>`, and the
+  PREVIOUS object URL is revoked as the next one starts, so at most two blobs
+  are alive: memory stays flat whatever the volume. This buys honest progress
+  in real MB, a working Stop button, and independence — a file that fails does
+  not take the others down. Cloudinary answers
+  `access-control-allow-origin: *`, which is what makes the fetch possible; the
+  ORIGINAL is fetched, never `mediaDisplay()`'s screen version.
+  **Success unchecks, failure keeps checked.** That single rule is the whole
+  error handling: relaunching retries exactly what is left, and nothing is ever
+  downloaded twice. Everything is checked on opening because the request is
+  "download it all" — the selection exists to REMOVE. Author chips toggle a
+  whole person at once (`Arthur 51`), and a chip reads pressed only when all of
+  that person's media are selected.
+  Filenames carry the time (`africatrip-2026-08-06-140000-gal.jpg`): fifteen
+  media can share one date and one author, and the browser would stack them as
+  "(1)", "(2)". The extension comes from the URL, because a blob download has
+  no `Content-Disposition` to supply it.
+  Verified end to end over HTTP: three real files on disk at full resolution
+  with EXIF and GPS intact, two forced 404s counted as failures and left
+  checked, Stop halting cleanly at 7 of 25.
+  Gotcha that cost a broken page: `refreshPhotos()` updates the entry-point
+  counter but must NOT touch `DL` — it is a `const` declared further down, and
+  reading it from an early render throws on the temporal dead zone, which kills
+  the whole script silently.
   Image/video support,
   **Duplicates are dropped on the way in**: same author, same capture second, same rounded position is the SAME medium sent twice — an upload cut mid-flight can have landed on Cloudinary without the app knowing, and the retry wrote a second document, so two thumbnails sat on top of each other. The fingerprint keeps the position on purpose: two of Gal's photos share a 14:00 fallback timestamp but are 36 km apart, and they are not duplicates. Nothing is deleted server-side, only the second copy is not drawn. The app now writes with a deterministic id so it stops creating them at all. captions, date, location provenance and thumbnail fallback. The lightbox caption leads with **who sent the medium** (`personName`), the first thing anyone asks in front of a photo; Drive files arrive anonymous, so when there is no author the date keeps the emphasis rather than a name being invented. Firebase v2
   media remain in the existing root `photos` collection for compatibility but
