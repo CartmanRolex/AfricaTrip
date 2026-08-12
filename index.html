@@ -172,6 +172,48 @@ body.danger-far .danger-label{display:none}
    photo, pas gerer des fichiers. Fixe comme .lb-nav plutot qu'ancre au media,
    parce que pendant le chargement la scene fait la taille de la vignette et
    le bouton sauterait. */
+/* Téléchargement en masse. Même langage visuel que la visionneuse : plein
+   écran, fond sombre, rien de neuf à apprendre. */
+.dl-sheet{position:fixed;inset:0;z-index:2100;background:var(--bg);
+  display:none;flex-direction:column;padding:14px 14px 0}
+.dl-sheet.open{display:flex}
+.dl-head{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+.dl-head h2{font-size:15px;letter-spacing:.06em;text-transform:uppercase;color:var(--sand)}
+.dl-head small{font-family:var(--mono);font-size:11px;color:var(--sand-dim)}
+.dl-head .dl-x{margin-left:auto;width:32px;height:32px;border-radius:9px;
+  border:1px solid var(--line);background:var(--panel2);color:var(--sand);font-size:16px}
+.dl-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.dl-chips button{font-family:var(--mono);font-size:11px;letter-spacing:.04em;
+  padding:5px 9px;border-radius:999px;border:1px solid var(--line);
+  background:var(--panel2);color:var(--sand-dim)}
+.dl-chips button[aria-pressed="true"]{color:var(--sand);border-color:var(--sand-dim)}
+.dl-list{flex:1;overflow-y:auto;display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px;align-content:start}
+.dl-row{display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:9px;
+  border:1px solid var(--line);background:var(--panel2);text-align:left;color:var(--sand-dim)}
+.dl-row[aria-pressed="true"]{color:var(--sand);border-color:var(--sand-dim)}
+.dl-row img{width:34px;height:34px;border-radius:6px;object-fit:cover;flex:none;
+  opacity:.45;background:#000}
+.dl-row[aria-pressed="true"] img{opacity:1}
+.dl-row span{font-family:var(--mono);font-size:10.5px;line-height:1.35;
+  overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.dl-row b{display:block;font-weight:400;color:var(--sand);font-size:11px}
+.dl-row i{flex:none;width:15px;height:15px;border-radius:4px;border:1px solid var(--sand-dim);
+  display:grid;place-items:center;font-size:10px;font-style:normal;color:var(--bg)}
+.dl-row[aria-pressed="true"] i{background:var(--sand);border-color:var(--sand)}
+.dl-foot{display:flex;align-items:center;gap:10px;padding:11px 0 14px;
+  border-top:1px solid var(--line);margin-top:10px}
+.dl-etat{font-family:var(--mono);font-size:11px;color:var(--sand-dim);flex:1;line-height:1.4}
+.dl-go{padding:9px 15px;border-radius:9px;border:1px solid var(--sand-dim);
+  background:var(--sand);color:var(--bg);font-size:12.5px;letter-spacing:.04em}
+.dl-go[disabled]{opacity:.4}
+.dl-go.stop{background:var(--panel2);color:var(--sand)}
+/* L'entrée dans le panneau : une ligne, pas une section de plus. */
+.dl-open{width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);
+  background:var(--panel2);color:var(--sand);font-size:12.5px;letter-spacing:.03em;
+  display:flex;align-items:center;justify-content:center;gap:8px}
+.dl-open:hover{border-color:var(--sand-dim)}
+.dl-open small{font-family:var(--mono);font-size:10.5px;color:var(--sand-dim)}
 .lb-dl{position:fixed;top:16px;right:16px;z-index:2001;width:36px;height:36px;
   display:grid;place-items:center;background:rgba(30,24,19,.7);
   border:1px solid var(--line);border-radius:10px;color:var(--sand);opacity:.5;
@@ -545,6 +587,11 @@ span.fiche-face{display:block;overflow:hidden}
       <section id="obs" class="sec-obs"></section>
 
       <section>
+        <button class="dl-open" id="dl-open" type="button">📥 Télécharger les médias
+          <small id="dl-open-n"></small></button>
+      </section>
+
+      <section>
         <div class="legend">
           <span><i class="dot present"></i> présent</span>
           <span><i class="dot unknown"></i> incertain</span>
@@ -555,6 +602,19 @@ span.fiche-face{display:block;overflow:hidden}
 
       <p class="foot" id="foot">Capacité max. 4 places par voiture. Les jours sans nouveau lieu reprennent le dernier point de passage. Glisse la frise ou choisis une étape pour voir l'équipage évoluer.</p>
     </div>
+  </div>
+</div>
+
+<div class="dl-sheet" id="dl-sheet" role="dialog" aria-modal="true" aria-label="Télécharger les médias">
+  <div class="dl-head">
+    <h2>Télécharger les médias</h2><small id="dl-compte"></small>
+    <button class="dl-x" id="dl-x" aria-label="Fermer">✕</button>
+  </div>
+  <div class="dl-chips" id="dl-chips"></div>
+  <div class="dl-list" id="dl-list"></div>
+  <div class="dl-foot">
+    <p class="dl-etat" id="dl-etat"></p>
+    <button class="dl-go" id="dl-go" type="button"></button>
   </div>
 </div>
 
@@ -597,7 +657,7 @@ const HAS_SNAPSHOT = !!(TRACKS.chunks && TRACKS.chunks.length);
 // (jamais mis en cache) et, si un build plus recent est publie, on recharge une
 // seule fois. Sans reseau, depuis le disque, ou si quoi que ce soit echoue, on
 // ne fait rien.
-const BUILD = "e5d81c446bbd";
+const BUILD = "45dfd3b333e2";
 if(location.protocol!=='file:'){
   fetch(`version.json?t=${Date.now()}`,{cache:'no-store'})
     .then(r=>r.ok?r.json():null)
@@ -991,8 +1051,19 @@ function mediaDisplay(url, video){
 // `public_id` Cloudinary ne dit rien a personne.
 function nomFichier(g){
   const bout=v=>slug(String(v||'')).replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
-  return ['africatrip',bout(g.date),bout(g.personName)].filter(Boolean).join('-').slice(0,60)
-    ||'africatrip';
+  // L'heure fait partie du nom : sur un envoi groupe, une quinzaine de medias
+  // partagent la meme date et le meme auteur, et le navigateur les empilerait
+  // en « (1) », « (2) »… L'heure les distingue et les remet dans l'ordre.
+  const t=Number.isFinite(g.capturedAtMs)&&g.capturedAtMs
+    ?new Date(g.capturedAtMs).toTimeString().slice(0,8).replace(/:/g,''):'';
+  return ['africatrip',bout(g.date),t,bout(g.personName)].filter(Boolean).join('-')
+    .slice(0,70)||'africatrip';
+}
+// Le nom complet, extension comprise. En telechargement de masse on passe par
+// un blob : c'est nous qui nommons, Cloudinary ne met plus son en-tete.
+function nomFichierComplet(g){
+  const m=/\.([a-z0-9]{2,4})(?:\?|$)/i.exec(g.file||'');
+  return nomFichier(g)+'.'+((m&&m[1].toLowerCase())||(g.video?'mp4':'jpg'));
 }
 // Telecharger, c'est vouloir le fichier tel qu'il a ete pris : on sert
 // l'ORIGINAL, jamais la version d'affichage de `mediaDisplay()`.
@@ -1886,6 +1957,11 @@ function setupTrackControls(){
 }
 
 function refreshPhotos(){
+  // Le compteur de l'entree suit la galerie live. On ne touche PAS a l'etat du
+  // telechargement d'ici : il est declare plus bas, et y toucher avant tuait
+  // le script entier (zone morte d'un `const`).
+  const cpt=document.getElementById('dl-open-n');
+  if(cpt)cpt.textContent=`${GALLERY.filter(g=>g&&g.file).length} fichiers`;
   photoCluster.clearLayers();
   const markers = [];
   const visible=visibleGalleryIndices();
@@ -2146,6 +2222,122 @@ function seedHistorique(){
     },liveError('équipage'));
   } catch (e) { console.warn("live:", e); }
 })();
+
+/* ---- telechargement en masse -------------------------------------------
+   209 medias, 925 Mo. Donc PAS de zip : un zip se construit en memoire et
+   aucun telephone ne tient un giga-octet — et de toute facon les JPEG et les
+   MP4 sont deja compresses, un zip ne gagnerait rien. On telecharge UN fichier
+   a la fois : memoire plate quel que soit le volume, progression honnete en
+   Mo reels, arret possible a tout moment, et un fichier qui echoue n'emporte
+   pas les autres — il reste coche, il suffit de relancer. */
+const DL={sel:new Set(),encours:false,stop:false};
+const dlSheet=document.getElementById('dl-sheet');
+const dlMedias=()=>GALLERY.filter(g=>g&&g.file&&g.id!=null);
+const dlAuteur=g=>g.personName||'sans auteur';
+
+function dlRendre(){
+  const tous=dlMedias();
+  const auteurs=[...new Set(tous.map(dlAuteur))].sort();
+  document.getElementById('dl-chips').innerHTML=
+    `<button data-tout="1">Tout</button><button data-tout="0">Aucun</button>`+
+    auteurs.map(a=>{
+      const sien=tous.filter(g=>dlAuteur(g)===a);
+      const on=sien.every(g=>DL.sel.has(g.id));
+      return `<button data-auteur="${esc(a)}" aria-pressed="${on}">${esc(a)} ${sien.length}</button>`;
+    }).join('');
+  document.getElementById('dl-list').innerHTML=tous.map(g=>{
+    const d=g.date?new Date(g.date+'T12:00:00').toLocaleDateString('fr-FR',
+      {day:'numeric',month:'short'}):'date inconnue';
+    return `<button class="dl-row" data-id="${esc(String(g.id))}"
+      aria-pressed="${DL.sel.has(g.id)}">
+      <i aria-hidden="true">✓</i>
+      <img src="${esc(g.thumb||'')}" alt="" loading="lazy">
+      <span><b>${esc(dlAuteur(g))}</b>${d}${g.video?' · vidéo':''}</span></button>`;
+  }).join('');
+  dlMajEtat();
+}
+function dlMajEtat(msg){
+  const tous=dlMedias(),n=tous.filter(g=>DL.sel.has(g.id)).length;
+  const videos=tous.filter(g=>DL.sel.has(g.id)&&g.video).length;
+  document.getElementById('dl-compte').textContent=
+    `${tous.length} médias · ${tous.filter(g=>g.video).length} vidéos`;
+  const etat=document.getElementById('dl-etat');
+  if(msg!=null)etat.textContent=msg;
+  else etat.textContent=n?`${n} sélectionné${n>1?'s':''}${videos?` · ${videos} vidéo${videos>1?'s':''} (lourdes)`:''}`
+    :'rien de sélectionné';
+  const go=document.getElementById('dl-go');
+  go.textContent=DL.encours?'Arrêter':`Télécharger${n?` (${n})`:''}`;
+  go.classList.toggle('stop',DL.encours);
+  go.disabled=!DL.encours&&!n;
+  const ouvre=document.getElementById('dl-open-n');
+  if(ouvre)ouvre.textContent=tous.length?`${tous.length} fichiers`:'';
+}
+function dlOuvrir(){
+  // Tout coche par defaut : la demande est « tout telecharger », la selection
+  // sert a RETIRER ce qu'on ne veut pas.
+  if(!DL.encours)DL.sel=new Set(dlMedias().map(g=>g.id));
+  dlRendre(); dlSheet.classList.add('open');
+}
+function dlFermer(){ DL.stop=true; dlSheet.classList.remove('open'); }
+
+async function dlLancer(){
+  const choisis=dlMedias().filter(g=>DL.sel.has(g.id));
+  if(!choisis.length)return;
+  DL.encours=true; DL.stop=false;
+  let faits=0,rates=0,octets=0,precedent=null;
+  const mo=o=>`${(o/1048576).toFixed(o>10485760?0:1)} Mo`;
+  for(const g of choisis){
+    if(DL.stop)break;
+    dlMajEtat(`${faits+rates+1}/${choisis.length} · ${dlAuteur(g)} · ${mo(octets)} reçus`);
+    try{
+      const r=await fetch(g.file);              // l'ORIGINAL, pas la version écran
+      if(!r.ok)throw new Error(r.status);
+      const blob=await r.blob();
+      // Au plus deux blobs vivants : on libere le precedent en prenant le
+      // suivant. Sans ca, 925 Mo finiraient par s'accumuler dans l'onglet.
+      if(precedent)URL.revokeObjectURL(precedent);
+      precedent=URL.createObjectURL(blob);
+      const a=Object.assign(document.createElement('a'),
+        {href:precedent,download:nomFichierComplet(g)});
+      document.body.appendChild(a); a.click(); a.remove();
+      octets+=blob.size; faits++;
+      DL.sel.delete(g.id);                      // fait = decoche, donc jamais repris
+      const ligne=document.querySelector(`.dl-row[data-id="${CSS.escape(String(g.id))}"]`);
+      if(ligne)ligne.setAttribute('aria-pressed','false');
+    }catch(_){ rates++; }                       // reste coche : relancer suffit
+  }
+  if(precedent)setTimeout(()=>URL.revokeObjectURL(precedent),30000);
+  DL.encours=false;
+  dlRendre();
+  dlMajEtat(DL.stop?`Arrêté — ${faits} téléchargé${faits>1?'s':''} (${mo(octets)}), le reste est resté coché.`
+    :rates?`${faits} téléchargé${faits>1?'s':''} (${mo(octets)}) · ${rates} échec${rates>1?'s':''}, restés cochés — relance pour réessayer.`
+    :`Terminé : ${faits} fichier${faits>1?'s':''}, ${mo(octets)}.`);
+}
+
+document.getElementById('dl-open').onclick=dlOuvrir;
+document.getElementById('dl-x').onclick=dlFermer;
+document.getElementById('dl-go').onclick=()=>{ if(DL.encours)DL.stop=true; else dlLancer(); };
+document.getElementById('dl-chips').onclick=e=>{
+  const b=e.target.closest('button'); if(!b||DL.encours)return;
+  const tous=dlMedias();
+  if(b.dataset.tout!=null)DL.sel=b.dataset.tout==='1'?new Set(tous.map(g=>g.id)):new Set();
+  else{
+    const sien=tous.filter(g=>dlAuteur(g)===b.dataset.auteur);
+    const on=sien.every(g=>DL.sel.has(g.id));
+    sien.forEach(g=>on?DL.sel.delete(g.id):DL.sel.add(g.id));
+  }
+  dlRendre();
+};
+document.getElementById('dl-list').onclick=e=>{
+  const b=e.target.closest('.dl-row'); if(!b||DL.encours)return;
+  const g=dlMedias().find(x=>String(x.id)===b.dataset.id); if(!g)return;
+  DL.sel.has(g.id)?DL.sel.delete(g.id):DL.sel.add(g.id);
+  b.setAttribute('aria-pressed',String(DL.sel.has(g.id)));
+  dlMajEtat();
+};
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&dlSheet.classList.contains('open')){dlFermer();e.stopPropagation();}
+});
 
 const lb=document.getElementById('lightbox');
 // échappe le texte (légende) saisi par l'équipage avant injection HTML
