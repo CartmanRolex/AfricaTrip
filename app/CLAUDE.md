@@ -281,10 +281,23 @@ jauge ne demande aucun déploiement de règles.
 - `www/faces.js`, `www/icons/`, `www/manifest.json` — visages et PWA.
 - `native/AfricaMediaPlugin.java`, `native/MainActivity.java`,
   `native/AndroidManifest.xml` — couche Android versionnée.
-- `build-android.sh` — fixe actuellement Android `versionCode 3` /
-  `versionName 2.2.0`, injecte le natif, synchronise Capacitor et génère
-  `android/app/build/outputs/apk/debug/app-debug.apk`. Incrémenter le code à
-  chaque APK publiée pour permettre la mise à jour par-dessus l'ancienne.
+- `build-android.sh` — porte `APP_VERSION_CODE` / `APP_VERSION_NAME` (source
+  UNIQUE du numéro de version), injecte le natif, synchronise Capacitor et
+  génère `android/app/build/outputs/apk/debug/app-debug.apk`. Incrémenter le
+  code à chaque APK publiée pour permettre la mise à jour par-dessus
+  l'ancienne. Version courante : `versionCode 10` / `2.9.0`.
+- `release.sh` — publie l'APK. **NE JAMAIS publier une release à la main.**
+  L'équipage télécharge par un lien permanent
+  (`releases/latest/download/expedition-afrique.apk`) que GitHub résout par NOM
+  DE FICHIER EXACT : une release publiée sous `expedition-afrique-2.9.0.apk` —
+  un nom qui paraît plus clair — casse ce lien pour tout le monde en silence.
+  La release existe, elle s'affiche, seul le lien meurt. C'est arrivé avec la
+  2.9.0. Le nom du fichier n'est donc plus une décision : il est écrit une fois
+  dans le script. Celui-ci refuse en plus de publier une APK qui ne contient
+  pas le `app/www/app.js` du dépôt (sinon on publie l'ancienne app sous le
+  nouveau numéro), puis **vérifie que le lien permanent sert bien cette APK**,
+  en comparant sa taille. C'est le seul contrôle qui compte : tout le reste
+  peut être vert et ce lien mort.
 - `firestore.rules` — compatibilité v1 + validation stricte v2.
 - `README.md` — configuration, publication des règles, build et distribution,
   avec l'URL GitHub Releases stable de téléchargement de la dernière APK.
