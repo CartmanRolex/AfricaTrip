@@ -76,3 +76,17 @@ jobs:
           # Quelqu'un a pu pousser entre-temps : on se replace avant d'envoyer.
           git pull --rebase --autostash origin main
           git push origin HEAD:main
+
+      # EN DERNIER, et volontairement bloquant. La publication a deja eu lieu
+      # au-dessus, donc echouer ici ne prive le site de rien : ca sert
+      # uniquement a envoyer le mail « build failed ».
+      #
+      # Une surcharge `vehicle_from` prime sur ce que l'appli enregistre, et
+      # n'a ni fin ni surveillance : Hugo et Paul ont echange une nuit puis
+      # sont revenus, et le site les a affiches intervertis pendant deux jours
+      # alors que le telephone de Paul disait le contraire depuis le lendemain
+      # matin. Une surcharge muette gagne meme quand elle a tort. Ce controle
+      # ne corrige rien — l'equipage seul sait qui roule ou — il rend
+      # seulement impossible de ne pas s'en apercevoir.
+      - name: Vérifier que les surcharges disent encore la vérité
+        run: python src/check_overrides.py

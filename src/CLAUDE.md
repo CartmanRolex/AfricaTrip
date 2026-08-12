@@ -403,8 +403,19 @@ Key JS structures (all near the top of the script):
   GPS moves), `aboardVehicleAt()` (the grid keeps the last word on *presence*,
   the override on the *car*), `renderCar()`'s seats and `X/4`, the trace picker
   columns and `plannedRangeForVehicle()`. A day is judged at `momentOfDay()`,
-  like every other time-aware rule here. Current value: Hugo → Paul Pot and
-  Paul → Hugodouard, both from 2026-08-09T22:00.
+  like every other time-aware rule here.
+  **AN OVERRIDE IS A TIMELINE, AND IT MUST BE CLOSED.** It beats the app on
+  purpose, so it also beats the app once the app becomes right — a silent
+  override wins even when it is wrong. Hugo and Paul swapped for one night and
+  went back; Paul's phone said so the next morning and repeated it twenty-seven
+  times, and the site kept showing them swapped for two days. Every change of
+  car is therefore a new entry, including the return.
+  Current value: Hugo → Paul Pot and Paul → Hugodouard from 2026-08-09T22:00,
+  both back to their own car from 2026-08-11T09:43 — the instant after which
+  GPS and media agree unanimously again. Hugo's own phone has sent nothing
+  since 10/08 22:06, so his return instant is inferred from Paul's; there is no
+  data for it and none is invented, it is written down.
+  `src/check_overrides.py` is what makes this self-reporting (see below).
 - **A point can be disowned, and only explicitly** (`POINTS_EXCLUS`,
   `excluded_points` in `site-overrides.json`). Changing identity or car in the
   app writes a point under the NEW identity immediately, so scrolling past a
@@ -789,6 +800,23 @@ continuous drive, and a route more than 4× the great-circle distance is treated
 as an aberration (a detour around a sea, a point landing on an island) and
 dropped. Pairs whose points have disappeared are pruned from the cache. Ferries
 are covered — Algeciras → Tanger Med resolves to the 23 km crossing.
+
+### `check_overrides.py`
+Fails the workflow when a `vehicle_from` override has outlived the fact it
+described. It compares each override in force with the last `CONSENSUS` (6)
+records the person actually produced — GPS points and media together — and
+exits 1 only when **every one of them** disagrees: an override exists to
+arbitrate noise, not to overrule a consensus. Fewer than 6 records means no
+conclusion, and it says so rather than guessing (Hugo's phone has been silent
+since 10/08).
+
+It runs **last** in `routes.yml`, deliberately after the publish step and
+deliberately WITHOUT `continue-on-error`: the site has already been updated by
+then, so failing costs nothing and buys the only alert channel that reaches the
+crew — the GitHub build-failure email. It fixes nothing by itself, on purpose;
+only the crew knows who rides where. It makes it impossible not to notice.
+Verified both ways: green on the corrected file, red on the open-ended override
+that shipped the bug.
 
 ### `fetch_photos.py`
 Syncs the shared Drive photo folder onto the map (`--dry-run` to preview).
