@@ -17,6 +17,24 @@ const TRACK_SCHEMA_VERSION = 2;
 // Deux heures × un point/minute = 120 points maximum, sous le cap Firestore
 // de 160 tout en évitant de multiplier les documents à relire sur le site.
 const TRACK_BUCKET_MS = 2 * 60 * 60 * 1000;
+// Délai avant qu'un changement de personne ou de voiture soit ACQUIS.
+//
+// Changer l'un ou l'autre redémarrait le GPS avec le compteur à zéro, donc le
+// tout premier fix — il arrive en une ou deux secondes — était écrit
+// immédiatement sous le nouveau réglage. Faire défiler le sélecteur écrivait
+// donc un point par prénom traversé : le 10/08 un seul téléphone a signé Gal,
+// Hugo, Hugo et Paul en onze secondes, et le site a placé Hugo dans une
+// voiture où il n'était pas.
+//
+// Un réglage qu'on traverse ne tient pas trente secondes ; un réglage qu'on
+// choisit, si. On attend donc qu'il tienne avant d'enregistrer quoi que ce
+// soit sous son nom. Le trajet ne perd rien : c'est une demi-minute sur un
+// point toutes les minutes.
+const REGLAGE_STABLE_MS = 30000;
+// Vrai tant que le réglage n'a pas tenu assez longtemps pour être crédible.
+function reglageEnAttente(maintenant, acquisA) {
+  return acquisA > 0 && maintenant < acquisA;
+}
 const DEVICE_KEY = `${TRIP_ID}:device-id`;
 const DEVICE_COOKIE = "crew-device-v2";
 const ASSIGNMENT_KEY = `${TRIP_ID}:assignment:`;
@@ -986,6 +1004,7 @@ function optionalHeading(value) {
     && value >= 0 && value < 360 ? value : null;
 }
 function initPosition(lifecycle, person) {
+  let acquisA = 0;              // instant à partir duquel le réglage est acquis
   let lastQueuedAt = 0;
   let lastQueuedPoint = null;
   let queueInFlight = false;
@@ -1014,6 +1033,12 @@ function initPosition(lifecycle, person) {
     if (!lifecycle.active || activeDashboard !== lifecycle || !lifecycle.assignmentReady) return;
     const assignment = lifecycle.assignment;
     if (assignment.mode === "paused") return;
+    // Le réglage vient de changer : on ne signe rien tant qu'il n'a pas tenu.
+    if (reglageEnAttente(Date.now(), acquisA)) {
+      setState("waiting", "Choix en cours de confirmation",
+        "le premier point sera enregistré dès que le réglage est stabilisé");
+      return;
+    }
     const coords = position && position.coords;
     if (!coords || !validCoords(coords.latitude, coords.longitude)) {
       setState("err", "GPS incohérent", "coordonnées ignorées");
@@ -1137,6 +1162,9 @@ function initPosition(lifecycle, person) {
     assignmentChanged() {
       lastQueuedAt = 0;
       lastQueuedPoint = null;
+      // Chaque changement REPOUSSE l'échéance : traverser cinq prénoms ne fait
+      // pas cinq réglages acquis, il n'y en a qu'un — le dernier, s'il tient.
+      acquisA = Date.now() + REGLAGE_STABLE_MS;
       if (lifecycle.assignment.mode === "paused") {
         clearWatcher();
         setState("paused", "Partage en pause", "aucun point GPS n'est enregistré");

@@ -60,6 +60,27 @@ mode n'est pas **Pause**.
   heures. À la cadence client normale, ils contiennent au plus 120 points ; les
   règles gardent un plafond de 160. `latest/{personId}` n'accepte qu'un point
   plus récent ou un retry strictement identique.
+- **UN CHANGEMENT DE PERSONNE OU DE VOITURE N'EST ACQUIS QU'APRÈS 30 s**
+  (`REGLAGE_STABLE_MS`, `reglageEnAttente()`, `assignmentChanged()`).
+  Changer l'un ou l'autre remet le compteur de cadence à zéro et redémarre le
+  GPS avec `maximumAge: 0` : le tout premier fix arrive en une ou deux secondes
+  et était écrit immédiatement sous le nouveau réglage. Faire défiler le
+  sélecteur écrivait donc un point par prénom traversé — le 10/08 un seul
+  téléphone a signé Gal, Hugo, Hugo et Paul en onze secondes, et le site a
+  placé Hugo dans une voiture où il n'était pas, pendant deux jours.
+  Chaque changement REPOUSSE l'échéance, donc traverser cinq prénoms ne fait
+  pas cinq réglages acquis : il n'y en a qu'un, le dernier, et seulement s'il
+  tient. Un réglage qu'on traverse ne tient pas trente secondes, un réglage
+  qu'on choisit oui. Le trajet ne perd rien — c'est une demi-seconde de route
+  sur un point par minute — et la carte affiche « Choix en cours de
+  confirmation » pendant l'attente plutôt que de rester figée.
+  `assignmentChanged()` est le point de passage UNIQUE des deux chemins
+  (démarrage de session et bouton de voiture), c'est pourquoi la règle y tient
+  en une ligne. Vérifié en rejouant la séquence réelle du 10/08 :
+  quatre points fantômes deviennent zéro, un changement délibéré reste
+  enregistré (premier point à +34 s).
+  Côté site, `excluded_points` de `site-overrides.json` désavoue les points
+  déjà écrits par ce défaut ; c'est du rattrapage, la correction est ici.
 - Les watchers, timers et listeners Firestore sont nettoyés au changement de
   personne. Les callbacks asynchrones capturent l'identité et la session pour
   ne jamais attribuer un point au mauvais utilisateur.
