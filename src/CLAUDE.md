@@ -546,30 +546,40 @@ Key JS structures (all near the top of the script):
   because a Cloudinary `public_id` means nothing in a phone gallery. Its click
   stops propagation: the viewer closes on backdrop click, and downloading must
   not close it.
-- **BULK DOWNLOAD: ONE FILE AT A TIME, NEVER A ZIP** (`.dl-sheet`, `DL`,
-  `dlLancer()`, entry point `.dl-open` in the panel). The trip is 212 media for
-  925 MB — a zip is built in memory and no phone holds a gigabyte, and JPEG/MP4
-  are already compressed so a zip would save nothing anyway. Each file is
-  `fetch`ed, turned into a blob, clicked through an `<a download>`, and the
-  PREVIOUS object URL is revoked as the next one starts, so at most two blobs
-  are alive: memory stays flat whatever the volume. This buys honest progress
-  in real MB, a working Stop button, and independence — a file that fails does
-  not take the others down. Cloudinary answers
-  `access-control-allow-origin: *`, which is what makes the fetch possible; the
-  ORIGINAL is fetched, never `mediaDisplay()`'s screen version.
+- **BULK DOWNLOAD SHIPS ONE ZIP, NOT 212 DOWNLOADS** (`.dl-sheet`, `DL`,
+  `dlLancer()`, `nouveauZip()`, entry point `.dl-open` in the panel). The first
+  version downloaded each file separately; on iOS that opened a download prompt
+  **per photo**, 212 times. One archive means one prompt.
+  The ZIP is written by hand, no library: local header + central directory +
+  EOCD, ~50 lines. Mode is **store, never deflate** — JPEG and MP4 are already
+  compressed, so deflate would cost phone CPU for nothing. The zip is not here
+  to shrink anything, it is here to make ONE file.
+  **Peak memory is one file, not the archive.** `ajouter()` keeps the raw bytes
+  only long enough to compute the CRC-32, then retains a `Blob`, which the
+  browser can spill to disk. That is what allows packing 900 MB on a phone.
+  Archives are cut at `ZIP_MAX` (400 MB) because a single 900 MB zip is painful
+  to store, unzip and share on a phone — and if the browser ever chokes on a
+  size, only the current batch is lost. Files keep their capture date through
+  DOS date fields, so they do not all extract dated today.
   **Success unchecks, failure keeps checked.** That single rule is the whole
   error handling: relaunching retries exactly what is left, and nothing is ever
   downloaded twice. Everything is checked on opening because the request is
   "download it all" — the selection exists to REMOVE. Author chips toggle a
   whole person at once (`Arthur 51`), and a chip reads pressed only when all of
   that person's media are selected.
-  Filenames carry the time (`africatrip-2026-08-06-140000-gal.jpg`): fifteen
-  media can share one date and one author, and the browser would stack them as
-  "(1)", "(2)". The extension comes from the URL, because a blob download has
-  no `Content-Disposition` to supply it.
-  Verified end to end over HTTP: three real files on disk at full resolution
-  with EXIF and GPS intact, two forced 404s counted as failures and left
-  checked, Stop halting cleanly at 7 of 25.
+  Cloudinary answers `access-control-allow-origin: *`, which is what makes the
+  `fetch` possible; the ORIGINAL is fetched, never `mediaDisplay()`'s screen
+  version. Names carry the time (`africatrip-2026-08-06-140000-gal.jpg`) since
+  fifteen media can share a date and an author, and duplicates inside one
+  archive are suffixed rather than left ambiguous.
+  **What this does NOT fix:** on iOS the archive lands in Files, not the Photo
+  Library. No web API can write to Photos; the user unzips and does
+  Share → "Save Images". `navigator.share({files})` is the only route straight
+  into Photos and it needs one user gesture per batch — deliberately not built.
+  Verified with the system `unzip`: "No errors detected", 6/6 files extracting,
+  EXIF and GPS intact, extracted bytes **identical** to a direct download
+  (sha256), one prompt instead of six, and batching exercised at a lowered
+  threshold — 3 numbered archives, each valid.
   Gotcha that cost a broken page: `refreshPhotos()` updates the entry-point
   counter but must NOT touch `DL` — it is a `const` declared further down, and
   reading it from an early render throws on the temporal dead zone, which kills

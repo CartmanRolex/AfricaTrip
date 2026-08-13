@@ -2222,6 +2222,64 @@ function seedHistorique(){
   } catch (e) { console.warn("live:", e); }
 })();
 
+/* ---- fabrication d'un ZIP, sans bibliotheque ----------------------------
+   Un ZIP « store » (sans compression) tient en trois structures. C'est le bon
+   mode ici : JPEG et MP4 sont deja compresses, deflate ne gagnerait rien et
+   couterait du temps de calcul sur un telephone. Le zip ne sert donc pas a
+   reduire, il sert a n'avoir QU'UN fichier a telecharger — iOS ouvrait une
+   invite de telechargement par photo, 212 fois. */
+const CRC_TABLE=(()=>{const t=new Uint32Array(256);
+  for(let i=0;i<256;i++){let c=i;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[i]=c>>>0;}
+  return t;})();
+function crc32(u8){let c=0xFFFFFFFF;
+  for(let i=0;i<u8.length;i++)c=CRC_TABLE[(c^u8[i])&0xFF]^(c>>>8);
+  return (c^0xFFFFFFFF)>>>0;}
+// Date/heure au format DOS, pour que les fichiers gardent leur date une fois
+// decompresses plutot que d'arriver tous dates d'aujourd'hui.
+function dosDate(ms){
+  const d=new Date(Number.isFinite(ms)&&ms?ms:Date.now());
+  const an=Math.min(Math.max(d.getFullYear(),1980),2107);
+  return {t:(d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1),
+          d:((an-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate()};
+}
+// Un ZIP se construit en ajoutant les fichiers un par un. Les octets bruts ne
+// sont gardes QUE le temps de calculer le CRC : ensuite on ne conserve qu'un
+// Blob, que le navigateur peut poser sur le disque. Le pic memoire est donc
+// celui d'UN fichier, pas celui de l'archive — c'est ce qui permet d'empaqueter
+// 900 Mo sur un telephone.
+function nouveauZip(){
+  const morceaux=[],centrale=[],noms=new Set();
+  let offset=0,n=0;
+  const u16=v=>[v&255,(v>>8)&255];
+  const u32=v=>[v&255,(v>>8)&255,(v>>16)&255,(v>>>24)&255];
+  return {
+    get taille(){return offset;},
+    get nombre(){return n;},
+    ajouter(nom,u8,ms){
+      // Deux fichiers de meme nom rendraient l'archive ambigue.
+      let net=nom,i=2; while(noms.has(net))net=nom.replace(/(\.[^.]+)$/,`-${i++}$1`);
+      noms.add(net);
+      const b=new TextEncoder().encode(net),crc=crc32(u8),{t,d}=dosDate(ms);
+      // 0x0800 : le nom de fichier est en UTF-8.
+      const entete=Uint8Array.from([...u32(0x04034b50),...u16(20),...u16(0x0800),
+        ...u16(0),...u16(t),...u16(d),...u32(crc),...u32(u8.length),...u32(u8.length),
+        ...u16(b.length),...u16(0),...b]);
+      centrale.push(Uint8Array.from([...u32(0x02014b50),...u16(20),...u16(20),
+        ...u16(0x0800),...u16(0),...u16(t),...u16(d),...u32(crc),...u32(u8.length),
+        ...u32(u8.length),...u16(b.length),...u16(0),...u16(0),...u16(0),...u16(0),
+        ...u32(0),...u32(offset),...b]));
+      morceaux.push(entete,new Blob([u8]));   // les octets sortent de la memoire ici
+      offset+=entete.length+u8.length; n++;
+    },
+    finir(){
+      const debut=offset,taille=centrale.reduce((s,c)=>s+c.length,0);
+      return new Blob([...morceaux,...centrale,
+        Uint8Array.from([...u32(0x06054b50),...u16(0),...u16(0),...u16(n),...u16(n),
+          ...u32(taille),...u32(debut),...u16(0)])],{type:'application/zip'});
+    },
+  };
+}
+
 /* ---- telechargement en masse -------------------------------------------
    209 medias, 925 Mo. Donc PAS de zip : un zip se construit en memoire et
    aucun telephone ne tient un giga-octet — et de toute facon les JPEG et les
@@ -2262,7 +2320,7 @@ function dlMajEtat(msg){
     `${tous.length} médias · ${tous.filter(g=>g.video).length} vidéos`;
   const etat=document.getElementById('dl-etat');
   if(msg!=null)etat.textContent=msg;
-  else etat.textContent=n?`${n} sélectionné${n>1?'s':''}${videos?` · ${videos} vidéo${videos>1?'s':''} (lourdes)`:''}`
+  else etat.textContent=n?`${n} sélectionné${n>1?'s':''}${videos?` · ${videos} vidéo${videos>1?'s':''} (lourdes)`:''} · arrive en .zip`
     :'rien de sélectionné';
   const go=document.getElementById('dl-go');
   go.textContent=DL.encours?'Arrêter':`Télécharger${n?` (${n})`:''}`;
@@ -2279,38 +2337,62 @@ function dlOuvrir(){
 }
 function dlFermer(){ DL.stop=true; dlSheet.classList.remove('open'); }
 
+// Au-dela de cette taille on ferme l'archive et on en ouvre une nouvelle. Un
+// zip unique de 900 Mo est penible a manipuler sur un telephone — stockage,
+// decompression, partage — alors que trois archives se traitent l'une apres
+// l'autre. C'est aussi une securite : si le navigateur cale sur une taille, on
+// ne perd que le lot en cours.
+const ZIP_MAX=400*1048576;
+const mo=o=>`${(o/1048576).toFixed(o>10485760?0:1)} Mo`;
+function dlEnvoyer(blob,nom){
+  const url=URL.createObjectURL(blob);
+  const a=Object.assign(document.createElement('a'),{href:url,download:nom});
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
 async function dlLancer(){
   const choisis=dlMedias().filter(g=>DL.sel.has(g.id));
   if(!choisis.length)return;
   DL.encours=true; DL.stop=false;
-  let faits=0,rates=0,octets=0,precedent=null;
-  const mo=o=>`${(o/1048576).toFixed(o>10485760?0:1)} Mo`;
+  let faits=0,rates=0,octets=0,lot=0;
+  const archives=[];
+  let zip=nouveauZip();
+  const fermerLot=()=>{
+    if(!zip.nombre)return;
+    lot++; archives.push({blob:zip.finir(),n:zip.nombre});
+    zip=nouveauZip();
+  };
   for(const g of choisis){
     if(DL.stop)break;
-    dlMajEtat(`${faits+rates+1}/${choisis.length} · ${dlAuteur(g)} · ${mo(octets)} reçus`);
+    dlMajEtat(`${faits+rates+1}/${choisis.length} · ${dlAuteur(g)} · ${mo(octets)} récupérés`
+      +(lot?` · archive ${lot+1}`:''));
     try{
       const r=await fetch(g.file);              // l'ORIGINAL, pas la version écran
       if(!r.ok)throw new Error(r.status);
-      const blob=await r.blob();
-      // Au plus deux blobs vivants : on libere le precedent en prenant le
-      // suivant. Sans ca, 925 Mo finiraient par s'accumuler dans l'onglet.
-      if(precedent)URL.revokeObjectURL(precedent);
-      precedent=URL.createObjectURL(blob);
-      const a=Object.assign(document.createElement('a'),
-        {href:precedent,download:nomFichierComplet(g)});
-      document.body.appendChild(a); a.click(); a.remove();
-      octets+=blob.size; faits++;
-      DL.sel.delete(g.id);                      // fait = decoche, donc jamais repris
+      // Les octets bruts ne vivent que le temps du CRC : `ajouter()` n'en garde
+      // qu'un Blob. Le pic mémoire reste celui d'UN fichier.
+      const u8=new Uint8Array(await r.arrayBuffer());
+      zip.ajouter(nomFichierComplet(g),u8,g.capturedAtMs);
+      octets+=u8.length; faits++;
+      DL.sel.delete(g.id);                      // fait = décoché, donc jamais repris
       const ligne=document.querySelector(`.dl-row[data-id="${CSS.escape(String(g.id))}"]`);
       if(ligne)ligne.setAttribute('aria-pressed','false');
-    }catch(_){ rates++; }                       // reste coche : relancer suffit
+      if(zip.taille>=ZIP_MAX)fermerLot();
+    }catch(_){ rates++; }                       // reste coché : relancer suffit
   }
-  if(precedent)setTimeout(()=>URL.revokeObjectURL(precedent),30000);
+  fermerLot();
+  // UNE invite de téléchargement par archive, pas une par photo : c'est tout
+  // l'objet du zip. iOS en ouvrait 212.
+  dlMajEtat(`Préparation de ${archives.length} archive${archives.length>1?'s':''}…`);
+  archives.forEach((a,i)=>dlEnvoyer(a.blob,
+    archives.length>1?`africatrip-medias-${i+1}.zip`:'africatrip-medias.zip'));
   DL.encours=false;
   dlRendre();
-  dlMajEtat(DL.stop?`Arrêté — ${faits} téléchargé${faits>1?'s':''} (${mo(octets)}), le reste est resté coché.`
-    :rates?`${faits} téléchargé${faits>1?'s':''} (${mo(octets)}) · ${rates} échec${rates>1?'s':''}, restés cochés — relance pour réessayer.`
-    :`Terminé : ${faits} fichier${faits>1?'s':''}, ${mo(octets)}.`);
+  const quoi=`${faits} fichier${faits>1?'s':''} (${mo(octets)}) dans `
+    +`${archives.length} archive${archives.length>1?'s':''}`;
+  dlMajEtat(DL.stop?`Arrêté — ${quoi}, le reste est resté coché.`
+    :rates?`${quoi} · ${rates} échec${rates>1?'s':''}, restés cochés — relance pour réessayer.`
+    :`Terminé : ${quoi}.`);
 }
 
 document.getElementById('dl-open').onclick=dlOuvrir;
