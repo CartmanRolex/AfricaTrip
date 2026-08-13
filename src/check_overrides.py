@@ -12,33 +12,47 @@ derniere voiture selectionnee, personne ne la remet a jour, et les points de
 Hugo alternaient entre les deux voitures a deux secondes d'ecart. La surcharge
 prime donc sur ce que l'appli a enregistre.
 
-Mais elle n'avait ni fin ni surveillance. Hugo et Paul ont echange une nuit
-puis sont revenus dans leur voiture ; le telephone de Paul l'a dit des le
-lendemain matin et l'a repete vingt-sept fois de suite. Le site a continue de
-les afficher intervertis pendant deux jours, parce qu'une surcharge muette
-gagne meme quand elle a tort.
+Mais elle n'a ni fin ni surveillance. Hugo et Paul ont echange une nuit puis
+sont revenus ; le telephone de Paul l'a dit des le lendemain matin et l'a
+repete vingt-sept fois. Le site a continue de les afficher intervertis pendant
+deux jours, parce qu'une surcharge muette gagne meme quand elle a tort.
 
-Une surcharge est faite pour trancher du desaccord, pas pour ecraser un
-consensus. Ce controle regarde donc les DERNIERS releves signes par la
-personne — points GPS et medias confondus — et echoue si tous, sans exception,
-contredisent la voiture imposee. Il tourne en DERNIER dans le workflow, apres
-la publication : la mise a jour du site a donc deja eu lieu, et l'echec du job
-ne sert qu'a envoyer le mail qui dit d'aller corriger le fichier.
+Ce qui vaut alerte, et ce qui n'en vaut PAS
+-------------------------------------------
+Premiere version de ce controle : « si les derniers releves contredisent tous
+la surcharge, alerter ». C'etait faux, et les deux cas reels le montrent.
 
-Il ne corrige rien tout seul, volontairement : c'est l'equipage qui sait qui
-roule ou. Il rend seulement impossible de ne pas s'en apercevoir.
+  Paul   surcharge hugodouard, ses releves disent hugodouard... puis paul-pot,
+         et s'y tiennent. Il a VRAIMENT change de voiture. -> alerte justifiee.
+  Hugo   surcharge hugodouard, ses releves disent paul-pot depuis toujours.
+         Il est pourtant bien dans Hugodouard : il n'a simplement jamais
+         remis a jour son reglage depuis l'echange. -> alerter serait absurde,
+         c'est exactement le bruit que la surcharge est la pour couvrir.
+
+Le signal n'est donc pas le DESACCORD, c'est le CHANGEMENT. Un desaccord
+permanent est un reglage que personne ne touche — l'etat normal, et la raison
+d'etre de la surcharge. Un basculement, lui, est un geste : quelqu'un a ouvert
+l'appli et change sa voiture, et ca, ca veut dire quelque chose.
+
+Le controle cherche donc, APRES l'instant de la surcharge, une bascule qui
+part de la voiture imposee et n'y revient pas. Un desaccord constant est
+seulement signale, sans faire echouer quoi que ce soit.
+
+Il tourne en DERNIER dans le workflow, apres la publication, et volontairement
+bloquant : le site est deja a jour, l'echec ne sert qu'a envoyer le mail. Il ne
+corrige rien tout seul — l'equipage seul sait qui roule ou.
 """
-import json, os, sys
+import datetime, json, os, sys
 
 from fetch_routes import TRIP_ID, fields, firebase_config, fs_list
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OVERRIDES = os.path.join(HERE, "site-overrides.json")
 
-# Combien de releves concordants font un consensus. Assez pour qu'une fausse
-# manoeuvre isolee — ou un glissement d'identite — ne renverse pas une
-# surcharge, assez peu pour qu'un vrai changement soit vu dans la journee.
-CONSENSUS = 6
+# Combien de releves concordants apres la bascule avant de la croire. Assez
+# pour qu'une fausse manoeuvre isolee ne declenche rien, assez peu pour qu'un
+# vrai changement soit vu dans la journee.
+CONSENSUS = 4
 
 
 def vehicle_id(value):
@@ -51,29 +65,64 @@ def vehicle_id(value):
     return None
 
 
+def instant(at):
+    """`capturedAt` ISO -> millisecondes, pour trier medias et points ensemble."""
+    try:
+        return datetime.datetime.strptime(str(at)[:19], "%Y-%m-%dT%H:%M:%S").timestamp() * 1000
+    except ValueError:
+        return None
+
+
 def releves(project, key, noms):
-    """Tout ce que l'appli a enregistre par personne : (instant, voiture)."""
-    out = {n: [] for n in noms}
+    """Ce que chaque personne a produit elle-meme : [(instant, voiture)] trie.
+
+    Les points ecrits depuis le telephone de QUELQU'UN D'AUTRE sont ecartes :
+    changer d'identite dans l'appli ecrivait un point sous le nouveau nom, et
+    un seul telephone a ainsi signe quatre personnes en onze secondes.
+    """
+    pts = {n: [] for n in noms}
     for doc in fs_list(project, key, f"trips/{TRIP_ID}/trackChunks"):
-        f = fields(doc)
-        for p in (f.get("points") or {}).values():
+        for p in (fields(doc).get("points") or {}).values():
             nom, ms = p.get("displayName"), p.get("capturedAtMs")
-            if nom in out and ms is not None:
-                out[nom].append((float(ms), vehicle_id(p.get("vehicleId"))))
+            if nom in pts and ms is not None:
+                pts[nom].append((float(ms), vehicle_id(p.get("vehicleId")), p.get("deviceId")))
+
+    out = {}
+    for nom, liste in pts.items():
+        # Le telephone de la personne = celui qui a ecrit le plus sous son nom.
+        compte = {}
+        for _, _, dev in liste:
+            compte[dev] = compte.get(dev, 0) + 1
+        sien = max(compte, key=compte.get) if compte else None
+        out[nom] = [(ms, v) for ms, v, dev in liste if v and dev == sien]
+
     for doc in fs_list(project, key, "photos"):
         f = fields(doc)
-        nom, at = f.get("displayName") or f.get("name"), f.get("capturedAt")
-        if nom in out and at:
-            # `capturedAt` est un timestamp ISO ; on ne compare que des ordres.
-            out[nom].append((at, vehicle_id(f.get("vehicleIdAtCapture") or f.get("car"))))
-    # Les deux sources ont des instants de types differents (ms / ISO) : on les
-    # trie separement puis on fusionne sur la seule chose qui compte ici,
-    # l'ordre chronologique de chaque source prise a part.
-    for n in out:
-        pts = sorted((x for x in out[n] if isinstance(x[0], float)))
-        med = sorted((x for x in out[n] if not isinstance(x[0], float)))
-        out[n] = [v for _, v in pts if v][-CONSENSUS:] + [v for _, v in med if v][-CONSENSUS:]
+        nom = f.get("displayName") or f.get("name")
+        ms = instant(f.get("capturedAt"))
+        v = vehicle_id(f.get("vehicleIdAtCapture") or f.get("car"))
+        if nom in out and ms is not None and v:
+            out[nom].append((ms, v))
+
+    for nom in out:
+        out[nom].sort()
     return out
+
+
+def bascule(suite, impose):
+    """La suite quitte-t-elle `impose` sans y revenir ?
+
+    Renvoie la voiture vers laquelle elle bascule, ou None. Une suite qui ne
+    contient JAMAIS `impose` n'est pas une bascule : c'est un reglage que
+    personne n'a touche depuis, et c'est precisement ce que la surcharge couvre.
+    """
+    vus = [v for _, v in suite]
+    if impose not in vus:
+        return None
+    apres = vus[len(vus) - 1 - vus[::-1].index(impose) + 1:]
+    if len(apres) >= CONSENSUS and len(set(apres)) == 1:
+        return apres[0]
+    return None
 
 
 def main():
@@ -84,32 +133,33 @@ def main():
         return 0
 
     project, key = firebase_config()
-    derniers = releves(project, key, set(vf))
+    tout = releves(project, key, set(vf))
 
     problemes = []
-    for nom, entrees in vf.items():
+    for nom, entrees in sorted(vf.items()):
         if not entrees:
             continue
-        impose = sorted(entrees, key=lambda e: e["at"])[-1]   # la surcharge en cours
-        vus = derniers.get(nom) or []
-        if len(vus) < CONSENSUS:
-            print(f"{nom:8} surcharge {impose['vehicle']:11} "
-                  f"({len(vus)} releve(s) seulement — pas de quoi conclure)")
-            continue
-        contre = [v for v in vus if v != impose["vehicle"]]
-        if len(contre) == len(vus):
-            problemes.append((nom, impose, vus))
-            print(f"{nom:8} surcharge {impose['vehicle']:11} CONTREDITE : "
-                  f"{len(vus)} derniers releves disent tous {vus[-1]}")
+        impose = sorted(entrees, key=lambda e: e["at"])[-1]
+        depuis = datetime.datetime.fromisoformat(
+            impose["at"] if len(impose["at"]) > 10 else impose["at"] + "T00:00").timestamp() * 1000
+        suite = [(ms, v) for ms, v in tout.get(nom, []) if ms >= depuis]
+        vers = bascule(suite, impose["vehicle"])
+        if vers:
+            problemes.append((nom, impose, vers))
+            print(f"{nom:8} {impose['vehicle']:11} BASCULE VERS {vers} — "
+                  f"{len(suite)} releves depuis {impose['at']}")
+        elif suite and impose["vehicle"] not in {v for _, v in suite}:
+            print(f"{nom:8} {impose['vehicle']:11} ok — l'appli dit "
+                  f"{suite[-1][1]} depuis {impose['at']} sans jamais changer "
+                  f"(reglage laisse tel quel, c'est ce que la surcharge couvre)")
         else:
-            print(f"{nom:8} surcharge {impose['vehicle']:11} coherente "
-                  f"({len(vus) - len(contre)}/{len(vus)} releves d'accord)")
+            print(f"{nom:8} {impose['vehicle']:11} ok — {len(suite)} releves concordants")
 
     if problemes:
         print("\nUne surcharge `vehicle_from` a survecu au fait qu'elle decrivait.")
-        for nom, impose, vus in problemes:
+        for nom, impose, vers in problemes:
             print(f"  {nom} : le site l'affiche dans {impose['vehicle']} depuis "
-                  f"{impose['at']}, son telephone dit {vus[-1]}.")
+                  f"{impose['at']}, mais son telephone est passe a {vers} et s'y tient.")
         print("Corriger src/site-overrides.json : ajouter une entree "
               "{\"at\": \"<quand>\", \"vehicle\": \"<voiture>\"} pour clore la surcharge.")
         return 1

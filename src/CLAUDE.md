@@ -411,10 +411,12 @@ Key JS structures (all near the top of the script):
   times, and the site kept showing them swapped for two days. Every change of
   car is therefore a new entry, including the return.
   Current value: Hugo → Paul Pot and Paul → Hugodouard from 2026-08-09T22:00,
-  both back to their own car from 2026-08-11T09:43 — the instant after which
-  GPS and media agree unanimously again. Hugo's own phone has sent nothing
-  since 10/08 22:06, so his return instant is inferred from Paul's; there is no
-  data for it and none is invented, it is written down.
+  both back to their own car from 2026-08-11T09:43. Paul's instant comes from
+  the data — after it GPS and media agree unanimously. Hugo's was inferred from
+  Paul's and **confirmed by the crew on 13/08**: his phone has said `paul-pot`
+  ever since and still does, because he never reset the setting. That standing
+  disagreement is the normal state, not a bug, and it is why
+  `check_overrides.py` alerts on a switch rather than on a disagreement.
   `src/check_overrides.py` is what makes this self-reporting (see below).
 - **A point can be disowned, and only explicitly** (`POINTS_EXCLUS`,
   `excluded_points` in `site-overrides.json`). Changing identity or car in the
@@ -841,20 +843,35 @@ are covered — Algeciras → Tanger Med resolves to the 23 km crossing.
 
 ### `check_overrides.py`
 Fails the workflow when a `vehicle_from` override has outlived the fact it
-described. It compares each override in force with the last `CONSENSUS` (6)
-records the person actually produced — GPS points and media together — and
-exits 1 only when **every one of them** disagrees: an override exists to
-arbitrate noise, not to overrule a consensus. Fewer than 6 records means no
-conclusion, and it says so rather than guessing (Hugo's phone has been silent
-since 10/08).
+described.
+
+**The signal is a SWITCH, not a disagreement.** The first version failed when
+the person's recent records all contradicted the override, and that was wrong —
+the two real cases produce the same disagreement with opposite meanings:
+
+- **Paul**: override said hugodouard; his records said hugodouard, then flipped
+  to paul-pot and stayed. He genuinely changed car. The override was stale.
+- **Hugo**: override says hugodouard; his records have said paul-pot ever
+  since. He is nevertheless in Hugodouard — he simply never reset his setting
+  after the swap. Alerting here would be absurd: that standing disagreement is
+  *exactly* the noise the override exists to cover.
+
+So a permanent disagreement is the normal state and only gets reported; a
+transition away from the imposed vehicle that then holds for `CONSENSUS` (4)
+records is what fails the job. Records are the person's own points and media
+merged chronologically, and points written from **someone else's phone** are
+dropped — switching identity in the app used to mint a point under the new
+name, so one phone signed four people in eleven seconds.
 
 It runs **last** in `routes.yml`, deliberately after the publish step and
 deliberately WITHOUT `continue-on-error`: the site has already been updated by
 then, so failing costs nothing and buys the only alert channel that reaches the
 crew — the GitHub build-failure email. It fixes nothing by itself, on purpose;
-only the crew knows who rides where. It makes it impossible not to notice.
-Verified both ways: green on the corrected file, red on the open-ended override
-that shipped the bug.
+only the crew knows who rides where.
+
+Verified on both real cases: green on today's file (Paul's 23 records agree,
+Hugo's standing disagreement reported and tolerated), red on the open-ended
+override that shipped the bug — firing on Paul, silent on Hugo.
 
 ### `fetch_photos.py`
 Syncs the shared Drive photo folder onto the map (`--dry-run` to preview).
