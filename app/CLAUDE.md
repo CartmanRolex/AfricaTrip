@@ -81,6 +81,29 @@ mode n'est pas **Pause**.
   enregistré (premier point à +34 s).
   Côté site, `excluded_points` de `site-overrides.json` désavoue les points
   déjà écrits par ce défaut ; c'est du rattrapage, la correction est ici.
+- **LA CARTE DE CHOIX DU LIEU S'OUVRE LÀ OÙ EST LA VOITURE** (`POS_KEY`,
+  `LIEU_KEY`, `VUE_LARGE`, `positionVoiture()`). Elle s'ouvrait sur
+  `[16.5, -14]` au zoom 4 — le Sahara : sur un fond sombre, une étendue sans
+  route ni label donne un rectangle noir où l'on ne peut rien situer, donc
+  impossible de savoir où glisser l'épingle. Et le seul repli mémorisé,
+  `lastUploadLocation`, était une variable EN MÉMOIRE, perdue à chaque
+  redémarrage : le repli servait donc presque toujours.
+  L'ordre est maintenant : GPS du média → dernière position enregistrée par ce
+  téléphone → dernier lieu choisi à la main (les deux gardés en
+  `localStorage`, donc ils survivent au redémarrage et marchent hors ligne) →
+  dernière position connue d'un équipier de la MÊME voiture (une seule lecture
+  Firestore, uniquement quand le téléphone ne sait rien — le cas du passager
+  qui ne lance jamais le GPS) → et seulement alors une vue large.
+  La lecture réseau ne bloque jamais : la carte s'ouvre tout de suite avec ce
+  qu'on a, et ne se recadre que si la réponse arrive **et** que l'utilisateur
+  n'a pas déjà bougé la carte lui-même.
+  `VUE_LARGE` = `[36, -6]` zoom 4 (Gibraltar, côtes d'Espagne et du Maroc),
+  choisi en MESURANT le poids réel des tuiles CARTO de plusieurs candidats :
+  27 % de contenu de plus que l'ancien défaut saharien. Un premier essai à
+  `[25, -8]` zoom 3 tombait sur l'Atlantique et était **pire** que ce qu'il
+  remplaçait — ne pas rechoisir ce point sans remesurer.
+  `voitureCourante` est tenue à jour par `assignmentChanged()`, le même point
+  de passage unique que la règle des 30 s.
 - Les watchers, timers et listeners Firestore sont nettoyés au changement de
   personne. Les callbacks asynchrones capturent l'identité et la session pour
   ne jamais attribuer un point au mauvais utilisateur.

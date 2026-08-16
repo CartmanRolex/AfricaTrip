@@ -456,6 +456,56 @@ function validCoords(lat, lng) {
 }
 const hasLocation = d => !!d && validCoords(d.lat, d.lng);
 
+// ---- ou ouvrir la carte de choix ------------------------------------------
+// Elle s'ouvrait sur [16.5,-14] au zoom 4 : le Sahara. Sur un fond sombre, une
+// etendue sans route ni label donne un rectangle noir ou l'on ne peut rien
+// situer — impossible de savoir ou glisser l'epingle. Et le seul repli
+// memorise, `lastUploadLocation`, etait une variable en memoire : perdue a
+// chaque redemarrage de l'app, donc le repli servait presque toujours.
+//
+// On part maintenant de la ou est la VOITURE :
+//   1. la derniere position enregistree par ce telephone (gardee sur l'appareil) ;
+//   2. le dernier lieu choisi a la main (garde aussi) ;
+//   3. la derniere position connue d'un equipier de la meme voiture ;
+//   4. a defaut seulement, une vue large Iberie + Maroc, jamais un aplat noir.
+const POS_KEY = `${TRIP_ID}:derniere-position`;
+const LIEU_KEY = `${TRIP_ID}:dernier-lieu`;
+// Choisi en MESURANT le contenu reel des tuiles : detroit de Gibraltar, cotes
+// d'Espagne et du Maroc, villes et routes. 27 % de contenu de plus que
+// l'ancien defaut saharien, et de quoi se reperer pour zoomer ensuite.
+const VUE_LARGE = { lat: 36, lng: -6, zoom: 4 };
+// La voiture du moment, tenue a jour par `assignmentChanged()` — le point de
+// passage unique du changement de personne comme de voiture.
+let voitureCourante = null;
+function memoriserLieu(cle, p) {
+  if (p && validCoords(p.lat, p.lng)) {
+    storeValue(cle, JSON.stringify({ lat: Number(p.lat), lng: Number(p.lng) }));
+  }
+}
+function lieuMemorise(cle) {
+  try {
+    const d = JSON.parse(storedValue(cle) || "null");
+    return d && validCoords(d.lat, d.lng) ? { lat: d.lat, lng: d.lng } : null;
+  } catch (_) { return null; }
+}
+// Dernier point connu d'un equipier de MA voiture. Une seule lecture, et
+// seulement quand le telephone lui-meme ne sait rien — un passager qui ne
+// lance jamais le GPS et ne depose que des photos.
+async function positionVoiture() {
+  if (!voitureCourante) return null;
+  try {
+    const { db, collection, getDocs } = await fb();
+    const snap = await getDocs(collection(db, "trips", TRIP_ID, "latest"));
+    let best = null;
+    snap.forEach(doc => {
+      const d = doc.data();
+      if (d.vehicleId !== voitureCourante || !validCoords(d.lat, d.lng)) return;
+      if (!best || (d.capturedAtMs || 0) > (best.capturedAtMs || 0)) best = d;
+    });
+    return best ? { lat: Number(best.lat), lng: Number(best.lng) } : null;
+  } catch (_) { return null; }   // hors ligne : on garde la vue large
+}
+
 // ---- choix manuel de la localisation (média sans GPS) ---------------------
 // Leaflet chargé À LA DEMANDE (rien de plus au démarrage quand le GPS est là).
 let leafletP = null;
@@ -497,8 +547,10 @@ async function askLocation({ initial = null, editing = false } = {}) {
   const modal = $("loc-modal");
   const previousFocus = document.activeElement;
   const hasInitial = hasLocation(initial);
-  const remembered = !editing && hasLocation(lastUploadLocation)
-    ? lastUploadLocation : null;
+  // Ce que le telephone sait deja, du plus frais au plus vague.
+  const proche = editing ? null
+    : (hasLocation(lastUploadLocation) ? lastUploadLocation : null)
+      || lieuMemorise(POS_KEY) || lieuMemorise(LIEU_KEY);
 
   $("loc-head").textContent = editing
     ? hasInitial ? "Modifier le lieu" : "Ajouter un lieu"
@@ -519,13 +571,28 @@ async function askLocation({ initial = null, editing = false } = {}) {
         { subdomains: "abcd", maxZoom: 19, attribution: "&copy; OpenStreetMap &copy; CARTO" }).addTo(locMap);
     }
     if (hasInitial) locMap.setView([initial.lat, initial.lng], 14);
-    else if (remembered) locMap.setView([remembered.lat, remembered.lng], 14);
-    else locMap.setView([16.5, -14], 4);
+    else if (proche) locMap.setView([proche.lat, proche.lng], 14);
+    else locMap.setView([VUE_LARGE.lat, VUE_LARGE.lng], VUE_LARGE.zoom);
   } catch (_) {
     try { if (locMap) locMap.remove(); } catch (_) {}
     locMap = null;
     modal.classList.add("hidden");
     throw new Error("Impossible d'ouvrir la carte. Réessaie.");
+  }
+
+  // Rien de connu sur ce telephone : on demande ou est la voiture. La carte est
+  // deja ouverte et utilisable — on ne fait jamais attendre l'utilisateur pour
+  // une lecture reseau, on recadre si la reponse arrive et s'il n'a pas encore
+  // bouge la carte lui-meme.
+  if (!hasInitial && !proche) {
+    const bouge = () => { locMap.off("movestart", bouge); locMap._dejaBouge = true; };
+    locMap._dejaBouge = false;
+    locMap.on("movestart", bouge);
+    positionVoiture().then(p => {
+      if (p && locMap && !locMap._dejaBouge && !modal.classList.contains("hidden")) {
+        locMap.setView([p.lat, p.lng], 12);
+      }
+    });
   }
 
   return new Promise(resolve => {
@@ -576,7 +643,7 @@ async function askLocation({ initial = null, editing = false } = {}) {
     ok.onclick = () => {
       const c = locMap.getCenter().wrap();
       const picked = { lat: +c.lat.toFixed(6), lng: +c.lng.toFixed(6) };
-      if (!editing) lastUploadLocation = picked;
+      if (!editing) { lastUploadLocation = picked; memoriserLieu(LIEU_KEY, picked); }
       done(picked);
     };
     skip.onclick = () => done(null);
@@ -629,6 +696,7 @@ async function fb() {
             doc: fs.doc, getDoc: fs.getDoc, setDoc: fs.setDoc,
             addDoc: fs.addDoc, deleteDoc: fs.deleteDoc, updateDoc: fs.updateDoc,
             collection: fs.collection, query: fs.query, where: fs.where,
+            getDocs: fs.getDocs,
             onSnapshot: fs.onSnapshot, runTransaction: fs.runTransaction,
             ts: fs.serverTimestamp };
     return _fb;
@@ -1090,6 +1158,9 @@ function initPosition(lifecycle, person) {
       if (lifecycle.assignment.assignmentId === assignment.assignmentId) {
         lastQueuedAt = now;
         lastQueuedPoint = [lat, lng];
+        // Gardee sur l'appareil : c'est ce qui ouvre la carte de choix au bon
+        // endroit, meme apres un redemarrage et meme hors ligne.
+        memoriserLieu(POS_KEY, { lat, lng });
         setState("waiting", "Position sécurisée localement",
           `envoi en cours · ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
       }
@@ -1165,6 +1236,7 @@ function initPosition(lifecycle, person) {
       // Chaque changement REPOUSSE l'échéance : traverser cinq prénoms ne fait
       // pas cinq réglages acquis, il n'y en a qu'un — le dernier, s'il tient.
       acquisA = Date.now() + REGLAGE_STABLE_MS;
+      voitureCourante = lifecycle.assignment.vehicleId || null;
       if (lifecycle.assignment.mode === "paused") {
         clearWatcher();
         setState("paused", "Partage en pause", "aucun point GPS n'est enregistré");
