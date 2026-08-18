@@ -488,6 +488,82 @@ function lieuMemorise(cle) {
     return d && validCoords(d.lat, d.lng) ? { lat: d.lat, lng: d.lng } : null;
   } catch (_) { return null; }
 }
+// ---- deviner ou une photo a ete prise -------------------------------------
+// Un equipier n'arrive pas a faire marcher la localisation : ses photos
+// arrivent sans GPS et il doit poser l'epingle a la main a chaque envoi. Mais
+// on SAIT ou etait sa voiture a cet instant — les autres occupants enregistrent
+// des points toute la journee. On s'en sert pour pre-positionner l'epingle ; il
+// n'a plus qu'a confirmer.
+//
+// Mesure sur les 195 photos qui ONT un vrai GPS, rejouees a l'aveugle :
+//   ecart au point de trace   couverture   erreur mediane
+//   <= 30 min                     44 %        0,05 km
+//   <= 60 min                     54 %        0,10 km
+//   sans limite                  100 %        3,11 km
+//
+// DEUX resultats qui commandent le code, ne pas les defaire :
+//
+// 1. Le point le plus proche dans le temps BAT l'interpolation entre les deux
+//    points encadrants — 0,10 km contre 2,21 km a moins d'une heure, 7 contre
+//    20 km entre 1 et 4 h. Les voitures s'arretent : interpoler entre deux
+//    points distants invente un deplacement qui n'a pas eu lieu. On prend donc
+//    un point REEL, jamais une moyenne.
+// 2. La traine reste longue meme a ecart faible (152 km au pire sous 30 min).
+//    C'est une PROPOSITION, pas une reponse : la confirmation humaine est le
+//    coeur du dispositif, pas une formalite.
+//
+// Piege : toute comparaison de temps ici est en millisecondes UTC. Une premiere
+// mesure lisait les horodatages en heure locale et donnait 45 km d'erreur
+// mediane SANS s'ameliorer quand le point etait proche — physiquement
+// impossible, et c'est ce qui a trahi le bug : 2 h d'ecart, ~180 km a 90 km/h.
+const FENETRES_MS = [4 * 3600e3, 24 * 3600e3, 7 * 24 * 3600e3];
+const BUCKET_MS = TRACK_BUCKET_MS;
+// Tranches deja lues pendant cette salve d'envois : dix photos partent souvent
+// d'un coup et decrivent le meme moment, inutile de rejouer la requete.
+let cacheTranches = new Map();
+function oublierTranches() { cacheTranches = new Map(); }
+
+async function pointsAutour(at, demiFenetre) {
+  const cle = `${Math.round(at / 60000)}:${demiFenetre}`;
+  if (cacheTranches.has(cle)) return cacheTranches.get(cle);
+  const { db, collection, query, where, getDocs } = await fb();
+  // Borne sur `bucketStartMs` seul : champ simple, donc aucun index composite
+  // a creer. Le filtre sur la voiture se fait ensuite, cote client.
+  const q = query(collection(db, "trips", TRIP_ID, "trackChunks"),
+    where("bucketStartMs", ">=", Math.floor((at - demiFenetre) / BUCKET_MS) * BUCKET_MS),
+    where("bucketStartMs", "<=", at + demiFenetre));
+  const snap = await getDocs(q);
+  const pts = [];
+  snap.forEach(doc => {
+    const d = doc.data();
+    if (voitureCourante && d.vehicleId !== voitureCourante) return;
+    const bruts = Array.isArray(d.points) ? d.points : Object.values(d.points || {});
+    for (const p of bruts) {
+      if (Number.isFinite(p.capturedAtMs) && validCoords(p.lat, p.lng)) {
+        pts.push({ at: Number(p.capturedAtMs), lat: Number(p.lat), lng: Number(p.lng) });
+      }
+    }
+  });
+  cacheTranches.set(cle, pts);
+  return pts;
+}
+
+// Ou etait la voiture a `at` ? Fenetres elargies par paliers, on s'arrete au
+// premier palier qui trouve quelque chose : le cas courant coute une quinzaine
+// de documents au lieu des 130 de la collection.
+async function positionDevinee(at) {
+  if (!Number.isFinite(at) || !at) return null;
+  for (const demi of FENETRES_MS) {
+    let pts = [];
+    try { pts = await pointsAutour(at, demi); } catch (_) { return null; }
+    if (!pts.length) continue;
+    const q = pts.reduce((meilleur, p) =>
+      Math.abs(p.at - at) < Math.abs(meilleur.at - at) ? p : meilleur);
+    return { lat: q.lat, lng: q.lng, ecartMin: Math.round((q.at - at) / 60000) };
+  }
+  return null;
+}
+
 // Dernier point connu d'un equipier de MA voiture. Une seule lecture, et
 // seulement quand le telephone lui-meme ne sait rien — un passager qui ne
 // lance jamais le GPS et ne depose que des photos.
@@ -537,7 +613,9 @@ let lastUploadLocation = null;
 // Ouvre la carte, l'utilisateur cadre sous l'épingle centrale (ou "Ma position").
 // En édition, part du lieu existant et propose Annuler au lieu d'Ignorer.
 // Résout {lat,lng} si Valider, null si Ignorer/Annuler ; lève si la carte échoue.
-async function askLocation({ initial = null, editing = false } = {}) {
+// `at` = instant de capture du media. Quand il est connu et qu'aucun GPS n'est
+// venu avec le fichier, on va chercher ou etait la voiture a ce moment-la.
+async function askLocation({ initial = null, editing = false, at = null } = {}) {
   try { await loadLeaflet(); }
   catch (_) {
     leafletP = null;
@@ -580,19 +658,34 @@ async function askLocation({ initial = null, editing = false } = {}) {
     throw new Error("Impossible d'ouvrir la carte. Réessaie.");
   }
 
-  // Rien de connu sur ce telephone : on demande ou est la voiture. La carte est
-  // deja ouverte et utilisable — on ne fait jamais attendre l'utilisateur pour
-  // une lecture reseau, on recadre si la reponse arrive et s'il n'a pas encore
-  // bouge la carte lui-meme.
-  if (!hasInitial && !proche) {
+  // La carte est deja ouverte et utilisable : on ne fait JAMAIS attendre
+  // l'utilisateur pour une lecture reseau. On recadre quand la reponse arrive,
+  // et seulement s'il n'a pas deja bouge la carte lui-meme.
+  if (!hasInitial) {
     const bouge = () => { locMap.off("movestart", bouge); locMap._dejaBouge = true; };
     locMap._dejaBouge = false;
     locMap.on("movestart", bouge);
-    positionVoiture().then(p => {
-      if (p && locMap && !locMap._dejaBouge && !modal.classList.contains("hidden")) {
-        locMap.setView([p.lat, p.lng], 12);
+    const libre = () => locMap && !locMap._dejaBouge && !modal.classList.contains("hidden");
+    // D'abord ou etait la voiture a l'heure de la photo ; a defaut seulement,
+    // sa derniere position connue.
+    positionDevinee(at).then(async devine => {
+      const p = devine || (proche ? null : await positionVoiture());
+      if (!p || !libre()) return;
+      locMap.setView([p.lat, p.lng], devine ? 14 : 12);
+      if (devine) {
+        const e = Math.abs(devine.ecartMin);
+        const quand = e < 1 ? "au même moment"
+          : e < 60 ? `${e} min ${devine.ecartMin < 0 ? "avant" : "après"}`
+          : `${Math.round(e / 60)} h ${devine.ecartMin < 0 ? "avant" : "après"}`;
+        // Sans voiture declaree — « A pied / autre », qui est AUSSI le reglage
+        // par defaut tant que personne n'a choisi — le point vient de n'importe
+        // quelle voiture du convoi. On le dit : c'est moins precis, et
+        // l'annoncer « ta voiture » serait faux.
+        const ou = voitureCourante ? "était ta voiture" : "était le convoi";
+        $("loc-hint").innerHTML = `Épingle posée là où ${ou}, `
+          + `<b>${quand}</b>. Vérifie et valide, ou déplace la carte.`;
       }
-    });
+    }).catch(() => {});
   }
 
   return new Promise(resolve => {
@@ -1458,6 +1551,7 @@ function initPhotos(lifecycle, person) {
         const mediaPlugin = plugin("AfricaMedia");
         if (!mediaPlugin) throw new Error("sélecteur natif indisponible");
         const { items } = await mediaPlugin.pickWithLocation();
+        oublierTranches();   // nouvelle salve : on repart sur des lectures fraiches
         for (const it of (items || [])) {
           const lat = it.lat ?? null, lng = it.lng ?? null, date = it.date || null;
           const context = {
@@ -1492,6 +1586,7 @@ function initPhotos(lifecycle, person) {
   $("fallback-input").onchange = async e => {
     const baseContext = pendingBrowserContext || snapshotMediaContext(lifecycle, person);
     pendingBrowserContext = null;
+    oublierTranches();     // nouvelle salve : on repart sur des lectures fraiches
     for (const f of [...e.target.files]) {
       let lat = null, lng = null, date = null;
       let capturedAtMs = mediaCapturedAt(f.lastModified, baseContext.capturedAtMs);
@@ -1535,7 +1630,7 @@ async function uploadPhoto(blob, lat, lng, date, video = isVideoBlob(blob), cont
   if (!validCoords(lat, lng)) {
     lat = lng = null;   // une paire partielle/invalide ne doit jamais être gardée
     let picked;
-    try { picked = await askLocation(); }
+    try { picked = await askLocation({ at: context.capturedAtMs }); }
     catch (e) {
       // L'upload reste possible : le nouveau bouton du détail permettra
       // d'ajouter le lieu plus tard, une fois la carte de nouveau accessible.

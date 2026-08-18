@@ -81,6 +81,43 @@ mode n'est pas **Pause**.
   enregistré (premier point à +34 s).
   Côté site, `excluded_points` de `site-overrides.json` désavoue les points
   déjà écrits par ce défaut ; c'est du rattrapage, la correction est ici.
+- **UN MÉDIA SANS GPS SE VOIT PROPOSER LE LIEU OÙ ÉTAIT SA VOITURE**
+  (`positionDevinee()`, `pointsAutour()`, `FENETRES_MS`). Un équipier n'arrive
+  pas à faire marcher la localisation ; poser l'épingle à la main à chaque envoi
+  le décourageait. On sait pourtant où était sa voiture : les autres occupants
+  enregistrent des points toute la journée.
+  **Mesuré sur les 195 photos qui ONT un vrai GPS**, rejouées à l'aveugle contre
+  la vérité terrain : erreur médiane **0,05 km** quand un point de trace existe
+  à moins de 30 min, **0,11 km** sous 1 h, 6,8 km sans limite de temps.
+  Deux résultats commandent le code, **ne pas les défaire** :
+  1. **Le point le plus proche dans le temps bat l'interpolation** entre les
+     deux points encadrants — 0,10 km contre 2,21 km sous 1 h, 7 contre 20 km
+     entre 1 et 4 h. Les voitures s'arrêtent : interpoler entre deux points
+     distants invente un déplacement qui n'a pas eu lieu. On prend un point
+     RÉEL, jamais une moyenne.
+  2. **La traîne reste longue même à écart faible** (400 km au pire sous
+     30 min). C'est une PROPOSITION : la confirmation humaine est le cœur du
+     dispositif, pas une formalité. Le point confirmé reste `manual`, « position
+     choisie » — on n'ajoute aucune provenance, et les règles Firestore
+     (`media-gps | manual | none`) sont inchangées.
+  Fenêtres élargies par paliers — ±4 h, ±24 h, ±7 j — en s'arrêtant au premier
+  palier qui trouve : le cas courant coûte **une** requête et ~23 documents au
+  lieu des 130 de la collection. La borne porte sur `bucketStartMs` seul, champ
+  simple, donc aucun index composite à créer ; le filtre voiture est côté
+  client. Un cache par salve fait qu'envoyer dix photos coûte **une** requête.
+  Sans voiture déclarée — « À pied / autre », qui est AUSSI le réglage par
+  défaut tant que personne n'a choisi, donc le cas probable de celui qui galère
+  — les points de n'importe quelle voiture sont acceptés, et le message dit
+  « le convoi » au lieu de « ta voiture ». C'est moins précis (la médiane globale
+  passe de 3,1 à 6,8 km) et c'est le prix assumé du « toujours proposer ».
+  **Piège** : toute comparaison de temps est en millisecondes UTC. Une première
+  mesure lisait les horodatages en heure locale et donnait 45 km d'erreur
+  médiane SANS s'améliorer quand le point était proche — physiquement
+  impossible, et c'est ce qui a trahi le bug : 2 h, soit ~180 km à 90 km/h.
+  **Limites** : les vidéos n'ont pas d'EXIF, leur heure vient de `lastModified`
+  qui peut être la date de copie ; et la voiture utilisée est celle
+  d'aujourd'hui, alors qu'une photo ancienne a pu être prise dans l'autre
+  (le site sait le corriger via `vehicle_from`, l'app non).
 - **LA CARTE DE CHOIX DU LIEU S'OUVRE LÀ OÙ EST LA VOITURE** (`POS_KEY`,
   `LIEU_KEY`, `VUE_LARGE`, `positionVoiture()`). Elle s'ouvrait sur
   `[16.5, -14]` au zoom 4 — le Sahara : sur un fond sombre, une étendue sans
