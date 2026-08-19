@@ -114,10 +114,25 @@ mode n'est pas **Pause**.
   mesure lisait les horodatages en heure locale et donnait 45 km d'erreur
   médiane SANS s'améliorer quand le point était proche — physiquement
   impossible, et c'est ce qui a trahi le bug : 2 h, soit ~180 km à 90 km/h.
-  **Limites** : les vidéos n'ont pas d'EXIF, leur heure vient de `lastModified`
-  qui peut être la date de copie ; et la voiture utilisée est celle
-  d'aujourd'hui, alors qu'une photo ancienne a pu être prise dans l'autre
-  (le site sait le corriger via `vehicle_from`, l'app non).
+  **Limites** : la voiture utilisée est celle d'aujourd'hui, alors qu'une photo
+  ancienne a pu être prise dans l'autre (le site sait le corriger via
+  `vehicle_from`, l'app non). Et sur **iPhone uniquement**, une vidéo arrive
+  datée par `lastModified` — voir ci-dessous — ce qui peut fausser la devinette.
+- **UNE VIDÉO PORTE SA POSITION, MAIS PAS EN EXIF — ET SEUL ANDROID LA LIT.**
+  À ne pas résumer par « les vidéos n'ont pas de GPS », ce qui est faux : la
+  position est dans un atome **ISO-6709** du conteneur MP4, et la date de
+  tournage dans les métadonnées du même conteneur.
+  `AfricaMediaPlugin.readVideo()` les extrait via `MediaMetadataRetriever`
+  (`METADATA_KEY_LOCATION`, `METADATA_KEY_DATE`), donc **l'app Android
+  géolocalise correctement les vidéos**. Preuve sur les données réelles : les
+  22 vidéos en `media-gps` sont toutes de Gal, seul utilisateur Android ; les
+  19 en `manual` viennent des iPhone (Jehan, Paul, Dorvan, Edouard, Malen).
+  Le **repli navigateur** (`fallback-input`, donc la PWA iPhone) utilise
+  `exifr`, qui ne traite que les images : là, une vidéo n'a ni position ni date
+  de tournage, et retombe sur `lastModified` — souvent une date de copie.
+  Améliorable sans dépendance : les atomes `moov/udta/©xyz` (position) et
+  `moov/mvhd` (date de création) se lisent en JS sur les premiers kilo-octets
+  du fichier via `Blob.slice()`. Non fait à ce jour.
 - **LA CARTE DE CHOIX DU LIEU S'OUVRE LÀ OÙ EST LA VOITURE** (`POS_KEY`,
   `LIEU_KEY`, `VUE_LARGE`, `positionVoiture()`). Elle s'ouvrait sur
   `[16.5, -14]` au zoom 4 — le Sahara : sur un fond sombre, une étendue sans

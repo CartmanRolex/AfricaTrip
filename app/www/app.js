@@ -1592,8 +1592,14 @@ function initPhotos(lifecycle, person) {
       let capturedAtMs = mediaCapturedAt(f.lastModified, baseContext.capturedAtMs);
       const video = (f.type || "").startsWith("video/");
       if (video) {
-        // Les vidéos n'ont pas d'EXIF ; leur GPS (atome QuickTime) n'est pas
-        // lisible en navigateur -> sans position, placée par date (lastModified).
+        // ATTENTION à la formulation : une vidéo PORTE bien sa position, dans un
+        // atome ISO-6709 du conteneur MP4 — ce n'est simplement pas de l'EXIF.
+        // L'app Android la lit (AfricaMediaPlugin.readVideo, via
+        // MediaMetadataRetriever), et 22 des 41 vidéos du voyage en ont une.
+        // C'est CE chemin-ci, le repli navigateur de la PWA, qui ne sait pas la
+        // lire : `exifr` ne traite que les images. Les vidéos des iPhone
+        // arrivent donc sans position et datées par `lastModified`, qui peut
+        // être une date de copie et non de tournage.
         if (f.lastModified) date = new Date(f.lastModified).toISOString().slice(0, 10);
       } else {
         const exifr = await import("https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.esm.mjs");
