@@ -29,3 +29,8 @@ photos/gal.enc
 
 # Lien local du dossier Drive photos partagées — jamais sur GitHub
 .drive-folder
+
+# Clé de service Firestore en ÉCRITURE — un secret. Jamais sur GitHub.
+# Ignorée AVANT que le fichier n'existe, pour qu'un `git add -A` ne puisse
+# jamais l'emporter par accident.
+.firestore-credentials.json
