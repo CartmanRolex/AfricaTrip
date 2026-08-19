@@ -873,6 +873,41 @@ Verified on both real cases: green on today's file (Paul's 23 records agree,
 Hugo's standing disagreement reported and tolerated), red on the open-ended
 override that shipped the bug — firing on Paul, silent on Hugo.
 
+### `fix_video_dates.py`
+Remet la vraie date de tournage sur les vidéos mal datées. **Aperçu par
+défaut ; n'écrit qu'avec `--commit`.**
+
+Une vidéo PORTE sa date de tournage (atome `mvhd` du conteneur MP4). L'app
+Android la lit ; le repli navigateur — la PWA iPhone — non, et retombe sur
+`lastModified`, souvent l'instant où le fichier a été copié juste avant
+l'envoi. Quatre vidéos de Jehan datées du 13 août ont été tournées le 11, une
+datée du 18 l'a été le 14. Elles apparaissaient donc au mauvais moment de la
+frise, et leur position choisie à la main tombait à des centaines de kilomètres
+de la voiture *à l'instant déclaré*. Remettre la vraie date fait passer la
+distance médiane point choisi ↔ voiture de **255 km à 59 km** : les équipiers
+avaient bien placé leurs vidéos, c'est la date qui les envoyait ailleurs.
+
+**Deux garde-fous, chacun né d'une mesure :**
+- `MARGE_H` (6 h) — `mvhd` ne porte pas de fuseau, donc un écart de quelques
+  heures peut n'être qu'une lecture locale/UTC. En deçà, on ne touche à rien.
+- `MARGE_TRANSCODE_MIN` (90 min) — **Cloudinary réencode certaines vidéos et
+  réhorodate `mvhd` avec l'heure du traitement.** Sa signature : la date du
+  fichier tombe sur l'heure d'ENVOI à la minute près. Sur 13 candidats, **4
+  étaient dans ce cas** (3 de Gal, 1 de Malen, écart 0-1 min) et les
+  « corriger » aurait remplacé une date juste par l'heure d'upload. Rejeter est
+  toujours sans risque : quand on filme et envoie dans la foulée, la date
+  déclarée est déjà bonne.
+
+Écrit **uniquement** `capturedAt` et `date`, par `updateMask` ciblé. Les
+positions choisies à la main ne sont jamais touchées : ce sont des décisions
+humaines, et la date corrigée suffit à les rendre cohérentes.
+
+Nécessite `.firestore-credentials.json` (git-ignoré) — un compte de service
+avec le rôle *Utilisateur Cloud Datastore*. **Une clé de service contourne les
+règles Firestore**, qui rendent justement la date immuable côté client
+(`app/firestore.rules` : « url/auteur/date/type restent immuables »). C'est
+assumé : opération d'administration ponctuelle, périmètre volontairement étroit.
+
 ### `fetch_photos.py`
 Syncs the shared Drive photo folder onto the map (`--dry-run` to preview).
 Folder URL/ID in the git-ignored `.drive-folder` (same pattern as
