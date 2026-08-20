@@ -34,6 +34,9 @@ Incremental: photos already in gallery.json are skipped; deleting an entry
 from gallery.json (and its file in photos/uploads/) forgets it.
 """
 import base64
+
+# Distance : une seule ecriture pour tout le depot, voir `commun.py`.
+from commun import hav_km
 import hashlib
 import io
 import json
@@ -178,12 +181,6 @@ def exif_date(im):
             except ValueError:
                 pass
     return None
-
-
-def hav_km(a, b):
-    dla, dlo = radians(b[0] - a[0]), radians(b[1] - a[1])
-    h = sin(dla / 2) ** 2 + cos(radians(a[0])) * cos(radians(b[0])) * sin(dlo / 2) ** 2
-    return 2 * 6371 * asin(sqrt(h))
 
 
 def convoy_position(iso_day):

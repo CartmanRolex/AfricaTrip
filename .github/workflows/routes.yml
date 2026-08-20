@@ -110,5 +110,12 @@ jobs:
       # matin. Une surcharge muette gagne meme quand elle a tort. Ce controle
       # ne corrige rien — l'equipage seul sait qui roule ou — il rend
       # seulement impossible de ne pas s'en apercevoir.
+      # Python et le site ont chacun leur copie des calculs de base — on ne
+      # partage pas de code entre les deux mondes. Faute de pouvoir les unifier,
+      # on leur interdit de diverger. Ce contrôle a trouvé un défaut réel dès
+      # son premier passage.
+      - name: Vérifier que Python et le site sont d'accord
+        run: python src/check_accord.py
+
       - name: Vérifier que les surcharges disent encore la vérité
         run: python src/check_overrides.py

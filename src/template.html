@@ -1095,7 +1095,14 @@ function toMs(v){
     if(Number.isFinite(sec))return sec*1000+Number(firstValue(v.nanoseconds,v._nanoseconds,0))/1e6;
   }
   if(typeof v==='number'&&Number.isFinite(v))return v<1e11?v*1000:v;
-  const parsed=Date.parse(v); return Number.isFinite(parsed)?parsed:0;
+  // Une date-heure ISO SANS fuseau est lue par `Date.parse` dans le fuseau du
+  // NAVIGATEUR : la même photo s'afficherait à une heure différente selon le
+  // pays d'où on regarde. Les horodatages du projet sont en UTC — on le dit
+  // explicitement. Aucun des 1269 horodatages actuels n'est dans ce cas ;
+  // c'est un piège qu'on ferme avant qu'il ne serve.
+  const t=typeof v==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(v)
+    ?v+'Z':v;
+  const parsed=Date.parse(t); return Number.isFinite(parsed)?parsed:0;
 }
 function normalisePoint(raw,base={}){
   if(!raw||typeof raw!=='object')return null;

@@ -39,6 +39,8 @@ import urllib.parse
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from fetch_routes import fields, firebase_config, fs_list  # noqa: E402
+# Lecture des dates : une seule ecriture, voir `commun.py`.
+from commun import dt_utc  # noqa: E402
 
 KEY_FILE = os.path.join(HERE, "..", ".firestore-credentials.json")
 SCOPE = "https://www.googleapis.com/auth/datastore"
@@ -119,33 +121,12 @@ def date_du_fichier(url):
     return None
 
 
-def lire_instant(v):
-    """Un champ date Firestore -> datetime UTC, ou None."""
-    if not v:
-        return None
-    try:
-        s = str(v)[:19]
-        if len(s) == 10:
-            s += "T00:00:00"
-        return datetime.datetime.strptime(s, "%Y-%m-%dT%H:%M:%S") \
-            .replace(tzinfo=datetime.timezone.utc)
-    except ValueError:
-        return None
-
-
 def lire_declare(f):
+    """La date que le document ANNONCE, quel que soit le champ qui la porte."""
     for cle in ("capturedAt", "at", "date"):
-        v = f.get(cle)
-        if not v:
-            continue
-        try:
-            s = str(v)[:19]
-            if len(s) == 10:
-                s += "T00:00:00"
-            return datetime.datetime.strptime(s, "%Y-%m-%dT%H:%M:%S") \
-                .replace(tzinfo=datetime.timezone.utc)
-        except ValueError:
-            continue
+        d = dt_utc(f.get(cle))
+        if d:
+            return d
     return None
 
 
@@ -189,7 +170,7 @@ def main():
             deja_bon += 1
             continue
         # Signature du transcodage : on ne touche pas.
-        envoi = lire_instant(f.get("at"))
+        envoi = dt_utc(f.get("at"))
         if envoi and abs((vraie - envoi).total_seconds()) / 60 <= MARGE_TRANSCODE_MIN:
             transcodees += 1
             continue

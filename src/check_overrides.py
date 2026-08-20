@@ -45,6 +45,11 @@ corrige rien tout seul — l'equipage seul sait qui roule ou.
 import datetime, json, os, sys
 
 from fetch_routes import TRIP_ID, fields, firebase_config, fs_list
+# Ces trois calculs etaient recopies ici. La copie locale de la lecture de
+# date OUBLIAIT le fuseau : chaque media etait date de deux heures trop tot,
+# soit ~180 km, et le controle les comparait aux points GPS du mauvais
+# moment. Voir `commun.py`.
+from commun import ms_utc as instant, vehicle_id
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OVERRIDES = os.path.join(HERE, "site-overrides.json")
@@ -53,24 +58,6 @@ OVERRIDES = os.path.join(HERE, "site-overrides.json")
 # pour qu'une fausse manoeuvre isolee ne declenche rien, assez peu pour qu'un
 # vrai changement soit vu dans la journee.
 CONSENSUS = 4
-
-
-def vehicle_id(value):
-    """Meme normalisation que le front (`vehicleId()`), en plus court."""
-    v = str(value or "").strip().lower().replace(" ", "-")
-    if v in ("hugodouard", "1", "car-1", "voiture-1"):
-        return "hugodouard"
-    if v in ("paul-pot", "paulpot", "2", "car-2", "voiture-2"):
-        return "paul-pot"
-    return None
-
-
-def instant(at):
-    """`capturedAt` ISO -> millisecondes, pour trier medias et points ensemble."""
-    try:
-        return datetime.datetime.strptime(str(at)[:19], "%Y-%m-%dT%H:%M:%S").timestamp() * 1000
-    except ValueError:
-        return None
 
 
 def releves(project, key, noms):

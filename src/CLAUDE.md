@@ -841,6 +841,43 @@ as an aberration (a detour around a sea, a point landing on an island) and
 dropped. Pairs whose points have disappeared are pruned from the cache. Ferries
 are covered — Algeciras → Tanger Med resolves to the 23 km crossing.
 
+### `commun.py` — les calculs de base, écrits UNE FOIS
+Distance entre deux points, normalisation de voiture, lecture d'une date.
+Ces trois notions étaient recopiées dans quatre scripts, avec des signatures
+différentes (`hav` sur des dictionnaires, `hav_km` sur des couples) — donc
+impossibles à corriger ensemble.
+
+**Ce n'est pas de l'élégance, c'est ce qui a produit deux bugs réels :**
+- `check_overrides.py` lisait les dates **sans fuseau** : `strptime` rend une
+  date naïve et `.timestamp()` l'interprète dans le fuseau de la machine, soit
+  2 h d'écart, ~180 km au rythme d'une voiture. Le contrôle comparait donc les
+  médias aux points GPS du mauvais moment. Corrigé en passant.
+- Le même défaut, dans une autre copie, donnait 45 km d'erreur médiane sur les
+  positions devinées, avec un symptôme trompeur : l'erreur **ne diminuait pas**
+  quand le point de trace se rapprochait, ce qui est physiquement impossible.
+
+Importé par `fetch_routes.py`, `fetch_photos.py`, `check_overrides.py` et
+`fix_video_dates.py`, sous leurs noms locaux d'origine pour ne pas réécrire les
+appelants. `vehicle_id()` rend `None` sur « obs » : « à pied / autre » n'est
+pas une voiture.
+
+### `check_accord.py` — Python et le site doivent dire la même chose
+`commun.py` ne couvre que Python. Le site et l'appli tournent dans un
+navigateur : **on ne partage pas de code entre les deux mondes**, il restera
+toujours deux implémentations. Ce qu'on ne peut pas unifier, on l'empêche de
+dériver — ce contrôle donne les mêmes entrées aux deux et compare les sorties.
+
+Il extrait les fonctions **du template lui-même** (accolades équilibrées, pas
+de recherche de `\n}` : `hav` se termine par `;}` en fin de ligne), y compris
+leurs dépendances `slug` et `firstValue`. Recopier une version de test ici
+rouvrirait exactement la porte qu'on ferme.
+
+**Il a trouvé un défaut dès son premier passage** : sur une date-heure ISO
+sans fuseau, `Date.parse` applique le fuseau du NAVIGATEUR — la même photo
+s'affichait à une heure différente selon le pays d'où on regarde. Aucun des
+1269 horodatages actuels n'est dans ce cas, mais `toMs()` impose désormais UTC
+explicitement. Lancé par `routes.yml`, bloquant.
+
 ### `collect_tweens.mjs`
 Précalcule les **recollages de route** dans `src/tweens.json`, injecté comme
 `__TWEENS__`.

@@ -34,6 +34,10 @@ stays a straight line on the map.
 """
 import argparse, json, math, os, re, time, urllib.error, urllib.parse, urllib.request
 
+# Les calculs de base viennent de `commun.py` — une seule ecriture pour tous
+# les scripts. Voir ce module pour pourquoi (deux bugs de fuseau reels).
+from commun import hav_km as hav, ms_utc as to_ms, vehicle_id as vehicle_of
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIREBASE_CONFIG = os.path.join(HERE, "..", "app", "www", "firebase-config.js")
 SITE_OVERRIDES = os.path.join(HERE, "site-overrides.json")
@@ -110,18 +114,6 @@ def fields(doc):
 # --------------------------------------------------------------------------
 # Points bruts
 # --------------------------------------------------------------------------
-def to_ms(value):
-    if value is None:
-        return None
-    if isinstance(value, (int, float)):
-        return float(value)
-    try:
-        from datetime import datetime
-        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp() * 1000
-    except Exception:
-        return None
-
-
 def first(*values):
     for v in values:
         if v is not None and v != "":
@@ -134,15 +126,6 @@ def slug(name):
     s = unicodedata.normalize("NFD", str(name or ""))
     s = "".join(c for c in s if unicodedata.category(c) != "Mn").lower()
     return re.sub(r"^-|-$", "", re.sub(r"[^a-z0-9]+", "-", s))
-
-
-def vehicle_of(value):
-    v = slug(value)
-    if v in ("hugodouard", "1", "car-1", "voiture-1"):
-        return "hugodouard"
-    if v in ("paul-pot", "paulpot", "2", "car-2", "voiture-2"):
-        return "paul-pot"
-    return None
 
 
 def point(name, lat, lng, at, vehicle):
@@ -199,14 +182,6 @@ def collect_points(project, key, roster, rosters):
 # --------------------------------------------------------------------------
 # Paires et routage
 # --------------------------------------------------------------------------
-def hav(a, b):
-    r, d = 6371.0, math.pi / 180
-    dla, dlo = (b["lat"] - a["lat"]) * d, (b["lng"] - a["lng"]) * d
-    h = (math.sin(dla / 2) ** 2
-         + math.cos(a["lat"] * d) * math.cos(b["lat"] * d) * math.sin(dlo / 2) ** 2)
-    return 2 * r * math.asin(math.sqrt(h))
-
-
 def key_of(a, b):
     return (f"{a['lat']:.{COORD_DP}f},{a['lng']:.{COORD_DP}f};"
             f"{b['lat']:.{COORD_DP}f},{b['lng']:.{COORD_DP}f}")
