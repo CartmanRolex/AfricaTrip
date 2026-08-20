@@ -841,6 +841,51 @@ as an aberration (a detour around a sea, a point landing on an island) and
 dropped. Pairs whose points have disappeared are pruned from the cache. Ferries
 are covered — Algeciras → Tanger Med resolves to the 23 km crossing.
 
+### `collect_tweens.mjs`
+Précalcule les **recollages de route** dans `src/tweens.json`, injecté comme
+`__TWEENS__`.
+
+Entre deux points GPS, le site cherche une géométrie déjà routée qui les relie.
+Cette recherche projetait chaque paire sur **les 1 219 géométries du cache**
+(60 900 sommets), y compris celles à 2 000 km. Mesure sur un seul rendu :
+**85,6 millions d'appels à `hav()` et 4,9 s de processeur** — 14 s de
+chargement sur un téléphone. Or le résultat ne dépend que de la paire et du
+cache : il est **identique chez tous les visiteurs** et tient en 258 entrées,
+19 Ko. Chaque navigateur refaisait le même calcul pour aboutir au même fichier.
+
+**Pourquoi ce n'était pas déjà fait en Python.** `fetch_routes.py` refuse — à
+raison — de réimplémenter la reconstruction du front-end : cette copie
+pourrirait à la première modification du template. Il *devine* donc les paires
+utiles, et celles qu'il rate tombaient dans la recherche côté client. La
+prudence était juste, la conclusion fausse : on ne choisit pas entre dupliquer
+la logique et laisser le client calculer, **on fait tourner le vrai site sans
+écran**. Le code qui produit la table est le code qui dessine, ils ne peuvent
+donc pas diverger.
+
+Un recollage est toujours « ce morceau de cette géométrie », donc
+`[clé, i0, i1]` suffit — et les paires **sans réponse sont mémorisées à
+`null`**, sinon le site relancerait la recherche complète pour elles à chaque
+fois. `chercherTween()` (la recherche) est séparée de `cheminTween()` (la
+reconstruction) précisément pour que le résultat soit exprimable en trois
+valeurs.
+
+Résultat mesuré : un rendu complet passe de **4 868 ms à 12 ms**, et les appels
+à `hav()` de 85 589 099 à 6 482. Le tracé est le même : sur 1 174 035 sommets
+comparés entre une page avec et sans la table, 412 diffèrent (0,035 %) avec un
+écart **maximal de 2 mètres**, et la longueur totale varie de 0,0000 %. Ce
+grain vient de l'arrondi à 4 décimales de la clé de cache, qui existait déjà.
+
+Complément côté client : `chercherTween()` filtre désormais par **boîte
+englobante** (`boiteDe`) avant de projeter — 93 % des géométries sont écartées
+en comparant quatre nombres. Ça ne sert que pour les paires nées des points
+arrivés depuis le dernier instantané, mais c'est ce qui rend ce résidu
+négligeable.
+
+Lancé par `.github/workflows/routes.yml`, **non bloquant** : sans Puppeteer ou
+sans Chrome, la table manque et le site recalcule lui-même — plus lent, mais
+juste. `build.py` doit tourner AVANT (le collecteur lit `index.html`) puis
+APRÈS (pour injecter la table).
+
 ### `check_overrides.py`
 Fails the workflow when a `vehicle_from` override has outlived the fact it
 described.

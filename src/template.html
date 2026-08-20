@@ -1379,6 +1379,27 @@ const STRAIGHT_OK_KM=1;
 // continue d'interdire les rapprochements fortuits.
 const TWEEN_NEAR_KM=5;
 const tweenCache=new Map();
+// Resultats de recollage PRECALCULES au build (`src/tweens.json`).
+// Voir `chercherTween` juste dessous pour pourquoi ils sont indispensables.
+const TWEENS=new Map(Object.entries(__TWEENS__||{}));
+// Boite englobante de chaque geometrie, calculee une fois a la demande.
+// Comparer quatre nombres coute mille fois moins cher que projeter un point
+// sur cinquante segments — et 93 % des geometries sont a des centaines de
+// kilometres de la paire cherchee.
+const boites=new Map();
+function boiteDe(k){
+  let b=boites.get(k);
+  if(!b){
+    const g=ROUTES[k];
+    b=[90,-90,180,-180];
+    for(const q of g){
+      if(q[0]<b[0])b[0]=q[0]; if(q[0]>b[1])b[1]=q[0];
+      if(q[1]<b[2])b[2]=q[1]; if(q[1]>b[3])b[3]=q[1];
+    }
+    boites.set(k,b);
+  }
+  return b;
+}
 // Point le plus proche d'un tracé, avec son avancement le long de celui-ci.
 function projectOnRoad(p,g){
   let best=null,acc=0;
@@ -1395,13 +1416,25 @@ function projectOnRoad(p,g){
 // deux points. C'est exactement le cas derrière la voiture : le raccord vers
 // l'escale routé à l'exécution précédente suit la route qu'elle vient de
 // prendre. On en découpe le morceau utile au lieu de couper le trait.
-function roadTween(a,b){
-  const ck=`${a[0].toFixed(4)},${a[1].toFixed(4)};${b[0].toFixed(4)},${b[1].toFixed(4)}`;
-  if(tweenCache.has(ck))return tweenCache.get(ck);
+// LE RESULTAT D'UN RECOLLAGE EST TOUJOURS « CE MORCEAU DE CETTE GEOMETRIE ».
+// Il tient donc en trois valeurs — [cle, i0, i1] — et c'est ce qui permet de
+// le precalculer au build plutot que de le refaire dans chaque navigateur.
+//
+// Pourquoi c'est vital : cette recherche projetait chaque paire sur les 1219
+// geometries du cache, soit 60 900 sommets, meme celles a 2000 km. Un seul
+// rendu declenchait 85,6 MILLIONS d'appels a `hav()` et 4,9 s de calcul — pour
+// aboutir a 250 resultats identiques chez tout le monde, 11 Ko en tout.
+// `tools/collect_tweens.mjs` les calcule une fois par heure et les embarque.
+function chercherTween(a,b){
   const A={lat:a[0],lng:a[1]},B={lat:b[0],lng:b[1]};
   const ecart=hav(A,B);
+  const marge=Math.max(TWEEN_NEAR_KM,.15*ecart)/111+.01;   // km -> degres, large
   let best=null;
   for(const k in ROUTES){
+    const bo=boiteDe(k);
+    // Hors de la boite elargie : la geometrie ne peut pas passer assez pres.
+    if(a[0]<bo[0]-marge||a[0]>bo[1]+marge||a[1]<bo[2]-marge||a[1]>bo[3]+marge)continue;
+    if(b[0]<bo[0]-marge||b[0]>bo[1]+marge||b[1]<bo[2]-marge||b[1]>bo[3]+marge)continue;
     const g=ROUTES[k];
     // Projeter SUR les segments, pas sur les sommets : deux points GPS voisins
     // tombent sinon sur le même sommet d'une géométrie simplifiée et le
@@ -1418,9 +1451,22 @@ function roadTween(a,b){
     // tracer une droite. Plus le segment est long, plus un écart aux extrémités
     // est négligeable devant ce que la route explique.
     if(score<=Math.max(TWEEN_NEAR_KM,.15*ecart)&&(!best||score<best.score))
-      best={score,path:[a,...g.slice(pa.i,pb.i),b]};   // ancré aux vrais points GPS
+      best={score,ref:[k,pa.i,pb.i]};
   }
-  const out=best?best.path:null;
+  return best?best.ref:null;
+}
+// Reconstruit le chemin a partir de [cle, i0, i1], ancre aux vrais points GPS.
+function cheminTween(a,b,ref){
+  const g=ref&&ROUTES[ref[0]];
+  return g?[a,...g.slice(ref[1],ref[2]),b]:null;
+}
+function roadTween(a,b){
+  const ck=`${a[0].toFixed(4)},${a[1].toFixed(4)};${b[0].toFixed(4)},${b[1].toFixed(4)}`;
+  if(tweenCache.has(ck))return tweenCache.get(ck);
+  // La table du build d'abord : elle memorise AUSSI les paires sans reponse
+  // (`null`), sinon on relancerait la recherche complete pour rien.
+  const ref=TWEENS.has(ck)?TWEENS.get(ck):chercherTween(a,b);
+  const out=cheminTween(a,b,ref);
   tweenCache.set(ck,out);
   return out;
 }

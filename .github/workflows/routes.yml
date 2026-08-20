@@ -52,12 +52,34 @@ jobs:
       - name: Régénérer le site
         run: python src/build.py
 
+      # Précalcule les recollages de route en faisant tourner LE VRAI SITE sans
+      # écran. Sans ça, chaque visiteur refait 85 millions de calculs de
+      # distance pour aboutir aux mêmes 19 Ko — 4,9 s de processeur, 14 s de
+      # chargement sur un téléphone.
+      #
+      # Non bloquant, et volontairement : si Puppeteer ou Chrome fait défaut,
+      # le site retombe sur le calcul côté client. Plus lent, mais juste.
+      - uses: actions/setup-node@v4
+        continue-on-error: true
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Précalculer les recollages de route
+        continue-on-error: true
+        run: |
+          npm ci --omit=dev --no-audit --no-fund
+          node src/collect_tweens.mjs
+          python src/build.py
+
       - name: Publier si quelque chose a changé
         run: |
           set -e
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           FILES="src/routes.json src/data.json index.html voyage-afrique.html version.json"
+          # Les recollages precalcules : absents si l'etape non bloquante a
+          # echoue, on ne les ajoute donc que s'ils sont la.
+          [ -f src/tweens.json ] && FILES="$FILES src/tweens.json"
           # L'instantane peut manquer : quota epuise au premier tour, ou
           # etape non bloquante qui a echoue. `git add` sur un fichier
           # absent fait echouer tout le job — on ne l'ajoute que s'il est la.
