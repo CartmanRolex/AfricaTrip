@@ -456,6 +456,115 @@ function validCoords(lat, lng) {
 }
 const hasLocation = d => !!d && validCoords(d.lat, d.lng);
 
+// ---- metadonnees d'une video, lues dans le navigateur ----------------------
+// Une video PORTE sa position et sa date de tournage, mais pas en EXIF : l'EXIF
+// est un format d'image. Une video les range dans son conteneur MP4/QuickTime,
+// en atomes — `mvhd` pour la date, `©xyz` (ISO-6709) pour le lieu.
+//
+// L'app Android les lit depuis toujours (AfricaMediaPlugin.readVideo, via
+// MediaMetadataRetriever). Ce chemin-ci — le repli navigateur, donc la PWA
+// iPhone — utilisait `exifr`, qui ne traite que les images : les videos des
+// iPhone arrivaient sans position et datees par `lastModified`, souvent
+// l'instant de la copie juste avant l'envoi. Mesure : 8 videos de Jehan
+// datees de 26 a 90 heures trop tard.
+//
+// `mvhd` est en UTC : verifie sur 22 videos Android dont la date etait deja
+// lue correctement par le plugin — 18 a l'ecart EXACTEMENT nul.
+//
+// Rien n'est telecharge : `Blob.slice()` lit le fichier local. On marche
+// d'atome en atome plutot que de fouiller le fichier entier, donc le cout ne
+// depend pas de la duree de la video.
+const MOOV_MAX = 24 * 1048576;   // au-dela, on renonce plutot que saturer un telephone
+const ISO6709 = /([+-]\d{2}(?:\.\d+)?)([+-]\d{3}(?:\.\d+)?)/;
+const EPOCH_MP4_MS = Date.UTC(1904, 0, 1);
+
+async function octets(f, debut, n) {
+  if (debut < 0 || debut >= f.size) return null;
+  return new Uint8Array(await f.slice(debut, Math.min(debut + n, f.size)).arrayBuffer());
+}
+const typeAtome = u8 => String.fromCharCode(u8[4], u8[5], u8[6], u8[7]);
+
+// Parcourt les atomes d'une zone et rend le premier du type demande.
+function trouverAtome(u8, type, debut = 0, fin = u8.length) {
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  let p = debut;
+  while (p + 8 <= fin) {
+    let taille = dv.getUint32(p), entete = 8;
+    if (taille === 1) {
+      if (p + 16 > fin) break;
+      taille = Number(dv.getBigUint64(p + 8)); entete = 16;
+    } else if (taille === 0) taille = fin - p;
+    if (taille < entete || p + taille > fin) break;
+    if (typeAtome(u8.subarray(p, p + 8)) === type) {
+      return { debut: p + entete, fin: p + taille };
+    }
+    p += taille;
+  }
+  return null;
+}
+
+async function metaVideo(f) {
+  const out = {};
+  try {
+    // 1. Trouver `moov` parmi les atomes de premier niveau. iPhone le place
+    //    souvent en fin de fichier, d'ou le parcours plutot qu'une lecture
+    //    de la tete seule.
+    let pos = 0, moov = null;
+    for (let garde = 0; garde < 64 && pos < f.size; garde++) {
+      const tete = await octets(f, pos, 16);
+      if (!tete || tete.length < 8) break;
+      const dv = new DataView(tete.buffer, tete.byteOffset, tete.byteLength);
+      let taille = dv.getUint32(0);
+      if (taille === 1) { if (tete.length < 16) break; taille = Number(dv.getBigUint64(8)); }
+      else if (taille === 0) taille = f.size - pos;
+      if (taille < 8) break;
+      if (typeAtome(tete) === "moov") {
+        if (taille > MOOV_MAX) return out;
+        const complet = await octets(f, pos, taille);
+        // On ne garde que le CONTENU : `trouverAtome` parcourt une liste
+        // d'atomes freres, et lui passer `moov` entete comprise lui ferait
+        // relire `moov` lui-meme puis s'arreter sans rien trouver.
+        moov = complet && complet.subarray(taille === Number(dv.getUint32(0)) ? 8 : 16);
+        break;
+      }
+      pos += taille;
+    }
+    if (!moov) return out;
+
+    // 2. La date de tournage, dans `mvhd` : version (1 octet), drapeaux (3),
+    //    puis creation_time en secondes depuis le 1er janvier 1904 UTC.
+    const mvhd = trouverAtome(moov, "mvhd");
+    if (mvhd) {
+      const dv = new DataView(moov.buffer, moov.byteOffset, moov.byteLength);
+      const version = moov[mvhd.debut];
+      const brut = version === 1 ? Number(dv.getBigUint64(mvhd.debut + 4))
+                                 : dv.getUint32(mvhd.debut + 4);
+      const ms = EPOCH_MP4_MS + brut * 1000;
+      // Bornes de plausibilite : une date hors 2000-2100 n'est pas une date.
+      if (ms > Date.UTC(2000, 0, 1) && ms < Date.UTC(2100, 0, 1)) out.capturedAtMs = ms;
+    }
+
+    // 3. La position, dans `udta`. `©xyz` est la forme courante ; Apple ecrit
+    //    aussi la meme chaine sous une cle `com.apple.quicktime.location.*`.
+    //    On cherche donc la chaine ISO-6709 dans `udta`, ce qui couvre les deux
+    //    sans avoir a decoder le format de cles d'Apple.
+    const udta = trouverAtome(moov, "udta");
+    if (udta) {
+      const texte = new TextDecoder("latin1")
+        .decode(moov.subarray(udta.debut, udta.fin));
+      const m = ISO6709.exec(texte);
+      if (m) {
+        const lat = Number(m[1]), lng = Number(m[2]);
+        // « +00.0000+000.0000 » est un remplissage, pas une position.
+        if (validCoords(lat, lng) && (Math.abs(lat) > 0.001 || Math.abs(lng) > 0.001)) {
+          out.lat = lat; out.lng = lng;
+        }
+      }
+    }
+  } catch (_) { /* conteneur inattendu : on renvoie ce qu'on a */ }
+  return out;
+}
+
 // ---- ou ouvrir la carte de choix ------------------------------------------
 // Elle s'ouvrait sur [16.5,-14] au zoom 4 : le Sahara. Sur un fond sombre, une
 // etendue sans route ni label donne un rectangle noir ou l'on ne peut rien
@@ -1592,15 +1701,15 @@ function initPhotos(lifecycle, person) {
       let capturedAtMs = mediaCapturedAt(f.lastModified, baseContext.capturedAtMs);
       const video = (f.type || "").startsWith("video/");
       if (video) {
-        // ATTENTION à la formulation : une vidéo PORTE bien sa position, dans un
-        // atome ISO-6709 du conteneur MP4 — ce n'est simplement pas de l'EXIF.
-        // L'app Android la lit (AfricaMediaPlugin.readVideo, via
-        // MediaMetadataRetriever), et 22 des 41 vidéos du voyage en ont une.
-        // C'est CE chemin-ci, le repli navigateur de la PWA, qui ne sait pas la
-        // lire : `exifr` ne traite que les images. Les vidéos des iPhone
-        // arrivent donc sans position et datées par `lastModified`, qui peut
-        // être une date de copie et non de tournage.
-        if (f.lastModified) date = new Date(f.lastModified).toISOString().slice(0, 10);
+        // Une vidéo PORTE sa position et sa date, mais dans son conteneur MP4,
+        // pas en EXIF — `metaVideo()` va les y chercher. `lastModified` ne
+        // reste que le dernier recours : c'est souvent l'instant de la copie
+        // juste avant l'envoi, pas celui du tournage.
+        const meta = await metaVideo(f);
+        if (meta.capturedAtMs) capturedAtMs = meta.capturedAtMs;
+        if (validCoords(meta.lat, meta.lng)) { lat = meta.lat; lng = meta.lng; }
+        if (capturedAtMs) date = new Date(capturedAtMs).toISOString().slice(0, 10);
+        else if (f.lastModified) date = new Date(f.lastModified).toISOString().slice(0, 10);
       } else {
         const exifr = await import("https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.esm.mjs");
         try {

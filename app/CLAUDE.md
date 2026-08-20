@@ -127,12 +127,31 @@ mode n'est pas **Pause**.
   géolocalise correctement les vidéos**. Preuve sur les données réelles : les
   22 vidéos en `media-gps` sont toutes de Gal, seul utilisateur Android ; les
   19 en `manual` viennent des iPhone (Jehan, Paul, Dorvan, Edouard, Malen).
-  Le **repli navigateur** (`fallback-input`, donc la PWA iPhone) utilise
-  `exifr`, qui ne traite que les images : là, une vidéo n'a ni position ni date
-  de tournage, et retombe sur `lastModified` — souvent une date de copie.
-  Améliorable sans dépendance : les atomes `moov/udta/©xyz` (position) et
-  `moov/mvhd` (date de création) se lisent en JS sur les premiers kilo-octets
-  du fichier via `Blob.slice()`. Non fait à ce jour.
+  **Le repli navigateur les lit maintenant aussi** (`metaVideo()`,
+  `trouverAtome()`) : il marche d'atome en atome jusqu'à `moov`, y prend
+  `mvhd` pour la date et cherche la chaîne ISO-6709 dans `udta` pour le lieu.
+  Rien n'est téléchargé — `Blob.slice()` lit le fichier local — et **le coût ne
+  dépend pas de la durée** : mesuré à 2-7 ms sur des fichiers de 6 à 23 Mo,
+  parce qu'on ne lit que les en-têtes et `moov`, jamais la vidéo.
+  **`mvhd` est en UTC** : vérifié sur 22 vidéos Android dont la date était déjà
+  lue correctement par le plugin — 18 à l'écart exactement nul, les 4 autres
+  étant les fichiers réhorodatés par Cloudinary.
+  **Piège qui a coûté un premier essai muet** : `trouverAtome()` parcourt une
+  liste d'atomes FRÈRES. Lui passer `moov` en-tête comprise lui fait relire
+  `moov` lui-même puis s'arrêter sans rien trouver — il faut sauter les 8
+  octets (16 si taille 64 bits). Le symptôme est trompeur : aucune erreur,
+  juste un résultat vide.
+  La recherche du lieu se fait par motif ISO-6709 dans tout `udta` plutôt que
+  sur la seule clé `©xyz` : Apple range la même chaîne sous
+  `com.apple.quicktime.location.*`, et le motif couvre les deux sans décoder
+  son format de clés. Un `+00.0000+000.0000` est un remplissage, pas une
+  position, et il est rejeté.
+  Vérifié sur de vraies vidéos : position **exacte** (0,00 km d'écart) sur le
+  seul fichier dont l'atome ait survécu à Cloudinary, date lue sur 4/4, et
+  aucune exception sur fichier tronqué, vide, aléatoire ou JPEG renommé.
+  **Ce que ça ne répare pas** : les vidéos déjà envoyées. Cloudinary détruit
+  les métadonnées à l'upload — 0 des 19 vidéos testées avait conservé sa
+  position. C'est perdu, seul l'avenir est couvert.
 - **LA CARTE DE CHOIX DU LIEU S'OUVRE LÀ OÙ EST LA VOITURE** (`POS_KEY`,
   `LIEU_KEY`, `VUE_LARGE`, `positionVoiture()`). Elle s'ouvrait sur
   `[16.5, -14]` au zoom 4 — le Sahara : sur un fond sombre, une étendue sans
