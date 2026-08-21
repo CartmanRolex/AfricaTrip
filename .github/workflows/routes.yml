@@ -37,17 +37,22 @@ jobs:
       - name: Recalculer les données du voyage
         run: python src/parse_csv.py
 
+      - name: Photographier l'historique Firestore
+        # EN PREMIER, et c'est essentiel : `fetch_routes.py` et
+        # `check_overrides.py` lisent ce fichier au lieu de retélécharger les
+        # mêmes collections. Les trois lisaient Firestore chacun de leur côté
+        # — 1 800 documents par exécution, 43 600 par jour pour un quota de
+        # 50 000 — et le quota a sauté le 21/08.
+        # Non bloquant : quota epuise (429) ou reseau coupe -> on garde
+        # l'instantane deja publie et on reessaie au tour suivant.
+        continue-on-error: true
+        run: python src/fetch_tracks.py
+
       - name: Router les nouveaux segments
         # Non bloquant : sans réseau ou si le routeur est indisponible, on garde
         # les routes déjà connues et les nouveaux segments restent droits.
         continue-on-error: true
         run: python src/fetch_routes.py
-
-      - name: Photographier l'historique Firestore
-        # Non bloquant : quota epuise (429) ou reseau coupe -> on garde
-        # l'instantane deja publie et on reessaie au tour suivant.
-        continue-on-error: true
-        run: python src/fetch_tracks.py
 
       - name: Régénérer le site
         run: python src/build.py

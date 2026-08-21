@@ -861,6 +861,28 @@ Importé par `fetch_routes.py`, `fetch_photos.py`, `check_overrides.py` et
 appelants. `vehicle_id()` rend `None` sur « obs » : « à pied / autre » n'est
 pas une voiture.
 
+**`commun.py` porte aussi la lecture de l'instantané** (`instantane()`,
+`docs_instantane()`), et c'est ce qui a réglé le second effondrement du quota.
+`fetch_tracks.py` télécharge tout l'historique une fois par heure — mais
+`fetch_routes.py` et `check_overrides.py` **retéléchargeaient les mêmes
+collections dans le même job** : ~1 800 documents par exécution, **43 600 par
+jour pour un quota de 50 000**, et ça grossit avec le voyage (les photos sont
+passées de 141 à 329 en dix jours). Le quota a sauté le 21/08 et le job a
+échoué toutes les heures.
+
+C'est **le même défaut que celui corrigé côté visiteur** (235 lectures par
+visite), simplement déplacé côté build : plusieurs lecteurs pour une donnée
+identique. Même réponse — un seul téléchargement, tout le monde lit le fichier.
+Mesuré : `fetch_routes.py` passe de 5 collections entières à **1 requête**
+(`latest`, absent de l'instantané), `check_overrides.py` à **zéro**. Total
+~650 documents par exécution au lieu de 1 800.
+
+**L'ordre du workflow en dépend** : `fetch_tracks.py` doit tourner AVANT les
+deux autres. Chacun retombe sur Firestore si l'instantané manque, donc un
+premier build reste possible. `check_overrides.py` sort proprement sur un 429
+plutôt que de faire échouer le job — un quota épuisé n'est pas une divergence
+de surcharge, et noyer la vraie alerte serait pire.
+
 ### `check_accord.py` — Python et le site doivent dire la même chose
 `commun.py` ne couvre que Python. Le site et l'appli tournent dans un
 navigateur : **on ne partage pas de code entre les deux mondes**, il restera

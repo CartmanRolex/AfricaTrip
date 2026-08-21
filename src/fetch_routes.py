@@ -36,7 +36,8 @@ import argparse, json, math, os, re, time, urllib.error, urllib.parse, urllib.re
 
 # Les calculs de base viennent de `commun.py` — une seule ecriture pour tous
 # les scripts. Voir ce module pour pourquoi (deux bugs de fuseau reels).
-from commun import hav_km as hav, ms_utc as to_ms, vehicle_id as vehicle_of
+from commun import (hav_km as hav, ms_utc as to_ms, vehicle_id as vehicle_of,
+                    instantane, docs_instantane)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIREBASE_CONFIG = os.path.join(HERE, "..", "app", "www", "firebase-config.js")
@@ -138,10 +139,18 @@ def point(name, lat, lng, at, vehicle):
 
 
 def collect_points(project, key, roster, rosters):
-    """Every raw point the site could draw, with its person and its vehicle."""
+    """Every raw point the site could draw, with its person and its vehicle.
+
+    Lit `tracks.json` plutot que Firestore : `fetch_tracks.py` vient de
+    telecharger exactement ces collections dans le meme job. Seul `latest`
+    manque a l'instantane et reste lu en direct (une dizaine de documents).
+    Voir `commun.instantane()` — c'est ce qui a fait sauter le quota.
+    """
     out = []
-    for doc in fs_list(project, key, f"trips/{TRIP_ID}/trackChunks"):
-        f = fields(doc)
+    snap = instantane()
+    chunks = (docs_instantane(snap, "chunks") if snap
+              else [fields(d) for d in fs_list(project, key, f"trips/{TRIP_ID}/trackChunks")])
+    for f in chunks:
         name, vid = f.get("displayName"), vehicle_of(f.get("vehicleId"))
         for p in (f.get("points") or {}).values():
             if not isinstance(p, dict):
@@ -157,19 +166,23 @@ def collect_points(project, key, roster, rosters):
                          to_ms(first(f.get("capturedAtMs"), f.get("capturedAt"),
                                      f.get("atMs"), f.get("at"))),
                          vehicle_of(f.get("vehicleId"))))
-    for doc in fs_list(project, key, "positions"):
-        f = fields(doc)
+    positions = (docs_instantane(snap, "positions") if snap
+                 else [fields(d) for d in fs_list(project, key, "positions")])
+    for f in positions:
         out.append(point(first(f.get("displayName"), f.get("name")),
                          f.get("lat"), f.get("lng"),
                          to_ms(first(f.get("capturedAtMs"), f.get("capturedAt"),
                                      f.get("at"))), None))
-    for name in roster:
-        for doc in fs_list(project, key, f"tracks/{name}/points"):
-            f = fields(doc)
+    v1 = (docs_instantane(snap, "v1") if snap
+          else [(n, [fields(d) for d in fs_list(project, key, f"tracks/{n}/points")])
+                for n in roster])
+    for name, pts in v1:
+        for f in pts:
             out.append(point(name, f.get("lat"), f.get("lng"), to_ms(f.get("at")),
                              rosters.get(name)))
-    for doc in fs_list(project, key, "photos"):
-        f = fields(doc)
+    photos = (docs_instantane(snap, "photos") if snap
+              else [fields(d) for d in fs_list(project, key, "photos")])
+    for f in photos:
         if not (f.get("gps") or f.get("locationSource") == "media-gps"):
             continue          # seul un GPS embarque infléchit une trace
         name = first(f.get("displayName"), f.get("name"))

@@ -42,14 +42,17 @@ Il tourne en DERNIER dans le workflow, apres la publication, et volontairement
 bloquant : le site est deja a jour, l'echec ne sert qu'a envoyer le mail. Il ne
 corrige rien tout seul — l'equipage seul sait qui roule ou.
 """
-import datetime, json, os, sys
+import datetime, json, os, sys, urllib.error
 
 from fetch_routes import TRIP_ID, fields, firebase_config, fs_list
 # Ces trois calculs etaient recopies ici. La copie locale de la lecture de
 # date OUBLIAIT le fuseau : chaque media etait date de deux heures trop tot,
 # soit ~180 km, et le controle les comparait aux points GPS du mauvais
 # moment. Voir `commun.py`.
-from commun import ms_utc as instant, vehicle_id
+# Lit l'instantane produit par `fetch_tracks.py` dans le meme job, plutot que
+# de retelecharger les memes 527 documents : c'est cette triple lecture qui a
+# fait sauter le quota Firestore le 21/08.
+from commun import ms_utc as instant, vehicle_id, instantane, docs_instantane
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OVERRIDES = os.path.join(HERE, "site-overrides.json")
@@ -68,8 +71,11 @@ def releves(project, key, noms):
     un seul telephone a ainsi signe quatre personnes en onze secondes.
     """
     pts = {n: [] for n in noms}
-    for doc in fs_list(project, key, f"trips/{TRIP_ID}/trackChunks"):
-        for p in (fields(doc).get("points") or {}).values():
+    snap = instantane()
+    chunks = (docs_instantane(snap, "chunks") if snap
+              else [fields(d) for d in fs_list(project, key, f"trips/{TRIP_ID}/trackChunks")])
+    for f in chunks:
+        for p in (f.get("points") or {}).values():
             nom, ms = p.get("displayName"), p.get("capturedAtMs")
             if nom in pts and ms is not None:
                 pts[nom].append((float(ms), vehicle_id(p.get("vehicleId")), p.get("deviceId")))
@@ -83,8 +89,9 @@ def releves(project, key, noms):
         sien = max(compte, key=compte.get) if compte else None
         out[nom] = [(ms, v) for ms, v, dev in liste if v and dev == sien]
 
-    for doc in fs_list(project, key, "photos"):
-        f = fields(doc)
+    photos = (docs_instantane(snap, "photos") if snap
+              else [fields(d) for d in fs_list(project, key, "photos")])
+    for f in photos:
         nom = f.get("displayName") or f.get("name")
         ms = instant(f.get("capturedAt"))
         v = vehicle_id(f.get("vehicleIdAtCapture") or f.get("car"))
@@ -120,7 +127,15 @@ def main():
         return 0
 
     project, key = firebase_config()
-    tout = releves(project, key, set(vf))
+    try:
+        tout = releves(project, key, set(vf))
+    except urllib.error.HTTPError as e:
+        # Quota epuise : ce n'est pas une divergence de surcharge, et faire
+        # echouer le job sur ce motif noierait la vraie alerte.
+        if e.code == 429:
+            raise SystemExit("Firestore : quota epuise (429) — controle reporte "
+                             "au prochain tour.")
+        raise
 
     problemes = []
     for nom, entrees in sorted(vf.items()):

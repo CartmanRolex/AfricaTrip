@@ -25,7 +25,9 @@ on ne partage pas du code entre Python et JavaScript. C'est pourquoi
 sur les memes entrees — a defaut de partager le code, on interdit la derive.
 """
 import datetime
+import json
 import math
+import os
 
 RAYON_TERRE_KM = 6371.0
 UTC = datetime.timezone.utc
@@ -133,3 +135,41 @@ def iso_utc(ms):
         return None
     return (datetime.datetime.fromtimestamp(float(ms) / 1000, UTC)
             .strftime("%Y-%m-%dT%H:%M:%SZ"))
+
+
+# --------------------------------------------------------------------------
+# L'instantane, lu au lieu d'etre retelecharge
+# --------------------------------------------------------------------------
+# `fetch_tracks.py` telecharge tout l'historique une fois par heure dans
+# `tracks.json`. Or `fetch_routes.py` et `check_overrides.py` retelechargeaient
+# LES MEMES collections dans le meme job : ~1800 documents par execution, soit
+# 43 600 par jour pour un quota de 50 000 — et ca grossit avec le voyage. Le
+# quota a saute le 21/08 et le job a commence a echouer toutes les heures.
+#
+# C'est le meme defaut que celui corrige cote visiteur (235 lectures par
+# visite), simplement deplace cote build : plusieurs lecteurs pour une donnee
+# identique. La reponse est la meme — un seul telechargement, tout le monde lit
+# le fichier.
+INSTANTANE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tracks.json")
+
+
+def instantane():
+    """Le contenu de `tracks.json`, ou None s'il n'a pas encore ete produit."""
+    try:
+        with open(INSTANTANE, encoding="utf-8") as f:
+            d = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+    return d if d.get("chunks") else None
+
+
+def docs_instantane(snap, collection):
+    """Les documents d'une collection, deja convertis comme le ferait `fields()`.
+
+    `collection` : "chunks", "photos", "positions", ou "v1".
+    """
+    if not snap:
+        return []
+    if collection == "v1":
+        return [(nom, pts) for nom, pts in (snap.get("v1") or {}).items()]
+    return [d["data"] for d in (snap.get(collection) or [])]
