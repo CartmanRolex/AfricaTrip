@@ -724,7 +724,11 @@ let lastUploadLocation = null;
 // Résout {lat,lng} si Valider, null si Ignorer/Annuler ; lève si la carte échoue.
 // `at` = instant de capture du media. Quand il est connu et qu'aucun GPS n'est
 // venu avec le fichier, on va chercher ou etait la voiture a ce moment-la.
-async function askLocation({ initial = null, editing = false, at = null } = {}) {
+// `apercu` = le fichier lui-meme, `rang` = {i, total} dans la salve en cours.
+// On envoie souvent cinq medias d'affilee : sans ca, la carte s'ouvre cinq fois
+// sans jamais dire de laquelle elle parle.
+async function askLocation({ initial = null, editing = false, at = null,
+                             apercu = null, rang = null } = {}) {
   try { await loadLeaflet(); }
   catch (_) {
     leafletP = null;
@@ -745,6 +749,49 @@ async function askLocation({ initial = null, editing = false, at = null } = {}) 
   $("loc-hint").textContent = editing
     ? "Déplace la carte sous l'épingle, ou utilise ta position actuelle."
     : "Pas de localisation dans ce média. Déplace la carte sous l'épingle, ou utilise ta position.";
+  // De quel media parle-t-on ? Vignette + rang + heure de prise de vue.
+  const boite = $("loc-media"), vign = $("loc-vignette"), clip = $("loc-clip");
+  const repli = $("loc-repli");
+  let urlApercu = null, replisTimer = null;
+  vign.hidden = clip.hidden = repli.hidden = true;
+  vign.removeAttribute("src"); clip.removeAttribute("src");
+  if (apercu || rang || at) {
+    boite.hidden = false;
+    const estVideo = apercu && ((apercu.type || "").startsWith("video/") || isVideoBlob(apercu));
+    if (apercu) {
+      urlApercu = URL.createObjectURL(apercu);
+      const cible = estVideo ? clip : vign;
+      cible.src = urlApercu;
+      cible.hidden = false;
+      // Un codec que le navigateur ne sait pas decoder affiche sinon une icone
+      // de fichier casse, plus deroutante qu'utile. On bascule alors sur une
+      // tuile « ▶ » : le rang et l'heure suffisent a identifier le media.
+      const abandonner = () => {
+        clearTimeout(replisTimer);
+        cible.hidden = true; repli.hidden = false;
+      };
+      cible.onerror = abandonner;
+      if (estVideo) {
+        // `loadeddata` ne prouve PAS qu'une image existe : il se declenche des
+        // que la piste audio suffit, et un codec video absent laisse alors
+        // `videoWidth` a zero avec un `readyState` complet. C'est cette
+        // largeur — pas l'evenement — qui dit si on a une image a montrer.
+        clip.onloadeddata = () => {
+          if (clip.videoWidth) clearTimeout(replisTimer); else abandonner();
+        };
+        // Filet pour le cas ou rien ne se declenche du tout.
+        replisTimer = setTimeout(() => { if (!clip.videoWidth) abandonner(); }, 1500);
+      }
+    }
+    $("loc-rang").textContent = rang && rang.total > 1
+      ? `${estVideo ? "Vidéo" : "Photo"} ${rang.i} sur ${rang.total}`
+      : (estVideo ? "Cette vidéo" : "Cette photo");
+    const d = at ? new Date(at) : null;
+    $("loc-quand").textContent = d && !Number.isNaN(d.getTime())
+      ? d.toLocaleString("fr-FR", { weekday: "short", day: "numeric", month: "short",
+                                    hour: "2-digit", minute: "2-digit" })
+      : "date inconnue";
+  } else boite.hidden = true;
   $("loc-skip").textContent = editing ? "Annuler" : "Ignorer";
   $("loc-here").disabled = false;
   $("loc-here").textContent = "◉ Ma position";
@@ -839,6 +886,8 @@ async function askLocation({ initial = null, editing = false, at = null } = {}) 
         if (state.ariaHidden == null) state.el.removeAttribute("aria-hidden");
         else state.el.setAttribute("aria-hidden", state.ariaHidden);
       }
+      clearTimeout(replisTimer);
+      if (urlApercu) URL.revokeObjectURL(urlApercu);
       if (previousFocus && previousFocus.focus) previousFocus.focus();
       resolve(val);
     };
@@ -1661,11 +1710,14 @@ function initPhotos(lifecycle, person) {
         if (!mediaPlugin) throw new Error("sélecteur natif indisponible");
         const { items } = await mediaPlugin.pickWithLocation();
         oublierTranches();   // nouvelle salve : on repart sur des lectures fraiches
-        for (const it of (items || [])) {
+        const lot = (items || []);
+        for (const [rangI, it] of lot.entries()) {
           const lat = it.lat ?? null, lng = it.lng ?? null, date = it.date || null;
           const context = {
             ...baseContext,
             capturedAtMs: mediaCapturedAt(it.capturedAt || date, baseContext.capturedAtMs),
+            // Pour que la carte de choix puisse dire « Photo 2 sur 5 ».
+            rang: { i: rangI + 1, total: lot.length },
           };
           if (it.video && it.path) {
             // vidéo : le natif a copié le fichier en cache (pas de base64) ->
@@ -1696,7 +1748,8 @@ function initPhotos(lifecycle, person) {
     const baseContext = pendingBrowserContext || snapshotMediaContext(lifecycle, person);
     pendingBrowserContext = null;
     oublierTranches();     // nouvelle salve : on repart sur des lectures fraiches
-    for (const f of [...e.target.files]) {
+    const lot = [...e.target.files];
+    for (const [rangI, f] of lot.entries()) {
       let lat = null, lng = null, date = null;
       let capturedAtMs = mediaCapturedAt(f.lastModified, baseContext.capturedAtMs);
       const video = (f.type || "").startsWith("video/");
@@ -1723,7 +1776,7 @@ function initPhotos(lifecycle, person) {
         } catch (_) {}
       }
       await uploadPhoto(f, lat, lng, date, video,
-        { ...baseContext, capturedAtMs });
+        { ...baseContext, capturedAtMs, rang: { i: rangI + 1, total: lot.length } });
     }
     e.target.value = "";
   };
@@ -1745,7 +1798,10 @@ async function uploadPhoto(blob, lat, lng, date, video = isVideoBlob(blob), cont
   if (!validCoords(lat, lng)) {
     lat = lng = null;   // une paire partielle/invalide ne doit jamais être gardée
     let picked;
-    try { picked = await askLocation({ at: context.capturedAtMs }); }
+    try {
+      picked = await askLocation({ at: context.capturedAtMs, apercu: blob,
+                                   rang: context.rang || null });
+    }
     catch (e) {
       // L'upload reste possible : le nouveau bouton du détail permettra
       // d'ajouter le lieu plus tard, une fois la carte de nouveau accessible.

@@ -144,6 +144,20 @@
       <div id="loc-head" class="loc-head">Où était-ce&nbsp;?</div>
       <p id="loc-hint" class="loc-hint">Pas de localisation dans ce média. Déplace la carte pour
         placer l'épingle à l'endroit, ou utilise ta position.</p>
+      <!-- De QUEL média parle-t-on ? On en envoie souvent cinq d'un coup, et
+           la carte seule ne disait pas lequel elle attendait. -->
+      <div id="loc-media" class="loc-media" hidden>
+        <div class="loc-vue">
+          <img id="loc-vignette" alt="" hidden>
+          <video id="loc-clip" muted playsinline preload="metadata" hidden></video>
+          <!-- Repli : un codec absent affiche sinon une icone de fichier casse. -->
+          <div id="loc-repli" class="loc-repli" hidden aria-hidden="true">▶</div>
+        </div>
+        <div class="loc-media-txt">
+          <b id="loc-rang"></b>
+          <span id="loc-quand"></span>
+        </div>
+      </div>
       <div class="loc-map-wrap">
         <div id="loc-map" class="loc-map"></div>
         <div class="loc-pin" aria-hidden="true">📍</div>

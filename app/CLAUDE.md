@@ -152,6 +152,24 @@ mode n'est pas **Pause**.
   **Ce que ça ne répare pas** : les vidéos déjà envoyées. Cloudinary détruit
   les métadonnées à l'upload — 0 des 19 vidéos testées avait conservé sa
   position. C'est perdu, seul l'avenir est couvert.
+- **LA CARTE DE CHOIX DIT DE QUEL MÉDIA ELLE PARLE** (`.loc-media`, paramètres
+  `apercu` / `rang` de `askLocation()`). On envoie souvent cinq médias d'un
+  coup : la carte s'ouvrait cinq fois de suite sans jamais dire lequel elle
+  attendait. Elle affiche maintenant une vignette du fichier, « Photo 2 sur 5 »
+  et l'heure de prise de vue. Le rang vient des deux boucles d'envoi (native et
+  navigateur), la vignette du blob lui-même via un `objectURL` libéré à la
+  fermeture.
+  **Une vidéo dont le codec n'est pas décodable affichait une icône de fichier
+  cassé.** Le piège : `loadeddata` se déclenche dès que la piste AUDIO suffit,
+  donc l'événement ne prouve pas qu'une image existe — c'est `videoWidth` qui
+  le dit, et il reste à 0 avec un `readyState` complet. On bascule alors sur une
+  tuile « ▶ » ; le rang et l'heure suffisent à identifier le média.
+  **Second piège, visible seulement en capture d'écran** : `.loc-vue img{display:block}`
+  l'emporte sur l'attribut `hidden` (qui n'est qu'un `display:none` de la
+  feuille par défaut), donc l'image vide se dessinait par-dessus le repli. D'où
+  le `:not([hidden])` dans le sélecteur.
+  Vérifié en exécutant le vrai bloc extrait de `app.js` contre le vrai balisage,
+  sur de vrais fichiers : photo dans une salve, vidéo en dernier, média seul.
 - **LA CARTE DE CHOIX DU LIEU S'OUVRE LÀ OÙ EST LA VOITURE** (`POS_KEY`,
   `LIEU_KEY`, `VUE_LARGE`, `positionVoiture()`). Elle s'ouvrait sur
   `[16.5, -14]` au zoom 4 — le Sahara : sur un fond sombre, une étendue sans
