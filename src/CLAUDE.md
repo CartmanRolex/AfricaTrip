@@ -410,6 +410,17 @@ Key JS structures (all near the top of the script):
   went back; Paul's phone said so the next morning and repeated it twenty-seven
   times, and the site kept showing them swapped for two days. Every change of
   car is therefore a new entry, including the return.
+  **`"vehicle": "aucune"` dit « dans AUCUNE voiture »** — distinct de l'absence
+  de surcharge, qui laisse parler l'appli. Sans cette valeur on ne pouvait
+  exprimer qu'un CHANGEMENT de voiture, jamais un départ : Gal est resté à
+  Dakar puis a pris un bateau pendant que la voiture descendait vers le sud,
+  son réglage disait encore Hugodouard, et ses deux photos de Dakar tiraient la
+  trace de la voiture **259 km en arrière puis 265 km en avant** — une boucle
+  bien visible sur la carte. « aucune » agit sur l'ATTRIBUTION DES POINTS
+  (`normalisePoint`, `mediaTrackPoint`, `aboardVehicleAt`) mais **pas sur les
+  sièges** : `vehicleOfAt()` retombe sur le roster, donc la personne reste
+  visible dans le panneau — elle est de l'équipage, simplement pas dans la
+  voiture à cet instant.
   Current value: Hugo → Paul Pot and Paul → Hugodouard from 2026-08-09T22:00,
   both back to their own car from 2026-08-11T09:43. Paul's instant comes from
   the data — after it GPS and media agree unanimously. Hugo's was inferred from
@@ -840,6 +851,18 @@ continuous drive, and a route more than 4× the great-circle distance is treated
 as an aberration (a detour around a sea, a point landing on an island) and
 dropped. Pairs whose points have disappeared are pruned from the cache. Ferries
 are covered — Algeciras → Tanger Med resolves to the 23 km crossing.
+
+**`traversees` : quand quelqu'un ne roule pas** (`TRAVERSEES`, `enTraversee()`,
+`resolveRoad(ll, pts)`). Le site relie deux points GPS par la route dès qu'il en
+connaît une — juste pour une voiture, faux pour un bateau : Gal a fait
+Dakar → Ziguinchor en bateau et le site lui faisait parcourir **465 km de route
+côtière**. La ligne droite EST la bonne géométrie, exactement le raisonnement
+du drapeau `ferry` de l'itinéraire prévu. Format :
+`{"qui", "de", "a", "moyen"}`, instants `YYYY-MM-DD[THH:MM]`.
+Le test est un CHEVAUCHEMENT, pas une inclusion : le point de départ est
+souvent pris à quai, juste avant la fenêtre. `resolveRoad` prend désormais les
+points d'origine en second argument — les seules coordonnées ne disent ni qui
+ni quand ; sans ce paramètre le comportement est inchangé.
 
 ### `commun.py` — les calculs de base, écrits UNE FOIS
 Distance entre deux points, normalisation de voiture, lecture d'une date.

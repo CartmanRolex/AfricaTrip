@@ -812,8 +812,15 @@ function rosterVehicleId(name){
 // distinguer ca d'une vraie donnee sans risquer d'en jeter — l'equipage le
 // nomme donc explicitement, ici, et le site l'ignore par TOUS ses chemins.
 const POINTS_EXCLUS=new Set(CFG.excludedPoints||[]);
+// « aucune » = la personne n'est dans aucune voiture a cet instant. Distinct de
+// `null`, qui veut dire « rien d'impose, prends ce que dit l'appli ».
+const HORS_VOITURE='aucune';
+// Pour les SIEGES et le selecteur de trace : « aucune » ne fait pas disparaitre
+// quelqu'un du panneau, il reste de l'equipage. Seule l'attribution de ses
+// POINTS change (voir `normalisePoint` et `aboardVehicleAt`).
 function vehicleOfAt(name,at){
-  return vehicleOverrideAt(name,at)||rosterVehicleId(name);
+  const v=vehicleOverrideAt(name,at);
+  return (v&&v!==HORS_VOITURE?v:null)||rosterVehicleId(name);
 }
 // L'equipage d'une voiture a cet instant, dans l'ordre des rosters.
 function crewOfVehicle(vid,at){
@@ -1114,8 +1121,10 @@ function normalisePoint(raw,base={}){
   if(!at)return null; // sans heure fiable, impossible de reconstruire honnêtement l'ordre
   const accuracy=Number(firstValue(raw.accuracyM,raw.accuracy));
   const impose=vehicleOverrideAt(name,at);
-  const vid=impose||vehicleId(firstValue(raw.vehicleId,base.vehicleId));
-  const mode=impose?'vehicle':String(firstValue(raw.mode,base.mode,vid?'vehicle':'independent'));
+  const dehors=impose===HORS_VOITURE;
+  const vid=dehors?null:(impose||vehicleId(firstValue(raw.vehicleId,base.vehicleId)));
+  const mode=dehors?'independent'
+    :(impose?'vehicle':String(firstValue(raw.mode,base.mode,vid?'vehicle':'independent')));
   if(mode==='paused')return null;
   const pointId=String(raw.pointId||base.pointId||`${slug(name)}:${at}:${lat.toFixed(6)}:${lng.toFixed(6)}`);
   if(POINTS_EXCLUS.has(pointId))return null;
@@ -1161,8 +1170,9 @@ function mediaTrackPoint(g){
   // celle capturée. Ce chemin ne passe pas par normalisePoint, il faut donc
   // l'appliquer ici aussi — sans quoi les médias restaient dans l'ancienne
   // voiture pendant que les points changeaient.
-  const vid=vehicleOverrideAt(identity.name,identity.at)
-    ||identity.vehicleId||rosterVehicleId(identity.name);
+  const imposeM=vehicleOverrideAt(identity.name,identity.at);
+  const vid=imposeM===HORS_VOITURE?null
+    :(imposeM||identity.vehicleId||rosterVehicleId(identity.name));
   const noonFromDay=!!g.date&&identity.at===Date.parse(`${g.date}T12:00:00Z`);
   return {pointId:mid,
     personId:slug(identity.name),name:identity.name,lat:Number(g.lat),lng:Number(g.lng),at:identity.at,
@@ -1190,6 +1200,8 @@ function localDay(ms){
 function aboardVehicleAt(name,at){
   if(at<trackStartFor(name))return null;   // pas encore du voyage a cet instant
   const i=REC_BY_DAY.get(localDay(at));
+  const impose=vehicleOverrideAt(name,at);
+  if(impose===HORS_VOITURE)return null;   // pas dans une voiture : rien a heriter
   if(i==null)return vehicleOfAt(name,at);
   const r=REC[i],s1=r.car1[name],s2=r.car2[name];
   // La grille dit SI la personne voyage ce jour-la ; elle ne sait pas dire
@@ -1491,17 +1503,41 @@ function roadTween(a,b){
 // echec d'affichage prenait ainsi l'apparence d'un fait, et 39 jours-sujets
 // etaient troues. Chaque trou signale a ete corrige un par un pendant des
 // jours ; c'etait la cause commune.
-function resolveRoad(ll){
+// Periodes ou quelqu'un ne ROULE pas : bateau, avion, train (`traversees`).
+// Le site relie deux points GPS par la route des qu'il en connait une — juste
+// pour une voiture, faux pour une traversee : Gal a fait Dakar -> Ziguinchor
+// en bateau et le site lui faisait parcourir 465 km de route cotiere. Ici la
+// LIGNE DROITE est la bonne geometrie, exactement comme le drapeau `ferry` de
+// l'itineraire prevu.
+const TRAVERSEES=((CFG.traversees)||[]).map(t=>({
+  qui:t.qui,
+  de:Date.parse(t.de.length>10?`${t.de}:00`:`${t.de}T00:00:00`),
+  a:Date.parse(t.a.length>10?`${t.a}:00`:`${t.a}T00:00:00`),
+})).filter(t=>Number.isFinite(t.de)&&Number.isFinite(t.a));
+// Un segment traverse-t-il ? On teste le CHEVAUCHEMENT, pas l'inclusion : le
+// point de depart est souvent pris a quai, juste avant la fenetre.
+function enTraversee(nom,t0,t1){
+  if(!TRAVERSEES.length||!nom||!Number.isFinite(t0)||!Number.isFinite(t1))return false;
+  const [a,b]=t0<=t1?[t0,t1]:[t1,t0];
+  return TRAVERSEES.some(t=>t.qui===nom&&a<t.a&&b>t.de);
+}
+// `pts` (facultatif) porte le nom et l'instant de chaque point, ce que les
+// seules coordonnees ne disent pas. Sans lui, comportement inchange.
+function resolveRoad(ll,pts){
   if(ll.length<2)return ll.slice();
   const out=[ll[0]];
   for(let i=1;i<ll.length;i++){
-    const road=roadTo(ll[i-1],ll[i])||roadTween(ll[i-1],ll[i]);
+    const a=pts&&pts[i-1],b=pts&&pts[i];
+    // En traversee, on ne cherche meme pas de route : elle existe peut-etre,
+    // mais ce n'est pas le chemin qui a ete pris.
+    const road=(a&&b&&enTraversee(a.name||b.name,a.at,b.at))?null
+      :(roadTo(ll[i-1],ll[i])||roadTween(ll[i-1],ll[i]));
     if(road&&road.length>1)out.push(...road.slice(1));
     else out.push(ll[i]);   // dernier recours : le segment droit, jamais le vide
   }
   return out;
 }
-const segmentLine=seg=>resolveRoad(seg.map(p=>[p.lat,p.lng]));
+const segmentLine=seg=>resolveRoad(seg.map(p=>[p.lat,p.lng]),seg);
 // `quiet` : la trace de l'autre voiture, gardée visible en fond. Trait fin et
 // pâle, sans halo — elle doit situer le convoi sans disputer la vedette au
 // sujet suivi. Dessinée en premier, elle passe donc dessous.

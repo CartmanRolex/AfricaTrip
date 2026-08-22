@@ -78,7 +78,7 @@ def read_site_overrides():
         return {"trip_year": DEFAULT_TRIP_YEAR, "textes": {},
                 "removed_travelers": set(), "phones": {}, "terminus": None,
                 "track_start": None, "roles": {}, "vehicle_from": {},
-                "excluded_points": []}
+                "excluded_points": [], "traversees": []}
     if not isinstance(raw, dict):
         raise ValueError("site-overrides.json must contain a JSON object")
     removed = raw.get("removed_travelers", [])
@@ -106,6 +106,7 @@ def read_site_overrides():
     # changer son reglage (les points de Hugo alternaient entre les deux
     # voitures a deux secondes d'intervalle).
     vehicles = read_vehicle_from(raw.get("vehicle_from"))
+    traversees = read_traversees(raw.get("traversees"))
     roles = raw.get("roles", {})
     # Points désavoués : l'équipage sait qu'ils sont faux (identité changée dans
     # l'appli au mauvais moment, position posée par erreur). On les nomme
@@ -125,7 +126,35 @@ def read_site_overrides():
             "track_start": read_track_start(raw.get("track_start")),
             "roles": {k.strip(): v.strip() for k, v in roles.items() if k.strip()},
             "vehicle_from": vehicles,
+            "traversees": traversees,
             "excluded_points": sorted({x.strip() for x in excluded if x.strip()})}
+
+
+def read_traversees(raw):
+    """Périodes où quelqu'un ne roule PAS : bateau, avion, train.
+
+    Le site relie deux points GPS par la route quand il en connaît une. C'est
+    juste pour une voiture, faux pour une traversée : Gal a fait Dakar →
+    Ziguinchor en bateau et le site lui faisait parcourir 465 km de route
+    côtière. La ligne droite EST la bonne géométrie ici — exactement le même
+    raisonnement que le drapeau `ferry` de l'itinéraire prévu.
+    """
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError("traversees must be a list")
+    out = []
+    for e in raw:
+        if not isinstance(e, dict) or not {"qui", "de", "a"} <= set(e):
+            raise ValueError("chaque traversee veut 'qui', 'de' et 'a'")
+        for cle in ("de", "a"):
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?", str(e[cle]).strip()):
+                raise ValueError(f"traversee.{cle} : format YYYY-MM-DD[THH:MM] attendu")
+        if str(e["de"]) >= str(e["a"]):
+            raise ValueError("traversee : 'de' doit preceder 'a'")
+        out.append({"qui": str(e["qui"]).strip(), "de": str(e["de"]).strip(),
+                    "a": str(e["a"]).strip(), "moyen": str(e.get("moyen") or "bateau")})
+    return out
 
 
 def read_vehicle_from(raw):
@@ -138,7 +167,12 @@ def read_vehicle_from(raw):
         return {}
     if not isinstance(raw, dict):
         raise ValueError("site-overrides.json vehicle_from must be a JSON object")
-    cars = {"hugodouard", "paul-pot"}
+    # « aucune » = la personne n'est dans AUCUNE voiture a ce moment : elle est
+    # restee sur place, ou elle voyage autrement. Sans cette valeur, on ne
+    # pouvait dire QUE « il a change de voiture », jamais « il n'y est plus » —
+    # et les photos de Gal restees a Dakar tiraient la trace de la voiture
+    # 259 km en arriere, creant une boucle.
+    cars = {"hugodouard", "paul-pot", "aucune"}
     out = {}
     for name, entries in raw.items():
         if not name.strip():
@@ -400,6 +434,8 @@ def main():
         config["roles"] = dict(overrides["roles"])
     if overrides["vehicle_from"]:
         config["vehicleFrom"] = overrides["vehicle_from"]
+    if overrides["traversees"]:
+        config["traversees"] = overrides["traversees"]
     if overrides["excluded_points"]:
         config["excludedPoints"] = overrides["excluded_points"]
     # `removed_travelers` veut dire « plus dans une voiture », pas « effacé ».
