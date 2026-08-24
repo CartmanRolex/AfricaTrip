@@ -44,6 +44,24 @@ def coord(p):
     return float(p[0]), float(p[1])
 
 
+# 0,0 EXISTE en mer, au large du golfe de Guinee — mais aucun appareil ne
+# photographie la. C'est la valeur qu'ecrivent les balises GPS VIDES : beaucoup
+# d'appareils enregistrent `0/1, 0/1` au lieu de ne rien enregistrer, et
+# `ExifInterface.getLatLong()` rend alors {0.0, 0.0} plutot que `null`.
+# Trente-et-un medias de Younous sont partis marques « vrai GPS du media » sur
+# ce point, et comme le site croyait tenir une position reelle, il ne lui a
+# jamais demande d'en choisir une.
+def coord_valide(lat, lng):
+    """Un couple de coordonnees utilisable — 0,0 excepte."""
+    try:
+        la, ln = float(lat), float(lng)
+    except (TypeError, ValueError):
+        return False
+    if not (-90 <= la <= 90 and -180 <= ln <= 180):
+        return False
+    return not (la == 0 and ln == 0)
+
+
 def hav_km(a, b):
     """Distance orthodromique en kilometres entre deux points."""
     la1, lo1 = coord(a)

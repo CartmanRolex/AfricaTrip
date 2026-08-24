@@ -37,7 +37,7 @@ import argparse, json, math, os, re, time, urllib.error, urllib.parse, urllib.re
 # Les calculs de base viennent de `commun.py` — une seule ecriture pour tous
 # les scripts. Voir ce module pour pourquoi (deux bugs de fuseau reels).
 from commun import (hav_km as hav, ms_utc as to_ms, vehicle_id as vehicle_of,
-                    instantane, docs_instantane)
+                    instantane, docs_instantane, coord_valide)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIREBASE_CONFIG = os.path.join(HERE, "..", "app", "www", "firebase-config.js")
@@ -130,8 +130,8 @@ def slug(name):
 
 
 def point(name, lat, lng, at, vehicle):
-    if None in (lat, lng, at) or not name:
-        return None
+    if None in (lat, lng, at) or not name or not coord_valide(lat, lng):
+        return None   # 0,0 compris : ce n'est pas un lieu, c'est un GPS vide
     lat, lng = float(lat), float(lng)
     if not (-90 <= lat <= 90) or not (-180 <= lng <= 180) or (lat == 0 and lng == 0):
         return None

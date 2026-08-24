@@ -864,6 +864,21 @@ souvent pris à quai, juste avant la fenêtre. `resolveRoad` prend désormais le
 points d'origine en second argument — les seules coordonnées ne disent ni qui
 ni quand ; sans ce paramètre le comportement est inchangé.
 
+**`coord_valide()` / `validCoords()` refusent 0,0.** Ce point existe, en mer au
+large du golfe de Guinée — mais personne n'y photographie. C'est ce qu'écrivent
+les balises GPS **vides** : beaucoup d'appareils enregistrent `0/1, 0/1` au lieu
+de ne rien enregistrer, et `ExifInterface.getLatLong()` rend alors `{0.0, 0.0}`
+au lieu de `null`. Côté JS, `it.lat ?? null` ne le rattrape pas non plus (`??`
+n'attrape que `null`/`undefined`), et zéro est un nombre fini dans les bornes :
+**31 médias de Younous sont partis marqués « vrai GPS du média »** et posés au
+large. Le plus pervers : comme l'app croyait tenir une position réelle, elle ne
+lui a **jamais demandé** d'en choisir une — il n'avait aucun moyen de s'en
+apercevoir depuis son téléphone.
+Le refus est posé aux trois niveaux : `AfricaMediaPlugin` (photo et vidéo, à la
+source), `app/www/app.js` (donc la carte de choix s'ouvre normalement) et
+`template.html` (donc les médias déjà envoyés ne s'affichent plus au large).
+`check_accord.py` vérifie que Python et le site tranchent pareil.
+
 ### `commun.py` — les calculs de base, écrits UNE FOIS
 Distance entre deux points, normalisation de voiture, lecture d'une date.
 Ces trois notions étaient recopiées dans quatre scripts, avec des signatures

@@ -1092,7 +1092,14 @@ function firstValue(...values){return values.find(v=>v!==undefined&&v!==null);}
 function validCoords(latValue,lngValue){
   if(latValue==null||lngValue==null||latValue===''||lngValue==='')return false;
   const lat=Number(latValue),lng=Number(lngValue);
-  return Number.isFinite(lat)&&Number.isFinite(lng)&&Math.abs(lat)<=90&&Math.abs(lng)<=180;
+  if(!(Number.isFinite(lat)&&Number.isFinite(lng)&&Math.abs(lat)<=90&&Math.abs(lng)<=180))
+    return false;
+  // 0,0 existe en mer, au large du golfe de Guinee — mais personne n'y
+  // photographie. C'est ce qu'ecrivent les balises GPS VIDES : beaucoup
+  // d'appareils enregistrent `0/1, 0/1` au lieu de ne rien enregistrer, et
+  // l'EXIF se lit alors comme un vrai releve. Trente-et-un medias de Younous
+  // etaient poses la, marques « GPS du media ».
+  return !(lat===0&&lng===0);
 }
 function toMs(v){
   if(v==null)return 0;

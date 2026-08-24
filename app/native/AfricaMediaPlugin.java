@@ -137,7 +137,10 @@ public class AfricaMediaPlugin extends Plugin {
         try (InputStream es = cr.openInputStream(readUri)) {
             ExifInterface exif = new ExifInterface(es);
             double[] ll = exif.getLatLong();
-            if (ll != null) { lat = ll[0]; lng = ll[1]; }
+            // getLatLong() ne rend PAS null quand les balises GPS sont vides :
+            // beaucoup d'appareils ecrivent 0/1,0/1 et on recoit {0,0}. Ce
+            // n'est pas un lieu, c'est l'absence de releve.
+            if (ll != null && !(ll[0] == 0 && ll[1] == 0)) { lat = ll[0]; lng = ll[1]; }
             String dt = exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL);
             capturedAt = exifCapturedAt(exif, dt);
             if (capturedAt != null) date = capturedAt.substring(0, 10);
@@ -179,7 +182,12 @@ public class AfricaMediaPlugin extends Plugin {
             String loc = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_LOCATION);
             if (loc != null) {
                 Matcher m = ISO6709.matcher(loc);
-                if (m.find()) { lat = Double.parseDouble(m.group(1)); lng = Double.parseDouble(m.group(2)); }
+                if (m.find()) {
+                    double la = Double.parseDouble(m.group(1)), ln = Double.parseDouble(m.group(2));
+                    // Meme garde que pour les photos : +00.0000+000.0000 est un
+                    // remplissage, pas une position.
+                    if (!(la == 0 && ln == 0)) { lat = la; lng = ln; }
+                }
             }
             String dt = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DATE);
             capturedAt = videoCapturedAt(dt);

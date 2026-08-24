@@ -32,7 +32,7 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from commun import hav_km, ms_utc, vehicle_id  # noqa: E402
+from commun import coord_valide, hav_km, ms_utc, vehicle_id  # noqa: E402
 
 TEMPLATE = os.path.join(HERE, "template.html")
 
@@ -48,6 +48,9 @@ DISTANCES = [
     ((-33.9, 18.4), (35.7, 139.7)),              # antipodique, presque
     ((36.7490, -4.3919), (36.7490, -4.3919)),    # distance nulle
 ]
+# 0,0 doit etre refuse des DEUX cotes : c'est un GPS vide, pas un lieu, et
+# c'est ce qui a pose 31 medias au large du golfe de Guinee.
+COORDS = [(0, 0), (0.0, 0.0), (12.35, -16.65), (0, 5), (5, 0), (91, 0), (0, 181)]
 VOITURES = ["hugodouard", "paul-pot", "PaulPot", "1", "2", "car-1", "car-2",
             "voiture-1", "Voiture-2", " hugodouard ", "obs", "", None, "n'importe quoi"]
 DATES = ["2026-08-11T15:38:05Z", "2026-08-11T15:38:05.123Z",
@@ -94,14 +97,17 @@ def cote_js():
         # dependance ici rouvrirait la porte a la derive qu'on ferme.
         expression("const slug = s =>"),
         bloc("function firstValue("),
+        bloc("function validCoords(latValue,lngValue){"),
         bloc("function hav(a,b){"),
         bloc("function vehicleId(v){"),
         bloc("function toMs(v){"),
         "const dist=" + json.dumps(DISTANCES) + ";",
+        "const coords=" + json.dumps(COORDS) + ";",
         "const voit=" + json.dumps(VOITURES) + ";",
         "const dates=" + json.dumps(DATES) + ";",
         "console.log(JSON.stringify({",
         "  distances: dist.map(([a,b])=>hav({lat:a[0],lng:a[1]},{lat:b[0],lng:b[1]})),",
+        "  coords: coords.map(([a,b])=>validCoords(a,b)),",
         "  voitures: voit.map(v=>vehicleId(v)||null),",
         "  dates: dates.map(d=>toMs(d)||null),",
         "}));",
@@ -131,6 +137,14 @@ def main():
         if not ok:
             ecarts.append(f"distance {a}->{b} : site {attendu}, Python {obtenu}")
         print(f"  {obtenu:12.4f}  {'ok' if ok else 'DIVERGENCE'}")
+
+    print("\nCoordonnees valides ?")
+    for (la, ln), attendu in zip(COORDS, js["coords"]):
+        obtenu = coord_valide(la, ln)
+        ok = obtenu == attendu
+        if not ok:
+            ecarts.append(f"coord {la},{ln} : site {attendu}, Python {obtenu}")
+        print(f"  {str((la, ln)):16} -> {str(obtenu):6} {'ok' if ok else 'DIVERGENCE (site: %s)' % attendu}")
 
     print("\nVoitures :")
     for v, attendu in zip(VOITURES, js["voitures"]):

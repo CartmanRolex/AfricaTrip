@@ -16,8 +16,8 @@ export CAPACITOR_ANDROID_STUDIO_PATH=/bin/true
 
 # Identité de mise à jour Android. Garder versionCode strictement croissant :
 # l'APK publiée peut ainsi remplacer la v2.0.0 (qui portait encore code 1).
-APP_VERSION_CODE=14
-APP_VERSION_NAME=2.13.0
+APP_VERSION_CODE=15
+APP_VERSION_NAME=2.14.0
 sed -i -E "s/versionCode [0-9]+/versionCode ${APP_VERSION_CODE}/" android/app/build.gradle
 sed -i -E "s/versionName \"[^\"]+\"/versionName \"${APP_VERSION_NAME}\"/" android/app/build.gradle
 

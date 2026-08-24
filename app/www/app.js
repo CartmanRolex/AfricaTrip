@@ -451,8 +451,17 @@ function mediaThumb(url, video, px) {
     : url.replace("/upload/", `/upload/w_${px},h_${px},c_fill,q_auto,f_auto/`);
 }
 function validCoords(lat, lng) {
-  return Number.isFinite(lat) && Number.isFinite(lng)
-    && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+  if (!(Number.isFinite(lat) && Number.isFinite(lng)
+        && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180)) return false;
+  // 0,0 n'est pas un lieu, c'est un GPS VIDE. Beaucoup d'appareils ecrivent
+  // des balises EXIF a zero au lieu de ne rien ecrire, et
+  // `ExifInterface.getLatLong()` rend alors {0.0, 0.0} au lieu de `null`.
+  // `it.lat ?? null` ne le rattrape pas non plus (`??` n'attrape que null).
+  // Resultat : 31 medias de Younous sont partis marques « vrai GPS », poses
+  // au large du golfe de Guinee, et l'app ne lui a JAMAIS demande le lieu.
+  // En le refusant ici, la carte de choix s'ouvre comme pour tout media sans
+  // position.
+  return !(lat === 0 && lng === 0);
 }
 const hasLocation = d => !!d && validCoords(d.lat, d.lng);
 
