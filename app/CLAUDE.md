@@ -170,6 +170,17 @@ mode n'est pas **Pause**.
   le `:not([hidden])` dans le sélecteur.
   Vérifié en exécutant le vrai bloc extrait de `app.js` contre le vrai balisage,
   sur de vrais fichiers : photo dans une salve, vidéo en dernier, média seul.
+- **LE FLUX D'ÉDITION PROPOSE AUSSI UN POINT DE DÉPART.** Corriger le lieu d'un
+  média déjà envoyé ouvrait la carte sans rien : il fallait rezoomer depuis le
+  monde entier à chaque photo. `askLocation` reçoit désormais `at` (l'heure de
+  prise de vue) et `apercu` — qui accepte une **URL** en plus d'un fichier,
+  puisqu'en édition le fichier n'est pas local.
+  **Et `positionDevinee()` fait primer les points de la PERSONNE sur ceux de sa
+  voiture** : depuis que l'équipage marche, les deux ne coïncident plus. Mesuré
+  sur les 57 médias de Younous : 57 reçoivent une proposition, **38 depuis ses
+  propres points**, 19 depuis une voiture ; écart médian au point de référence
+  2 h, ce qui suffit à ouvrir dans la bonne région — le but est un point de
+  départ, pas une réponse.
 - **LA CARTE DE CHOIX DU LIEU S'OUVRE LÀ OÙ EST LA VOITURE** (`POS_KEY`,
   `LIEU_KEY`, `VUE_LARGE`, `positionVoiture()`). Elle s'ouvrait sur
   `[16.5, -14]` au zoom 4 — le Sahara : sur un fond sombre, une étendue sans

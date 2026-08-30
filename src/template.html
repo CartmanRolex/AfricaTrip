@@ -2981,6 +2981,32 @@ function renderObs(){
 }
 renderObs();
 
+// Les deux voitures ont ete VENDUES le 25 aout en Guinee-Bissau. A partir de
+// ce jour-la le panneau ne peut plus montrer des sieges : il n'y a plus de
+// voiture. On teste le jour AFFICHE, pas la date du jour — remonter la frise
+// avant la vente doit faire reapparaitre les voitures intactes.
+const VENDUES_LE=CFG.planAbandonneLe||null;
+function vehiculesVendus(rec){
+  return !!VENDUES_LE && (rec||{}).iso >= VENDUES_LE;
+}
+// Un seul bloc, tout l'equipage a pied. Memes cartes de personnage : c'est le
+// meme voyage, seulement sans voiture.
+function renderAPied(rec){
+  const gens=CAR1.concat(CAR2)
+    .filter(n=>(isAboard(rec.car1[n])||isAboard(rec.car2[n]))&&joinedBy(n,idx));
+  if(ficheFor&&gens.includes(ficheFor))return ficheHTML(ficheFor,'#C0A98A');
+  const etat=n=>CAR1.includes(n)?rec.car1[n]:rec.car2[n];
+  return `<div class="car" style="--cc:#C0A98A">
+    <div class="car-head"><span class="car-emoji">🥾</span>
+      <span class="car-name">À pied</span>
+      <span class="car-cap">${gens.length}</span></div>
+    <div class="car-sheet"><span class="car-malus">Les deux voitures ont été
+      vendues le ${new Date(VENDUES_LE+'T12:00:00').toLocaleDateString('fr-FR',
+        {day:'numeric',month:'long'})} en Guinée-Bissau.</span></div>
+    <div class="seats">${gens.map(n=>seatHTML(n,etat(n),false,'#C0A98A')).join('')}</div>
+  </div>`;
+}
+
 // fiche RPG des montures (section "rpg_voitures" de Config)
 const CAR_RPG=CFG.rpgVoitures||{};
 function renderCar(carNo,rec){
@@ -3042,7 +3068,9 @@ function render(){
   odoSet(document.getElementById('s-km'),traveledKm(P));
   // La frise pilote la carte : traces, visages et médias suivent le jour choisi.
   renderHybridTracks(); refreshFaces(); refreshPhotos();
-  carsEl.innerHTML=renderCar(1,rec)+'<div style="height:14px"></div>'+renderCar(2,rec);
+  carsEl.innerHTML=vehiculesVendus(rec)
+    ? renderAPied(rec)
+    : renderCar(1,rec)+'<div style="height:14px"></div>'+renderCar(2,rec);
   // active leg: highlight card + keep it visible in the slider
   const li=P.legIdx;
   document.querySelectorAll('.leg').forEach(el=>el.classList.toggle('active',+el.dataset.leg===li));

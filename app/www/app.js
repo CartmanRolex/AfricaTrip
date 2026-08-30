@@ -595,6 +595,9 @@ const VUE_LARGE = { lat: 36, lng: -6, zoom: 4 };
 // La voiture du moment, tenue a jour par `assignmentChanged()` — le point de
 // passage unique du changement de personne comme de voiture.
 let voitureCourante = null;
+// Qui je suis : mes PROPRES points disent mieux ou j'etais que ceux de ma
+// voiture — surtout depuis que l'equipage marche.
+let moiPersonId = null;
 function memoriserLieu(cle, p) {
   if (p && validCoords(p.lat, p.lng)) {
     storeValue(cle, JSON.stringify({ lat: Number(p.lat), lng: Number(p.lng) }));
@@ -654,11 +657,15 @@ async function pointsAutour(at, demiFenetre) {
   const pts = [];
   snap.forEach(doc => {
     const d = doc.data();
-    if (voitureCourante && d.vehicleId !== voitureCourante) return;
+    // On ne filtre plus ici : `positionDevinee` choisit ensuite la meilleure
+    // source (mes points, puis ma voiture, puis n'importe qui).
+    const mien = d.personId && d.personId === moiPersonId;
+    if (!mien && voitureCourante && d.vehicleId !== voitureCourante) return;
     const bruts = Array.isArray(d.points) ? d.points : Object.values(d.points || {});
     for (const p of bruts) {
       if (Number.isFinite(p.capturedAtMs) && validCoords(p.lat, p.lng)) {
-        pts.push({ at: Number(p.capturedAtMs), lat: Number(p.lat), lng: Number(p.lng) });
+        pts.push({ at: Number(p.capturedAtMs), lat: Number(p.lat), lng: Number(p.lng),
+                   personId: p.personId || d.personId || null });
       }
     }
   });
@@ -675,9 +682,14 @@ async function positionDevinee(at) {
     let pts = [];
     try { pts = await pointsAutour(at, demi); } catch (_) { return null; }
     if (!pts.length) continue;
-    const q = pts.reduce((meilleur, p) =>
+    // MES points d'abord : ils disent ou j'etais, la voiture ou elle etait.
+    // Depuis que l'equipage marche, les deux ne coincident plus.
+    const miens = moiPersonId ? pts.filter(p => p.personId === moiPersonId) : [];
+    const source = miens.length ? miens : pts;
+    const q = source.reduce((meilleur, p) =>
       Math.abs(p.at - at) < Math.abs(meilleur.at - at) ? p : meilleur);
-    return { lat: q.lat, lng: q.lng, ecartMin: Math.round((q.at - at) / 60000) };
+    return { lat: q.lat, lng: q.lng, ecartMin: Math.round((q.at - at) / 60000),
+             mien: !!miens.length };
   }
   return null;
 }
@@ -766,11 +778,15 @@ async function askLocation({ initial = null, editing = false, at = null,
   vign.removeAttribute("src"); clip.removeAttribute("src");
   if (apercu || rang || at) {
     boite.hidden = false;
-    const estVideo = apercu && ((apercu.type || "").startsWith("video/") || isVideoBlob(apercu));
+    const estUrl = typeof apercu === "string";
+    const estVideo = apercu && (estUrl
+      ? /\/video\/upload\//.test(apercu) || /\.(mp4|mov|m4v)(\?|$)/i.test(apercu)
+      : ((apercu.type || "").startsWith("video/") || isVideoBlob(apercu)));
     if (apercu) {
-      urlApercu = URL.createObjectURL(apercu);
+      // En edition on n'a pas le fichier, seulement son adresse.
+      urlApercu = estUrl ? null : URL.createObjectURL(apercu);
       const cible = estVideo ? clip : vign;
-      cible.src = urlApercu;
+      cible.src = urlApercu || apercu;
       cible.hidden = false;
       // Un codec que le navigateur ne sait pas decoder affiche sinon une icone
       // de fichier casse, plus deroutante qu'utile. On bascule alors sur une
@@ -1497,6 +1513,7 @@ function initPosition(lifecycle, person) {
       // pas cinq réglages acquis, il n'y en a qu'un — le dernier, s'il tient.
       acquisA = Date.now() + REGLAGE_STABLE_MS;
       voitureCourante = lifecycle.assignment.vehicleId || null;
+      moiPersonId = lifecycle.personId || null;
       if (lifecycle.assignment.mode === "paused") {
         clearWatcher();
         setState("paused", "Partage en pause", "aucun point GPS n'est enregistré");
@@ -2067,6 +2084,11 @@ function initMediaModal() {
       const picked = await askLocation({
         initial: hasLocation(d) ? { lat: d.lat, lng: d.lng } : null,
         editing: true,
+        // Sans l'heure de prise de vue, la carte s'ouvrait au hasard et il
+        // fallait rezoomer depuis rien a chaque photo. Avec elle, l'epingle
+        // demarre la ou la personne etait a ce moment.
+        at: mediaCapturedAt(d.capturedAt || d.at || d.date, null),
+        apercu: d.url || null,
       });
       if (!picked) return;
       const patch = {

@@ -899,6 +899,14 @@ ouverte en croyant bien faire : c'est elle qui garde le site vivant.
 Les jours passés gardent leur grille de présence — elle raconte un fait, pas une
 prévision.
 
+**À partir du jour de la vente, le panneau montre un bloc « À pied »**
+(`vehiculesVendus()`, `renderAPied()`) au lieu des deux blocs voiture : il n'y a
+plus de voiture, donc plus de sièges. Le test porte sur le jour **AFFICHÉ**, pas
+sur la date du jour — remonter la frise avant le 25 août fait réapparaître les
+voitures intactes, avec leurs équipages et leurs `X/4`. Les voitures restent
+consultables dans le sélecteur de trace : leur histoire compte, leur présent
+non.
+
 Côté site, tout passe par **`SANS_PLAN`** plutôt que par une suppression de
 code : les jours passés doivent continuer de s'afficher exactement comme avant,
 et le plan reste dans l'historique si le voyage repart. Le drapeau garde
