@@ -885,9 +885,19 @@ montre donc plus que **ce qui a eu lieu** : plus d'itinéraire, plus d'étapes,
 plus de pointillé « à venir », plus de position prévue, et la frise s'arrête à
 aujourd'hui.
 
-La coupure des jours est faite à **`date.today()`**, pas à une date figée : la
-frise grandit toute seule au fil des passages horaires. Les jours passés gardent
-leur grille de présence — elle raconte un fait, pas une prévision.
+**La frise s'arrête le jour de la vente** (25 août), pas aujourd'hui : c'est là
+que le carnet de route s'achève. Elle ne grandit donc plus.
+
+Conséquence heureuse et non évidente : **rien n'est masqué pour autant.** Le
+dernier enregistrement garde une fenêtre ouverte (`dayWindowEnd()` rend
+`Infinity` au dernier jour, pour que les points live apparaissent aussitôt),
+donc la dernière image de la frise montre TOUT ce qui a été enregistré depuis —
+les 34 médias et les points GPS des jours suivants y compris. Le curseur
+s'arrête à la vente, la carte reste à jour. Ne pas « corriger » cette fenêtre
+ouverte en croyant bien faire : c'est elle qui garde le site vivant.
+
+Les jours passés gardent leur grille de présence — elle raconte un fait, pas une
+prévision.
 
 Côté site, tout passe par **`SANS_PLAN`** plutôt que par une suppression de
 code : les jours passés doivent continuer de s'afficher exactement comme avant,

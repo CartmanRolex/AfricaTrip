@@ -533,20 +533,20 @@ def main():
     # venir. Les jours passes gardent leur grille de presence : elle raconte un
     # fait, pas une prevision.
     #
-    # La coupure est a AUJOURD'HUI, pas a une date figee : la frise grandit
-    # toute seule au fil des passages horaires, sans qu'on ait rien a modifier.
+    # La frise s'arrete LE JOUR DE LA VENTE, pas aujourd'hui : c'est la que le
+    # carnet de route s'acheve. Elle ne grandit donc plus.
     if overrides["plan_abandonne"]:
-        aujourdhui = datetime.date.today().isoformat()
+        fin = overrides["plan_abandonne"]
         avant = len(records)
-        records[:] = [r for r in records if r.get("iso", "") <= aujourdhui]
+        records[:] = [r for r in records if r.get("iso", "") <= fin]
         config["sansPlan"] = True
         config["planAbandonneLe"] = overrides["plan_abandonne"]
         # L'itineraire editorial et ses etapes n'ont plus d'objet.
         config["route"] = []
         config["etapes"] = []
         config["checkpoints"] = {}
-        print(f"  plan abandonne le {overrides['plan_abandonne']} : "
-              f"{avant - len(records)} jours a venir retires, itineraire efface")
+        print(f"  plan abandonne le {fin} : {avant - len(records)} jours retires, "
+              f"itineraire efface, frise arretee au {fin}")
     if overrides["track_start"]:
         config["trackStart"] = overrides["track_start"]
 
