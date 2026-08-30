@@ -879,6 +879,31 @@ source), `app/www/app.js` (donc la carte de choix s'ouvre normalement) et
 `template.html` (donc les médias déjà envoyés ne s'affichent plus au large).
 `check_accord.py` vérifie que Python et le site tranchent pareil.
 
+**`plan_abandonne` : le voyage n'est plus planifié.** Les deux voitures ont été
+vendues le 25 août en Guinée-Bissau et l'équipage continue à pied. Le site ne
+montre donc plus que **ce qui a eu lieu** : plus d'itinéraire, plus d'étapes,
+plus de pointillé « à venir », plus de position prévue, et la frise s'arrête à
+aujourd'hui.
+
+La coupure des jours est faite à **`date.today()`**, pas à une date figée : la
+frise grandit toute seule au fil des passages horaires. Les jours passés gardent
+leur grille de présence — elle raconte un fait, pas une prévision.
+
+Côté site, tout passe par **`SANS_PLAN`** plutôt que par une suppression de
+code : les jours passés doivent continuer de s'afficher exactement comme avant,
+et le plan reste dans l'historique si le voyage repart. Le drapeau garde
+`posAt()` (qui rend une forme complète plutôt que `null` — une dizaine
+d'appelants lisent `.legIdx` ou `.pt`), neutralise `updateLegChip`,
+`setOpenZone`, le couloir de clic, les pastilles de checkpoint,
+`addPlannedFuture` et le repli de `stateAtDay`, masque la section Étapes et les
+graduations, et **remplace le compteur** : « 5 555 km prévus » devient « km
+parcourus », mesurés sur la trace réelle du sujet affiché
+(`kmReels()`). Le cadrage initial se fait alors sur les points réels, faute
+d'itinéraire.
+
+`fetch_routes.py` ignore la famille de paires « position → escale suivante » :
+sans itinéraire il n'y a plus d'escale à viser.
+
 ### `commun.py` — les calculs de base, écrits UNE FOIS
 Distance entre deux points, normalisation de voiture, lecture d'une date.
 Ces trois notions étaient recopiées dans quatre scripts, avec des signatures

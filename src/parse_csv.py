@@ -78,7 +78,8 @@ def read_site_overrides():
         return {"trip_year": DEFAULT_TRIP_YEAR, "textes": {},
                 "removed_travelers": set(), "phones": {}, "terminus": None,
                 "track_start": None, "roles": {}, "vehicle_from": {},
-                "excluded_points": [], "traversees": []}
+                "excluded_points": [], "traversees": [],
+                "plan_abandonne": None}
     if not isinstance(raw, dict):
         raise ValueError("site-overrides.json must contain a JSON object")
     removed = raw.get("removed_travelers", [])
@@ -112,6 +113,10 @@ def read_site_overrides():
     # l'appli au mauvais moment, position posée par erreur). On les nomme
     # explicitement plutôt que de deviner — un point écarté doit être un choix
     # écrit, jamais une heuristique qui peut jeter de la vraie donnée.
+    plan_abandonne = raw.get("plan_abandonne")
+    if plan_abandonne is not None and not re.fullmatch(
+            r"\d{4}-\d{2}-\d{2}", str(plan_abandonne).strip()):
+        raise ValueError("plan_abandonne : format YYYY-MM-DD attendu")
     excluded = raw.get("excluded_points") or []
     if not isinstance(excluded, list) or any(not isinstance(x, str) for x in excluded):
         raise ValueError("excluded_points must be a list of point ids")
@@ -127,6 +132,7 @@ def read_site_overrides():
             "roles": {k.strip(): v.strip() for k, v in roles.items() if k.strip()},
             "vehicle_from": vehicles,
             "traversees": traversees,
+            "plan_abandonne": (str(plan_abandonne).strip() if plan_abandonne else None),
             "excluded_points": sorted({x.strip() for x in excluded if x.strip()})}
 
 
@@ -520,6 +526,27 @@ def main():
         })
 
     apply_terminus(records, config, overrides["terminus"])
+
+    # LE PLAN EST ABANDONNE : les deux voitures ont ete vendues le 25 aout en
+    # Guinee-Bissau et l'equipage continue a pied. Le site ne montre donc plus
+    # que ce qui a eu lieu — plus d'itineraire, plus d'etapes, plus de jours a
+    # venir. Les jours passes gardent leur grille de presence : elle raconte un
+    # fait, pas une prevision.
+    #
+    # La coupure est a AUJOURD'HUI, pas a une date figee : la frise grandit
+    # toute seule au fil des passages horaires, sans qu'on ait rien a modifier.
+    if overrides["plan_abandonne"]:
+        aujourdhui = datetime.date.today().isoformat()
+        avant = len(records)
+        records[:] = [r for r in records if r.get("iso", "") <= aujourdhui]
+        config["sansPlan"] = True
+        config["planAbandonneLe"] = overrides["plan_abandonne"]
+        # L'itineraire editorial et ses etapes n'ont plus d'objet.
+        config["route"] = []
+        config["etapes"] = []
+        config["checkpoints"] = {}
+        print(f"  plan abandonne le {overrides['plan_abandonne']} : "
+              f"{avant - len(records)} jours a venir retires, itineraire efface")
     if overrides["track_start"]:
         config["trackStart"] = overrides["track_start"]
 

@@ -254,9 +254,11 @@ def wanted_pairs(points, track_start, route):
     # 3. raccord derniere position -> prochaines escales. Le front-end vise la
     #    premiere escale devant lui ; on en couvre quelques-unes pour rester
     #    juste quand la position avance entre deux executions.
+    # Le plan a ete abandonne le 25 aout : sans itineraire, il n'y a plus
+    # d'escale a viser et cette famille de paires disparait d'elle-meme.
     stops = [(i, p) for i, p in enumerate(route) if p.get("cp")]
     for members in groups.values():
-        if not members:
+        if not members or not route:
             continue
         last = members[-1]
         near = min(range(len(route)), key=lambda i: hav(last, route[i]))

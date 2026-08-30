@@ -571,7 +571,7 @@ span.fiche-face{display:block;overflow:hidden}
   <div class="panel">
     <div id="panel-handle" class="panel-handle"></div>
     <div class="panel-scroll">
-      <section>
+      <section id="sec-etapes">
         <div class="legs-head">
           <p class="eyebrow">Étapes prévues</p>
           <div class="legs-nav">
@@ -846,6 +846,13 @@ function hav(a,b){const R=6371,d=Math.PI/180;
   const h=Math.sin(dla/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dlo/2)**2;
   return 2*R*Math.asin(Math.sqrt(h));}
 // cumulative distance of full route
+// LE PLAN EST ABANDONNE. Les deux voitures ont ete vendues le 25 aout en
+// Guinee-Bissau et l'equipage continue a pied : il n'y a plus d'itineraire, plus
+// d'etapes, plus de jours a venir. Le site ne montre que ce qui a eu lieu.
+// Tout ce qui dessinait une PREVISION est desactive par ce drapeau plutot que
+// supprime : les jours passes doivent continuer de s'afficher exactement comme
+// avant, et le plan reste dans l'historique du depot si le voyage repart.
+const SANS_PLAN=!!CFG.sansPlan||!ROUTE.length;
 const ROUTE_KM=[0];
 let totalKm=0; for(let i=1;i<ROUTE.length;i++){
   totalKm+=hav(ROUTE[i-1],ROUTE[i]); ROUTE_KM.push(totalKm);
@@ -873,8 +880,22 @@ function odoSet(el,n){
 }
 // planned km up to a timeline position {upTo, partial}
 function traveledKm(P){
+  // Sans plan, le compteur ne peut plus annoncer une distance prevue : il
+  // mesure ce qui a ete PARCOURU par le sujet suivi, jusqu'au jour affiche.
+  if(SANS_PLAN)return kmReels();
   let km=0; for(let i=0;i<P.upTo;i++) km+=hav(ROUTE[i],ROUTE[i+1]);
   if(P.partial) km+=hav(ROUTE[P.upTo],P.partial);
+  return km;
+}
+// Distance reelle du sujet affiche, jusqu'a la fin du jour selectionne.
+function kmReels(){
+  const [kind,id]=String(trackSubject||'').split(':');
+  const pts=(kind==='person'?personPoints(NAME_BY_ID.get(id)||'')
+    :vehiclePoints(id||'hugodouard')).filter(p=>p.at<=dayWindowEnd());
+  let km=0;
+  trackSegments(pts).forEach(seg=>{
+    for(let i=1;i<seg.length;i++)km+=hav(seg[i-1],seg[i]);
+  });
   return km;
 }
 // straight-line km covered by a travel leg (route slice ri0..ri1)
@@ -892,7 +913,8 @@ const LEGS=[];
 for(let k=0;k<cpName.length-1;k++){
   LEGS.push({from:cpName[k],to:cpName[k+1],s:cpRecIdx[k],e:cpRecIdx[k+1],ri0:cpRouteIdx[k],ri1:cpRouteIdx[k+1],stay:false});
 }
-LEGS.push({from:cpName.at(-1),to:cpName.at(-1),s:cpRecIdx.at(-1),e:REC.length-1,ri0:cpRouteIdx.at(-1),ri1:cpRouteIdx.at(-1),stay:true});
+if(cpName.length)
+  LEGS.push({from:cpName.at(-1),to:cpName.at(-1),s:cpRecIdx.at(-1),e:REC.length-1,ri0:cpRouteIdx.at(-1),ri1:cpRouteIdx.at(-1),stay:true});
 
 function legOf(r){
   for(let i=0;i<LEGS.length-1;i++){ if(r>=LEGS[i].s && r<LEGS[i].e) return i; }
@@ -900,6 +922,9 @@ function legOf(r){
 }
 // interpolate the planned timeline position for record index r
 function posAt(r){
+  // Sans itineraire il n'y a rien a interpoler. On rend une forme complete
+  // plutot que `null` : une dizaine d'appelants lisent `.legIdx` ou `.pt`.
+  if(SANS_PLAN||!LEGS.length)return {pt:null,legIdx:-1,upTo:-1,partial:null};
   const li=legOf(r), L=LEGS[li];
   if(L.stay || L.ri0===L.ri1){ return {pt:ROUTE[L.ri1], legIdx:li, upTo:L.ri1, partial:null}; }
   const span=L.e-L.s; const f=span? (r-L.s)/span : 0;
@@ -940,7 +965,8 @@ const latlngs = ROUTE.map(p=>[p.lat,p.lng]);
 
 // couloir de clic invisible sur TOUT le tracé : cliquer un endroit du chemin
 // cale la frise sur le jour auquel le planning associe ce point
-const routeHit=L.polyline(latlngs,{weight:22,opacity:.002,lineCap:'round',lineJoin:'round'}).addTo(plannedLayer);
+const routeHit=L.polyline(SANS_PLAN?[]:latlngs,{weight:22,opacity:.002,lineCap:'round',lineJoin:'round'});
+if(!SANS_PLAN)routeHit.addTo(plannedLayer);
 routeHit.on('click',e=>{
   const c=e.latlng, k=Math.cos(c.lat*Math.PI/180);
   let best=0, bd=Infinity;
@@ -953,7 +979,7 @@ routeHit.on('click',e=>{
 
 // checkpoint milestones: numbered badge + name pill (names hide when zoomed out)
 const cpMarkers=[];
-ROUTE.forEach((p,i)=>{ if(!p.cp) return;
+ROUTE.forEach((p,i)=>{ if(!p.cp||SANS_PLAN) return;
   const n=cpMarkers.length+1;
   const m=L.marker([p.lat,p.lng],{icon:L.divIcon({className:'',iconSize:[0,0],
     iconAnchor:[10,10],html:`<div class="cp-badge" data-i="${i}"><b>${n}</b><span>${pretty(p.cp)}</span></div>`})}).addTo(plannedLayer);
@@ -2767,13 +2793,15 @@ document.addEventListener('click',e=>{
 
 // "open road" overlay past the last checkpoint: a dashed horizon zone + label,
 // shown only during the final, undecided leg so it's clear the trip goes on.
-const ENDPT=ROUTE[ROUTE.length-1];
+// « Au-dela : itineraire a definir » n'a plus d'objet sans itineraire.
+const ENDPT=ROUTE[ROUTE.length-1]||{lat:0,lng:0};
 const openZone=L.circle([ENDPT.lat-0.4,ENDPT.lng+0.3],{radius:300000,color:'#E3B53F',
   weight:1.5,opacity:.55,dashArray:'3 9',fillColor:'#E3B53F',fillOpacity:.05,interactive:false});
 const openLabel=L.marker([ENDPT.lat-2.3,ENDPT.lng+0.2],{interactive:false,icon:L.divIcon({className:'',
   iconSize:[0,0],iconAnchor:[0,0],html:`<div class="open-label">${T.open_zone_label||'Au-delà : itinéraire à définir'}</div>`})});
 let zoneOn=false;
 function setOpenZone(on){
+  if(SANS_PLAN)on=false;
   if(on===zoneOn) return; zoneOn=on;
   if(on){ openZone.addTo(plannedLayer); openLabel.addTo(plannedLayer); }
   else  { plannedLayer.removeLayer(openZone); plannedLayer.removeLayer(openLabel); }
@@ -2841,6 +2869,8 @@ function legMid(Lg){
   return [ROUTE[Lg.ri1].lat,ROUTE[Lg.ri1].lng];
 }
 function updateLegChip(li){
+  // Sans itineraire il n'y a pas d'etape a surligner.
+  if(SANS_PLAN||!LEGS[li]){ if(plannedLayer.hasLayer(legChip))plannedLayer.removeLayer(legChip); return; }
   const m=legMeta(li);
   const pips='◆'.repeat(m.diff)+'◇'.repeat(5-m.diff);
   legChip.setIcon(L.divIcon({className:'',iconSize:[0,0],iconAnchor:[0,30],
@@ -2850,6 +2880,11 @@ function updateLegChip(li){
 }
 
 /* ---- timeline ---- */
+// Plus d'itineraire, plus d'etapes : la section n'a plus d'objet et disparait.
+if(SANS_PLAN){
+  const sec=document.getElementById('sec-etapes'); if(sec)sec.hidden=true;
+  const ticks=document.getElementById('ticks'); if(ticks)ticks.hidden=true;
+}
 const scrub=document.getElementById('scrub'); scrub.max=REC.length-1;
 const ticks=document.getElementById('ticks');
 cpName.forEach((nm,k)=>{const s=document.createElement('span');s.textContent=pretty(nm);ticks.appendChild(s);});
@@ -2998,7 +3033,9 @@ function render(){
   // panel
   document.getElementById('tl-date').textContent=rec.date;
   const onFinal=P.legIdx===LEGS.length-1;
-  document.getElementById('tl-loc').textContent='PRÉVU · '+pretty(rec.location||'—')+(onFinal?' · '+(T.open_route_suffix||'itinéraire ouvert'):'');
+  document.getElementById('tl-loc').textContent=SANS_PLAN
+    ? pretty(rec.location||'—')
+    : 'PRÉVU · '+pretty(rec.location||'—')+(onFinal?' · '+(T.open_route_suffix||'itinéraire ouvert'):'');
   const pct=(idx/(REC.length-1))*100; scrub.style.setProperty('--pct',pct+'%');
   document.getElementById('s-pax').textContent=paxCount(rec);
   document.getElementById('s-day').textContent=`${idx+1} / ${REC.length}`;
@@ -3016,7 +3053,12 @@ function render(){
   }
 }
 
-document.getElementById('s-km-tot').textContent=`/ ${kmFmt(totalKm)} km prévus`;
+document.getElementById('s-km-tot').textContent=SANS_PLAN
+  ? 'km parcourus' : `/ ${kmFmt(totalKm)} km prévus`;
+if(SANS_PLAN){
+  const j=document.querySelector('#s-day+span'); if(j)j.textContent='jour';
+  const px=document.querySelector('#s-pax+span'); if(px)px.textContent='équipage';
+}
 setupTrackControls();
 renderHybridTracks();
 // Les âges restent justes même en pause, sans rerendre les traces ni accumuler
@@ -3025,8 +3067,13 @@ document.addEventListener('visibilitychange',()=>document.hidden?stopAgoRefresh(
 window.addEventListener('pageshow',startAgoRefresh);
 window.addEventListener('pagehide',stopAgoRefresh);
 startAgoRefresh();
-// initial fit to whole route
-map.fitBounds(latlngs,{padding:[50,50]});
+// Cadrage initial : sur l'itineraire tant qu'il existe, sinon sur ce qui a ete
+// reellement parcouru — c'est tout ce qui reste a montrer.
+if(latlngs.length) map.fitBounds(latlngs,{padding:[50,50]});
+else{
+  const reels=allTrackPoints().map(p=>[p.lat,p.lng]);
+  if(reels.length) map.fitBounds(reels,{padding:[50,50]});
+}
 // La frise s'ouvre sur aujourd'hui : le carnet sert d'abord à savoir où en est
 // le convoi maintenant. Avant le départ on reste au premier jour, après
 // l'arrivée au dernier.
