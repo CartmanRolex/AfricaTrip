@@ -170,6 +170,18 @@ mode n'est pas **Pause**.
   le `:not([hidden])` dans le sélecteur.
   Vérifié en exécutant le vrai bloc extrait de `app.js` contre le vrai balisage,
   sur de vrais fichiers : photo dans une salve, vidéo en dernier, média seul.
+- **DEUX PIÈGES QUI RENVOYAIENT TOUT LE MONDE À GIBRALTAR.** La devinette
+  existait, elle ne partait jamais — et le repli de dernier recours
+  (`VUE_LARGE`, Gibraltar) faisait le reste.
+  1. **Un champ date lu par le SDK Firestore est un OBJET `Timestamp`**, pas une
+     chaîne. `mediaCapturedAt()` ne traitait ni `toMillis()` ni `.seconds`, donc
+     `Date.parse` échouait et l'heure de prise de vue valait `null` : plus rien
+     à deviner. Ce cas n'apparaît qu'en ÉDITION — à l'envoi, l'heure vient de
+     l'EXIF et c'est déjà un nombre, d'où un défaut invisible côté upload.
+  2. **`positionVoiture()` abandonnait quand la personne n'était dans aucune
+     voiture.** Depuis la vente du 25 août, c'est le cas de tout le monde. Il
+     prend désormais MA dernière position connue en priorité, la voiture
+     seulement à défaut : ça marche à pied, et c'est plus juste de toute façon.
 - **LE FLUX D'ÉDITION PROPOSE AUSSI UN POINT DE DÉPART.** Corriger le lieu d'un
   média déjà envoyé ouvrait la carte sans rien : il fallait rezoomer depuis le
   monde entier à chaque photo. `askLocation` reçoit désormais `at` (l'heure de

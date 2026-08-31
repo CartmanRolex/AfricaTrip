@@ -698,16 +698,23 @@ async function positionDevinee(at) {
 // seulement quand le telephone lui-meme ne sait rien — un passager qui ne
 // lance jamais le GPS et ne depose que des photos.
 async function positionVoiture() {
-  if (!voitureCourante) return null;
+  // Depuis la vente des voitures, plus personne n'en a : abandonner ici
+  // renvoyait tout le monde a Gibraltar. On prend alors MA derniere position
+  // connue — c'est encore mieux que celle d'une voiture, et ca marche a pied.
   try {
     const { db, collection, getDocs } = await fb();
     const snap = await getDocs(collection(db, "trips", TRIP_ID, "latest"));
-    let best = null;
+    let mien = null, voiture = null;
     snap.forEach(doc => {
       const d = doc.data();
-      if (d.vehicleId !== voitureCourante || !validCoords(d.lat, d.lng)) return;
-      if (!best || (d.capturedAtMs || 0) > (best.capturedAtMs || 0)) best = d;
+      if (!validCoords(d.lat, d.lng)) return;
+      if (moiPersonId && (d.personId === moiPersonId || doc.id === moiPersonId)) {
+        if (!mien || (d.capturedAtMs || 0) > (mien.capturedAtMs || 0)) mien = d;
+      } else if (voitureCourante && d.vehicleId === voitureCourante) {
+        if (!voiture || (d.capturedAtMs || 0) > (voiture.capturedAtMs || 0)) voiture = d;
+      }
     });
+    const best = mien || voiture;
     return best ? { lat: Number(best.lat), lng: Number(best.lng) } : null;
   } catch (_) { return null; }   // hors ligne : on garde la vue large
 }
@@ -1663,6 +1670,15 @@ function initStats(lifecycle, person) {
 
 // ---- photos (localisation gardée) -----------------------------------------
 function mediaCapturedAt(value, fallback = Date.now()) {
+  // Un champ date lu par le SDK Firestore est un OBJET Timestamp, pas une
+  // chaine. Sans ce cas, `Date.parse` echouait et l'heure de prise de vue
+  // valait `null` : la carte de choix n'avait rien pour deviner et s'ouvrait
+  // sur le repli de dernier recours, a Gibraltar.
+  if (value && typeof value.toMillis === "function") {
+    const ms = value.toMillis();
+    if (Number.isFinite(ms)) return ms;
+  }
+  if (value && typeof value.seconds === "number") return value.seconds * 1000;
   if (value instanceof Date && Number.isFinite(value.getTime())) return value.getTime();
   if (typeof value === "number" && Number.isFinite(value) && value > 0) return value;
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
