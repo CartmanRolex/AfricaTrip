@@ -149,6 +149,11 @@ version.json                       (build id, for the auto-refresh below)
 - The site is **fully self-contained**: all images are embedded as data URIs
   so `voyage-afrique.html` opens from disk; only map tiles/fonts/Leaflet come
   from CDNs.
+- **Map tiles come from Esri World Dark Gray, without an application API
+  key.** CARTO's formerly keyless endpoint now stamps `API KEY REQUIRED` over
+  its tiles. The site and crew app load Esri's base and reference layers, with
+  `maxNativeZoom:16` and Leaflet upscaling through zoom 19. A CSS filter applies
+  only to `.leaflet-tile-pane`; tracks, media markers and stickers stay intact.
 - **A published page notices when a newer one exists.** GitHub Pages serves
   `index.html` with `cache-control: max-age=600` and gives no way to change
   headers, so a browser keeps the page for ten minutes without asking. Each

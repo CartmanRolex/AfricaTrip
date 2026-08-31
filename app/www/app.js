@@ -833,8 +833,13 @@ async function askLocation({ initial = null, editing = false, at = null,
     if (!locMap) {
       locMap = L.map("loc-map", { zoomControl: true, attributionControl: true, minZoom: 2 })
         .setView([16.5, -14], 4);   // Sahel/Sénégal par défaut
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-        { subdomains: "abcd", maxZoom: 19, attribution: "&copy; OpenStreetMap &copy; CARTO" }).addTo(locMap);
+      // CARTO tamponne desormais « API KEY REQUIRED » sur chaque tuile sans
+      // cle. Esri sert les siennes sans cle, en deux couches (fond + libelles).
+      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+        { maxNativeZoom: 16, maxZoom: 19,
+          attribution: "&copy; Esri &mdash; &copy; OpenStreetMap" }).addTo(locMap);
+      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
+        { maxNativeZoom: 16, maxZoom: 19, attribution: "" }).addTo(locMap);
     }
     if (hasInitial) locMap.setView([initial.lat, initial.lng], 14);
     else if (proche) locMap.setView([proche.lat, proche.lng], 14);

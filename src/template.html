@@ -142,6 +142,11 @@ body.danger-far .danger-label{display:none}
 .danger-label{font-family:var(--mono);font-size:8.5px;letter-spacing:.04em;color:#E28368;white-space:nowrap;
   background:rgba(20,17,14,.72);border:1px dashed rgba(217,91,67,.55);border-radius:5px;padding:2px 7px;
   transform:translate(-50%,0);box-shadow:0 2px 8px rgba(0,0,0,.4)}
+/* Les tuiles d'Esri sont bien plus claires que celles de CARTO : sans ca le
+   fond vire au gris moyen et jure avec tout le reste. Le filtre ne porte que
+   sur le calque des tuiles — marqueurs, traces et autocollants gardent leurs
+   couleurs. */
+.leaflet-tile-pane{filter:brightness(.42) contrast(1.15) saturate(.8)}
 /* bulles photos partagées (Drive) — regroupées en piles quand trop proches */
 .lightbox{position:fixed;inset:0;z-index:2000;background:rgba(20,17,14,.93);
   display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px}
@@ -947,9 +952,17 @@ function posAt(r){
 // Pas de boutons +/- : le zoom se fait a la molette, au pincement et au double
 // clic, et sur mobile la place gagnee revient au selecteur de trace.
 const map=L.map('map',{zoomControl:false,attributionControl:true,minZoom:3}).setView([30,-8],4);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
-  subdomains:'abcd',maxZoom:19,
-  attribution:'&copy; OpenStreetMap &copy; CARTO'
+// Fond de carte : CARTO a mis ses tuiles derriere une cle d'API et tamponne
+// desormais « API KEY REQUIRED » en travers de chaque tuile — visible sur tout
+// le site. Esri sert les siennes sans cle, en deux couches (le fond, puis les
+// libelles), et jusqu'au zoom 16 : `maxNativeZoom` laisse Leaflet agrandir
+// au-dela plutot que d'interdire le zoom.
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',{
+  maxNativeZoom:16,maxZoom:19,
+  attribution:'&copy; Esri &mdash; &copy; OpenStreetMap'
+}).addTo(map);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',{
+  maxNativeZoom:16,maxZoom:19,attribution:''
 }).addTo(map);
 map.createPane('actualTrackPane');
 map.getPane('actualTrackPane').style.zIndex=430;

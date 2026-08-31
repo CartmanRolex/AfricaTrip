@@ -159,6 +159,9 @@ button.primary:disabled{opacity:.5}
 .loc-media-txt b{display:block;font-weight:500;font-size:13px;color:var(--sand)}
 .loc-media-txt span{font-size:11.5px;color:var(--sand-dim)}
 .loc-map-wrap{position:relative}
+/* Meme correction que sur le site : les tuiles d'Esri sont plus claires que
+   celles de CARTO, on les assombrit pour rester dans la charte. */
+.loc-map .leaflet-tile-pane{filter:brightness(.42) contrast(1.15) saturate(.8)}
 .loc-map{height:300px;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:var(--panel2)}
 .loc-pin{position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);
   font-size:30px;line-height:1;pointer-events:none;z-index:500;

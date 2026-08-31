@@ -63,6 +63,12 @@ tall over a 323 px map at the default size, versus 390 px before). If the
 `+/-` buttons ever come back, the toolbar margin and that `max-height` offset
 both have to move down by the control's height.
 
+The basemap uses Esri's `World_Dark_Gray_Base` plus
+`World_Dark_Gray_Reference`. CARTO now renders an `API KEY REQUIRED` watermark
+without a key. Esri is native through zoom 16; `maxNativeZoom:16,maxZoom:19`
+lets Leaflet upscale for close inspection. Only the tile pane is darkened in
+CSS, so the route, photo piles and decorative markers keep their colours.
+
 **Both cars always draw their travelled track**, and the selected subject is
 redrawn on top at full weight with its dashed future and pulsing marker.
 Selecting promotes, it never hides: following one person used to erase the other

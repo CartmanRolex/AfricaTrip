@@ -210,12 +210,18 @@ mode n'est pas **Pause**.
   qu'on a, et ne se recadre que si la réponse arrive **et** que l'utilisateur
   n'a pas déjà bougé la carte lui-même.
   `VUE_LARGE` = `[36, -6]` zoom 4 (Gibraltar, côtes d'Espagne et du Maroc),
-  choisi en MESURANT le poids réel des tuiles CARTO de plusieurs candidats :
+  choisi en MESURANT le poids réel des tuiles de plusieurs candidats :
   27 % de contenu de plus que l'ancien défaut saharien. Un premier essai à
   `[25, -8]` zoom 3 tombait sur l'Atlantique et était **pire** que ce qu'il
   remplaçait — ne pas rechoisir ce point sans remesurer.
   `voitureCourante` est tenue à jour par `assignmentChanged()`, le même point
   de passage unique que la règle des 30 s.
+- **LE FOND DE LA CARTE DE CHOIX EST EGALEMENT ESRI DARK GRAY.** CARTO
+  tamponne désormais `API KEY REQUIRED` sur chaque tuile sans clé. Comme sur
+  le site, l'app superpose `World_Dark_Gray_Base` et
+  `World_Dark_Gray_Reference`, utilise les tuiles natives jusqu'au zoom 16 et
+  les agrandit jusqu'au zoom 19. Le filtre sombre vise uniquement
+  `.loc-map .leaflet-tile-pane`, jamais l'épingle ni les contrôles.
 - Les watchers, timers et listeners Firestore sont nettoyés au changement de
   personne. Les callbacks asynchrones capturent l'identité et la session pour
   ne jamais attribuer un point au mauvais utilisateur.
@@ -420,7 +426,7 @@ jauge ne demande aucun déploiement de règles.
   UNIQUE du numéro de version), injecte le natif, synchronise Capacitor et
   génère `android/app/build/outputs/apk/debug/app-debug.apk`. Incrémenter le
   code à chaque APK publiée pour permettre la mise à jour par-dessus
-  l'ancienne. Version courante : `versionCode 10` / `2.9.0`.
+  l'ancienne. Version courante : `versionCode 18` / `2.17.0`.
 - `release.sh` — publie l'APK. **NE JAMAIS publier une release à la main.**
   L'équipage télécharge par un lien permanent
   (`releases/latest/download/expedition-afrique.apk`) que GitHub résout par NOM
