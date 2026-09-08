@@ -138,6 +138,13 @@ version.json                       (build id, for the auto-refresh below)
   their whole planned trace. Tapping their head on the map flies to them.
 - **The gallery belongs to the trip, not to the subject.** Photos are filtered
   by the timeline only — switching trace never makes a photo disappear.
+- **The slideshow tells the trip to someone who did not make it** (`Mode
+  diaporama` in the panel). Full-screen photo + its own map, its own T0/T1 date
+  range and per-author checkboxes — deliberately **independent of the
+  timeline**, because the carnet closes at `carnet_fin` while media keep coming
+  and one often wants two specific days from the middle of the trip. Its map
+  plots one dot per photo and **joins none of them**: a line between two photos
+  would invent a road nobody measured. See `src/CLAUDE.md`.
 - **The timeline is a time machine, and a planned position always says so.**
   Scrubbing the frise restricts tracks, faces and photos to what was known by
   the end of the selected day. For a future day — or a day with no reality at

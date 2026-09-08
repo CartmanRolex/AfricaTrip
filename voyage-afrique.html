@@ -179,6 +179,100 @@ body.danger-far .danger-label{display:none}
    le bouton sauterait. */
 /* Téléchargement en masse. Même langage visuel que la visionneuse : plein
    écran, fond sombre, rien de neuf à apprendre. */
+/* ---- DIAPORAMA : montrer les photos à quelqu'un qui n'a pas fait le voyage.
+   Le site entier est fait pour EXPLORER (choisir une trace, scruber la frise) ;
+   ça, c'est fait pour RACONTER — une photo à la fois, en grand, et la carte à
+   côté qui dit où c'était. La carte est le seul repère de la personne qui
+   regarde : sans elle une photo de plage est une plage n'importe où. ---- */
+.diapo-reglages{position:fixed;inset:0;z-index:2100;background:var(--bg);
+  padding:16px;display:none;flex-direction:column;overflow:auto}
+.diapo-reglages.open{display:flex}
+.diapo-reglages .dl-head{flex:0 0 auto}
+.dr-bloc{margin-bottom:14px}
+.dr-bloc>h3{font-family:var(--display);font-size:12px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--sand-dim);margin:0 0 8px}
+.dr-gens{display:flex;flex-wrap:wrap;gap:7px}
+/* Une case à cocher AVEC le visage : on choisit « les photos de Younous », pas
+   une ligne de texte. Le portrait est déjà embarqué (PHOTOS.faces). */
+.dr-gens button{display:flex;align-items:center;gap:7px;padding:5px 10px 5px 5px;
+  border-radius:999px;border:1px solid var(--line);background:var(--panel);
+  color:var(--sand-dim);font-family:var(--mono);font-size:11px;letter-spacing:.03em;
+  cursor:pointer}
+.dr-gens button img,.dr-gens button i.ini{width:24px;height:24px;border-radius:50%;
+  object-fit:cover;flex:0 0 auto;background:var(--panel2);display:grid;
+  place-items:center;font-style:normal;font-size:11px;color:var(--muted)}
+.dr-gens button[aria-pressed="true"]{color:var(--sand);border-color:var(--sand-dim);
+  background:var(--panel2)}
+.dr-gens button b{font-weight:400;color:var(--muted)}
+.dr-gens button[aria-pressed="true"] b{color:var(--sand-dim)}
+.dr-tout{display:flex;gap:6px;margin-bottom:8px}
+.dr-tout button{font-family:var(--mono);font-size:11px;padding:4px 10px;
+  border-radius:999px;border:1px solid var(--line);background:transparent;
+  color:var(--sand-dim);cursor:pointer}
+.dr-dates{display:flex;gap:10px;flex-wrap:wrap}
+.dr-dates label{display:flex;flex-direction:column;gap:4px;font-family:var(--mono);
+  font-size:10.5px;letter-spacing:.05em;color:var(--muted)}
+.dr-dates input{font-family:var(--mono);font-size:12px;padding:7px 9px;
+  border-radius:9px;border:1px solid var(--line);background:var(--panel);
+  color:var(--sand);color-scheme:dark}
+.dr-foot{margin-top:auto;display:flex;align-items:center;gap:10px;padding-top:12px;
+  border-top:1px solid var(--line)}
+.dr-etat{font-family:var(--mono);font-size:11px;color:var(--sand-dim);margin:0}
+.dr-go{margin-left:auto;font-family:var(--display);font-size:13px;letter-spacing:.08em;
+  text-transform:uppercase;padding:10px 20px;border-radius:10px;border:0;
+  background:var(--sand);color:var(--bg);cursor:pointer}
+.dr-go:disabled{background:var(--absent);color:var(--muted);cursor:default}
+
+/* Le lecteur. Grille photo | carte sur desktop, empilée sur mobile. */
+.diapo{position:fixed;inset:0;z-index:2200;background:#0C0A08;display:none;
+  grid-template-columns:1fr minmax(260px,32%);grid-template-rows:1fr auto}
+.diapo.open{display:grid}
+.diapo-scene{position:relative;display:grid;place-items:center;overflow:hidden;
+  min-height:0;min-width:0}
+.diapo-scene img,.diapo-scene video{max-width:100%;max-height:100%;
+  object-fit:contain;border-radius:4px}
+.diapo-scene video{background:#000}
+.diapo-carte{position:relative;border-left:1px solid var(--line);min-height:0}
+#diapo-map{position:absolute;inset:0}
+/* Le bandeau du bas : la légende ET les commandes. Une seule bande, pour que
+   l'œil n'ait qu'un endroit où revenir entre deux photos. */
+.diapo-bas{grid-column:1/-1;display:flex;align-items:center;gap:12px;
+  padding:10px 14px;background:var(--panel);border-top:1px solid var(--line)}
+.diapo-cap{min-width:0;flex:1}
+.diapo-cap b{display:block;font-family:var(--display);font-size:15px;
+  letter-spacing:.04em;color:var(--sand);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.diapo-cap span{font-family:var(--mono);font-size:11px;color:var(--sand-dim)}
+.diapo-cmd{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.diapo-cmd button{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);
+  background:var(--panel2);color:var(--sand);font-size:15px;cursor:pointer;
+  display:grid;place-items:center}
+.diapo-cmd button:hover{border-color:var(--sand-dim)}
+.diapo-cmd .diapo-x{margin-left:4px}
+.diapo-cmd select{font-family:var(--mono);font-size:11px;padding:6px 7px;
+  border-radius:9px;border:1px solid var(--line);background:var(--panel2);
+  color:var(--sand-dim);cursor:pointer}
+.diapo-n{font-family:var(--mono);font-size:11px;color:var(--muted);
+  min-width:62px;text-align:right}
+/* La barre d'avancement du minuteur : elle dit qu'il reste du temps sur cette
+   photo, et s'arrête net en pause. C'est ce qui évite de se demander si le
+   diaporama tourne encore. */
+.diapo-jauge{position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--line)}
+.diapo-jauge i{display:block;height:100%;width:0;background:var(--sand-dim)}
+/* Une position posée à la main ou déduite n'est PAS une mesure : elle le dit,
+   ici comme partout ailleurs sur le site. */
+.diapo-lieu{position:absolute;left:10px;top:10px;z-index:500;font-family:var(--mono);
+  font-size:10.5px;letter-spacing:.04em;padding:5px 9px;border-radius:8px;
+  background:rgba(20,17,14,.86);border:1px solid var(--line);color:var(--sand-dim);
+  max-width:calc(100% - 20px)}
+.diapo-pt{border-radius:50%;border:2px solid var(--sand);background:rgba(239,231,214,.25)}
+.diapo-pt.estimee{border-style:dashed}
+@media (max-width:880px){
+  .diapo{grid-template-columns:1fr;grid-template-rows:1fr 30vh auto}
+  .diapo-carte{border-left:0;border-top:1px solid var(--line)}
+  .diapo-cap b{font-size:13px}
+  .diapo-cmd select{display:none}
+}
 .dl-sheet{position:fixed;inset:0;z-index:2100;background:var(--bg);
   display:none;flex-direction:column;padding:14px 14px 0}
 .dl-sheet.open{display:flex}
@@ -594,6 +688,8 @@ span.fiche-face{display:block;overflow:hidden}
       <section>
         <button class="dl-open" id="dl-open" type="button">📥 Télécharger les médias
           <small id="dl-open-n"></small></button>
+        <button class="dl-open" id="diapo-open" type="button" style="margin-top:8px">
+          🖼️ Mode diaporama <small id="diapo-open-n"></small></button>
       </section>
 
       <section>
@@ -638,6 +734,58 @@ span.fiche-face{display:block;overflow:hidden}
   <button class="lb-nav lb-next" aria-label="Média suivant">›</button>
 </div>
 
+<div class="diapo-reglages" id="diapo-reglages" role="dialog" aria-modal="true" aria-label="Réglages du diaporama">
+  <div class="dl-head">
+    <h2>Diaporama</h2><small id="dr-compte"></small>
+    <button class="dl-x" id="dr-x" aria-label="Fermer">✕</button>
+  </div>
+  <div class="dr-bloc">
+    <h3>Photographes</h3>
+    <div class="dr-tout"><button type="button" data-tout="1">Tout</button>
+      <button type="button" data-tout="0">Aucun</button></div>
+    <div class="dr-gens" id="dr-gens"></div>
+  </div>
+  <div class="dr-bloc">
+    <h3>Période</h3>
+    <div class="dr-dates">
+      <label>Du <input type="date" id="dr-t0"></label>
+      <label>Au <input type="date" id="dr-t1"></label>
+    </div>
+  </div>
+  <div class="dr-foot">
+    <p class="dr-etat" id="dr-etat"></p>
+    <button class="dr-go" id="dr-go" type="button">Lancer</button>
+  </div>
+</div>
+
+<div class="diapo" id="diapo" role="dialog" aria-modal="true" aria-label="Diaporama">
+  <div class="diapo-scene">
+    <img id="diapo-img" src="" alt="">
+    <video id="diapo-vid" playsinline preload="none" style="display:none"></video>
+    <div class="diapo-jauge"><i id="diapo-jauge"></i></div>
+  </div>
+  <div class="diapo-carte">
+    <div id="diapo-map"></div>
+    <div class="diapo-lieu" id="diapo-lieu" hidden></div>
+  </div>
+  <div class="diapo-bas">
+    <div class="diapo-cap"><b id="diapo-qui"></b><span id="diapo-quand"></span></div>
+    <span class="diapo-n" id="diapo-n"></span>
+    <div class="diapo-cmd">
+      <button type="button" id="diapo-prev" aria-label="Photo précédente">‹</button>
+      <button type="button" id="diapo-play" aria-label="Pause">⏸</button>
+      <button type="button" id="diapo-next" aria-label="Photo suivante">›</button>
+      <select id="diapo-vitesse" aria-label="Durée par photo">
+        <option value="3000">3 s</option>
+        <option value="5000" selected>5 s</option>
+        <option value="8000">8 s</option>
+        <option value="12000">12 s</option>
+      </select>
+      <button type="button" class="diapo-x" id="diapo-x" aria-label="Fermer le diaporama">✕</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
 <script>
@@ -662,7 +810,7 @@ const HAS_SNAPSHOT = !!(TRACKS.chunks && TRACKS.chunks.length);
 // (jamais mis en cache) et, si un build plus recent est publie, on recharge une
 // seule fois. Sans reseau, depuis le disque, ou si quoi que ce soit echoue, on
 // ne fait rien.
-const BUILD = "71a11d3f21d5";
+const BUILD = "bfb0e7ca0187";
 if(location.protocol!=='file:'){
   fetch(`version.json?t=${Date.now()}`,{cache:'no-store'})
     .then(r=>r.ok?r.json():null)
@@ -2464,6 +2612,9 @@ function dlMajEtat(msg){
   go.disabled=!DL.encours&&!n;
   const ouvre=document.getElementById('dl-open-n');
   if(ouvre)ouvre.textContent=tous.length?`${tous.length} fichiers`:'';
+  // Le diaporama compte les memes medias : son bouton se met a jour ici, sinon
+  // il resterait fige sur le total connu au chargement.
+  if(typeof diapoMajBouton==='function')diapoMajBouton();
 }
 function dlOuvrir(){
   // Tout coche par defaut : la demande est « tout telecharger », la selection
@@ -3156,7 +3307,293 @@ if(panelHandle&&window.PointerEvent){
   panelHandle.addEventListener('pointerup',release);
   panelHandle.addEventListener('pointercancel',release);
 }
+
+/* ---- DIAPORAMA -------------------------------------------------------------
+   Montrer le voyage à quelqu'un qui ne l'a pas fait. Le reste du site sert à
+   EXPLORER — choisir une trace, scruber la frise, ouvrir une fiche ; ici on
+   RACONTE : une photo à la fois, en grand, et la carte à côté qui dit où.
+   Sans la carte, une photo de plage est une plage n'importe où.
+
+   IL NE SUIT PAS LA FRISE, ET C'EST VOULU. Le carnet s'achève à `carnet_fin`
+   tandis que des photos continuent d'arriver, et on montre volontiers deux
+   jours précis pris au milieu du voyage. Le diaporama a donc ses propres
+   bornes T0/T1, lues sur les médias eux-mêmes.
+
+   LA LIGNE N'EST PAS DESSINÉE ICI. La carte pose un point par photo et
+   n'en relie aucun : joindre deux photos par un trait inventerait une route
+   qu'on n'a pas mesurée. La trace réelle, elle, est le travail de la carte
+   principale, qui a `routes.json` pour ne pas mentir. ---- */
+const DIAPO={sel:new Set(),t0:'',t1:'',list:[],i:0,play:true,vitesse:5000,
+  timer:null,t_debut:0,restant:0,raf:0,map:null,pts:null,ici:null,zoom:8,vol:false};
+const diapoEl=document.getElementById('diapo');
+const drEl=document.getElementById('diapo-reglages');
+
+// Tout média affichable, du plus ancien au plus récent : un diaporama qui
+// remonte le temps ne raconte rien.
+function diapoMedias(){
+  return GALLERY.filter(g=>g&&g.file)
+    .map(g=>({g,at:mediaIdentity(g).at||0}))
+    .sort((a,b)=>a.at-b.at).map(x=>x.g);
+}
+const diapoJour=g=>(g.date||'').slice(0,10)
+  ||(mediaIdentity(g).at?new Date(mediaIdentity(g).at).toISOString().slice(0,10):'');
+
+function diapoBornes(tous){
+  const j=tous.map(diapoJour).filter(Boolean).sort();
+  return {min:j[0]||'',max:j.at(-1)||''};
+}
+// Le filtre. Une photo sans date ne peut pas être située dans une période :
+// elle suit ses semblables plutôt que de disparaître, tant que son auteur est
+// coché — c'est une photo du voyage, pas une erreur.
+function diapoFiltrer(){
+  const t0=DIAPO.t0,t1=DIAPO.t1;
+  DIAPO.list=diapoMedias().filter(g=>{
+    if(!DIAPO.sel.has(dlAuteur(g)))return false;
+    const j=diapoJour(g);
+    if(!j)return true;
+    return (!t0||j>=t0)&&(!t1||j<=t1);
+  });
+  return DIAPO.list;
+}
+
+/* ---- l'écran de réglage : tout est coché, la période couvre tout ---- */
+function diapoRendreReglages(){
+  const tous=diapoMedias();
+  const auteurs=[...new Set(tous.map(dlAuteur))].sort();
+  document.getElementById('dr-gens').innerHTML=auteurs.map(a=>{
+    const n=tous.filter(g=>dlAuteur(g)===a).length;
+    const ph=(typeof PHOTOS!=='undefined'&&PHOTOS.faces)?PHOTOS.faces[a]:null;
+    const vignette=ph?`<img src="${esc(ph)}" alt="">`
+      :`<i class="ini" aria-hidden="true">${esc((a[0]||'?').toUpperCase())}</i>`;
+    return `<button type="button" data-qui="${esc(a)}"
+      aria-pressed="${DIAPO.sel.has(a)}">${vignette}${esc(a)} <b>${n}</b></button>`;
+  }).join('')||'<p class="dr-etat">aucune photo pour l\'instant</p>';
+  document.getElementById('dr-compte').textContent=
+    `${tous.length} média${tous.length>1?'s':''}`;
+  diapoMajEtat();
+}
+function diapoMajEtat(){
+  const n=diapoFiltrer().length;
+  const v=DIAPO.list.filter(g=>g.video).length;
+  document.getElementById('dr-etat').textContent=n
+    ? `${n} média${n>1?'s':''} à montrer${v?` · dont ${v} vidéo${v>1?'s':''}`:''}`
+    : 'rien à montrer avec ces réglages';
+  document.getElementById('dr-go').disabled=!n;
+}
+function diapoOuvrirReglages(){
+  const tous=diapoMedias();
+  // Tout coché, période complète : la demande est « montre tout », les réglages
+  // servent à RESTREINDRE. Personne ne devrait avoir à cocher douze cases pour
+  // obtenir ce qu'il voulait par défaut.
+  DIAPO.sel=new Set(tous.map(dlAuteur));
+  const b=diapoBornes(tous);
+  // « Tout », OUI — mais tout LE VOYAGE. Le plus vieux média date du 10 juin :
+  // des photos d'essai faites avant le départ, que `track_start` écarte déjà
+  // partout ailleurs sur le site. Ouvrir un diaporama familial sur trois
+  // trajets domicile-travail serait une mauvaise première image. La période
+  // part donc du premier jour du carnet, et les bornes du champ descendent
+  // jusqu'au plus vieux média : rien n'est caché, c'est le défaut qui est
+  // choisi.
+  const debutVoyage=(REC[0]||{}).iso||b.min;
+  DIAPO.t0=(b.min&&debutVoyage>b.min)?debutVoyage:b.min;
+  DIAPO.t1=b.max;
+  const t0=document.getElementById('dr-t0'),t1=document.getElementById('dr-t1');
+  t0.min=t1.min=b.min; t0.max=t1.max=b.max; t0.value=DIAPO.t0; t1.value=b.max;
+  diapoRendreReglages();
+  drEl.classList.add('open');
+}
+function diapoFermerReglages(){ drEl.classList.remove('open'); }
+
+document.getElementById('dr-x').onclick=diapoFermerReglages;
+document.getElementById('dr-gens').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-qui]'); if(!b)return;
+  const a=b.dataset.qui;
+  DIAPO.sel.has(a)?DIAPO.sel.delete(a):DIAPO.sel.add(a);
+  b.setAttribute('aria-pressed',DIAPO.sel.has(a));
+  diapoMajEtat();
+});
+drEl.querySelector('.dr-tout').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-tout]'); if(!b)return;
+  DIAPO.sel=b.dataset.tout==='1'?new Set(diapoMedias().map(dlAuteur)):new Set();
+  diapoRendreReglages();
+});
+for(const id of ['dr-t0','dr-t1'])
+  document.getElementById(id).addEventListener('change',e=>{
+    DIAPO[id==='dr-t0'?'t0':'t1']=e.target.value; diapoMajEtat();
+  });
+document.getElementById('dr-go').onclick=()=>{ diapoFermerReglages(); diapoLancer(); };
+
+/* ---- la carte du lecteur : sa propre instance, construite au premier
+   lancement seulement. Toucher à la carte principale ferait perdre à
+   l'utilisateur le cadrage qu'il avait choisi avant d'ouvrir le diaporama. ---- */
+function diapoCarte(){
+  if(DIAPO.map)return DIAPO.map;
+  const m=L.map('diapo-map',{zoomControl:false,attributionControl:false,minZoom:2})
+    .setView([20,-14],4);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    {maxNativeZoom:16,maxZoom:19}).addTo(m);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+    {maxNativeZoom:16,maxZoom:19}).addTo(m);
+  DIAPO.pts=L.layerGroup().addTo(m);
+  // Le zoom appartient a celui qui regarde. Forcer une valeur a chaque photo
+  // (`max(zoom,8)`) se battait avec lui : quelqu'un qui dezoome pour situer un
+  // village dans le pays le voyait se recadrer de force a la photo suivante.
+  // On retient donc le dernier zoom CHOISI et on s'y tient.
+  m.on('zoomend',()=>{ if(!DIAPO.vol)DIAPO.zoom=m.getZoom(); });
+  DIAPO.map=m;
+  return m;
+}
+// Les autres photos de la sélection en points sourds : elles donnent la forme
+// du voyage autour de celle qu'on regarde, sans qu'aucun trait ne prétende
+// dire par où on est passé entre les deux.
+function diapoSemer(){
+  const m=diapoCarte(); DIAPO.pts.clearLayers();
+  const coords=[];
+  for(const g of DIAPO.list){
+    if(!validCoords(g.lat,g.lng))continue;
+    coords.push([g.lat,g.lng]);
+    L.circleMarker([g.lat,g.lng],{radius:2.5,weight:0,fillColor:'#B6A98F',
+      fillOpacity:.45,interactive:false}).addTo(DIAPO.pts);
+  }
+  if(coords.length)m.fitBounds(L.latLngBounds(coords).pad(.25),{animate:false});
+}
+
+/* ---- le lecteur ---- */
+function diapoLancer(){
+  if(!diapoFiltrer().length)return;
+  DIAPO.i=0; DIAPO.play=true;
+  diapoEl.classList.add('open');
+  diapoCarte(); diapoSemer();
+  // Leaflet a été construit dans un conteneur caché : il ne connaît pas encore
+  // sa taille. Sans ce recalcul la carte s'affiche en un quart de tuile grise.
+  setTimeout(()=>{ DIAPO.map.invalidateSize(); diapoSemer(); diapoPlacer(); },60);
+  diapoMontrer();
+}
+function diapoFermer(){
+  diapoEl.classList.remove('open');
+  diapoArreter();
+  const v=document.getElementById('diapo-vid');
+  try{v.pause();}catch(_){}
+  v.removeAttribute('src'); v.load();
+}
+function diapoArreter(){
+  clearTimeout(DIAPO.timer); DIAPO.timer=null;
+  cancelAnimationFrame(DIAPO.raf); DIAPO.raf=0;
+}
+// Le minuteur et sa jauge. La jauge n'est pas de la décoration : c'est ce qui
+// dit qu'on est en lecture et combien de temps il reste, sans quoi une pause
+// et une photo qui met du temps à charger se ressemblent.
+function diapoMinuteur(ms){
+  diapoArreter();
+  const jauge=document.getElementById('diapo-jauge');
+  if(!DIAPO.play||ms==null){ if(!DIAPO.play)jauge.style.width=jauge.style.width||'0%'; return; }
+  const t0=performance.now();
+  const tick=()=>{
+    const p=Math.min(1,(performance.now()-t0)/ms);
+    jauge.style.width=(p*100)+'%';
+    if(p<1&&DIAPO.play)DIAPO.raf=requestAnimationFrame(tick);
+  };
+  DIAPO.raf=requestAnimationFrame(tick);
+  DIAPO.timer=setTimeout(()=>diapoPas(1),ms);
+}
+function diapoPas(d){
+  if(!DIAPO.list.length)return;
+  DIAPO.i=(DIAPO.i+d+DIAPO.list.length)%DIAPO.list.length;
+  diapoMontrer();
+}
+function diapoPlacer(){
+  const g=DIAPO.list[DIAPO.i]; if(!g||!DIAPO.map)return;
+  const lieu=document.getElementById('diapo-lieu');
+  if(DIAPO.ici){ DIAPO.map.removeLayer(DIAPO.ici); DIAPO.ici=null; }
+  if(!validCoords(g.lat,g.lng)){
+    lieu.hidden=false; lieu.textContent='Cette photo n’a pas de position.';
+    return;
+  }
+  // Une position posée à la main ou déduite de la journée n'est pas une mesure.
+  // Le site le dit partout ailleurs ; il n'y a aucune raison qu'un diaporama,
+  // qu'on montre justement à quelqu'un qui croira ce qu'il voit, soit
+  // l'endroit où l'on cesse de le dire.
+  const mesuree=!!g.gps||g.locationSource==='media-gps';
+  DIAPO.ici=L.marker([g.lat,g.lng],{icon:L.divIcon({className:'',
+    html:`<i class="diapo-pt${mesuree?'':' estimee'}" style="display:block;width:16px;height:16px"></i>`,
+    iconSize:[16,16],iconAnchor:[8,8]})}).addTo(DIAPO.map);
+  lieu.hidden=false;
+  lieu.textContent=mesuree?'Position GPS de la photo':'Position approximative';
+  DIAPO.vol=true;
+  DIAPO.map.flyTo([g.lat,g.lng],DIAPO.zoom,{duration:.8});
+  DIAPO.map.once('moveend',()=>{ DIAPO.vol=false; });
+}
+function diapoMontrer(){
+  const g=DIAPO.list[DIAPO.i]; if(!g)return;
+  const img=document.getElementById('diapo-img');
+  const vid=document.getElementById('diapo-vid');
+  const jauge=document.getElementById('diapo-jauge');
+  jauge.style.width='0%';
+  diapoArreter();
+  const quand=diapoJour(g);
+  document.getElementById('diapo-qui').textContent=dlAuteur(g);
+  document.getElementById('diapo-quand').textContent=
+    (quand?new Date(quand+'T12:00:00').toLocaleDateString('fr-FR',
+      {weekday:'long',day:'numeric',month:'long'}):'date inconnue')
+    +(g.caption?' · '+g.caption:'');
+  document.getElementById('diapo-n').textContent=`${DIAPO.i+1}/${DIAPO.list.length}`;
+  if(g.video){
+    img.style.display='none'; vid.style.display='';
+    vid.src=mediaDisplay(g.file,true);
+    // Une vidéo se regarde en entier : le minuteur lui laisse la main et c'est
+    // sa fin qui enchaîne. Couper un clip à cinq secondes n'aurait aucun sens.
+    vid.onended=()=>{ if(DIAPO.play)diapoPas(1); };
+    vid.muted=false;
+    const p=vid.play(); if(p&&p.catch)p.catch(()=>{ vid.muted=true; vid.play().catch(()=>{}); });
+  }else{
+    vid.style.display='none'; try{vid.pause();}catch(_){}
+    vid.removeAttribute('src'); vid.onended=null;
+    img.style.display='';
+    img.src=mediaDisplay(g.file,false);
+    img.alt=`Photo de ${dlAuteur(g)}${quand?' le '+quand:''}`;
+    diapoMinuteur(DIAPO.vitesse);
+  }
+  diapoPlacer();
+  // La suivante arrive pendant qu'on regarde celle-ci : la transition doit être
+  // instantanée, sinon le diaporama saccade là où il devrait couler.
+  const suiv=DIAPO.list[(DIAPO.i+1)%DIAPO.list.length];
+  if(suiv&&!suiv.video)new Image().src=mediaDisplay(suiv.file,false);
+}
+function diapoLecture(on){
+  DIAPO.play=on;
+  const b=document.getElementById('diapo-play');
+  b.textContent=on?'⏸':'▶';
+  b.setAttribute('aria-label',on?'Pause':'Lecture');
+  const g=DIAPO.list[DIAPO.i];
+  const vid=document.getElementById('diapo-vid');
+  if(g&&g.video){ on?vid.play().catch(()=>{}):vid.pause(); }
+  else on?diapoMinuteur(DIAPO.vitesse):diapoArreter();
+}
+document.getElementById('diapo-prev').onclick=()=>diapoPas(-1);
+document.getElementById('diapo-next').onclick=()=>diapoPas(1);
+document.getElementById('diapo-play').onclick=()=>diapoLecture(!DIAPO.play);
+document.getElementById('diapo-x').onclick=diapoFermer;
+document.getElementById('diapo-vitesse').onchange=e=>{
+  DIAPO.vitesse=Number(e.target.value)||5000;
+  const g=DIAPO.list[DIAPO.i];
+  if(DIAPO.play&&g&&!g.video)diapoMinuteur(DIAPO.vitesse);
+};
+window.addEventListener('keydown',e=>{
+  if(!diapoEl.classList.contains('open'))return;
+  if(e.key==='Escape')diapoFermer();
+  else if(e.key==='ArrowLeft')diapoPas(-1);
+  else if(e.key==='ArrowRight')diapoPas(1);
+  else if(e.key===' '){ e.preventDefault(); diapoLecture(!DIAPO.play); }
+});
+const diapoOpen=document.getElementById('diapo-open');
+if(diapoOpen)diapoOpen.onclick=diapoOuvrirReglages;
+// Le bouton dit combien il y a à montrer, comme celui du téléchargement.
+function diapoMajBouton(){
+  const n=document.getElementById('diapo-open-n');
+  if(n){ const t=diapoMedias().length; n.textContent=t?`${t} photos et vidéos`:''; }
+}
 seedHistorique();
+diapoMajBouton();
 </script>
 </body>
 </html>

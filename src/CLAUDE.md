@@ -565,6 +565,48 @@ Key JS structures (all near the top of the script):
   because a Cloudinary `public_id` means nothing in a phone gallery. Its click
   stops propagation: the viewer closes on backdrop click, and downloading must
   not close it.
+- **DIAPORAMA — le site raconte, au lieu de se laisser explorer** (`.diapo`,
+  `.diapo-reglages`, `DIAPO`, `diapoLancer()`, `diapoMontrer()`,
+  entrée `#diapo-open` dans le panneau). Tout le reste de la page suppose
+  quelqu'un qui EXPLORE : il choisit une trace, scrube la frise, ouvre une
+  fiche. Montrer le voyage à une grand-mère est le problème inverse — elle ne
+  pilote rien, on lui passe les photos. D'où un plein écran photo + carte : la
+  carte est son seul repère, sans elle une photo de plage est une plage
+  n'importe où.
+  **Il ne suit PAS la frise, délibérément.** Le carnet s'achève à `carnet_fin`
+  pendant que des médias continuent d'arriver, et on veut pouvoir montrer deux
+  jours précis pris au milieu du voyage. Le diaporama a donc ses propres bornes
+  T0/T1, lues sur les médias eux-mêmes (`diapoBornes()`), et un filtre par
+  auteur — cases à cocher avec le portrait, parce qu'on choisit « les photos de
+  Younous », pas une ligne de texte.
+  **Tout est coché et la période couvre tout, par défaut** : la demande est
+  « montre tout », les réglages servent à RESTREINDRE. Une exception, et elle
+  compte : `T0` démarre au premier jour du carnet, pas au plus vieux média. Le
+  plus vieux date du 10 juin — des photos d'essai d'avant le départ, que
+  `track_start` écarte déjà partout ailleurs — et ouvrir un diaporama familial
+  sur trois trajets domicile-travail serait une mauvaise première image. La
+  borne du champ, elle, descend jusqu'au 10 juin : rien n'est caché, c'est le
+  défaut qui est choisi.
+  **AUCUNE LIGNE N'EST TRACÉE SUR CETTE CARTE.** Elle pose un point par photo de
+  la sélection et n'en relie aucun : joindre deux photos par un trait
+  inventerait une route qu'on n'a pas mesurée, ce que `routes.json` existe
+  précisément pour éviter sur la carte principale. Et le marqueur de la photo
+  courante dit sa nature — plein pour un GPS de média, **pointillé pour une
+  position posée à la main ou déduite**, avec le libellé qui va avec. C'est
+  l'endroit où l'on serait le plus tenté d'arrondir, puisqu'on montre à
+  quelqu'un qui croira ce qu'il voit : c'est donc l'endroit où il ne faut pas.
+  Carte à part (`diapoCarte()`), construite au premier lancement seulement —
+  toucher à la carte principale ferait perdre à l'utilisateur le cadrage qu'il
+  avait choisi avant d'ouvrir le diaporama — avec `invalidateSize()` différé,
+  sans quoi Leaflet, né dans un conteneur caché, s'affiche en un quart de tuile
+  grise. Le **zoom appartient à celui qui regarde** (`DIAPO.zoom`, `zoomend`) :
+  forcer une valeur à chaque photo recadrait de force quelqu'un qui venait de
+  dézoomer pour situer un village dans son pays.
+  Défilement 3/5/8/12 s avec jauge d'avancement — la jauge n'est pas décorative,
+  c'est ce qui distingue une pause d'une photo qui met du temps à charger ; une
+  **vidéo se regarde en entier** et c'est sa fin qui enchaîne, pas le minuteur.
+  Flèches, espace, Échap ; la suivante est préchargée pendant qu'on regarde
+  celle-ci.
 - **BULK DOWNLOAD SHIPS ONE ZIP, NOT 212 DOWNLOADS** (`.dl-sheet`, `DL`,
   `dlLancer()`, `nouveauZip()`, entry point `.dl-open` in the panel). The first
   version downloaded each file separately; on iOS that opened a download prompt
