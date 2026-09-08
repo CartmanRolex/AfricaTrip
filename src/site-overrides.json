@@ -15,6 +15,7 @@
     "lng": -13.234
   },
   "plan_abandonne": "2026-08-25",
+  "carnet_fin": "2026-09-03",
   "track_start": {
     "default": "2026-08-02",
     "by_person": {

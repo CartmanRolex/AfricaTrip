@@ -745,6 +745,9 @@ mechanism gates both the track and the seat, deliberately: an arrival is then
 corrected in exactly one place. Current value: everyone from 2026-08-02, Jehan
 and Dorvan from 2026-07-30, Hugo and Paul from 2026-08-07T14:00 (they join at
 Malaga in the afternoon).
+`carnet_fin` `YYYY-MM-DD` is the last day the carnet tells, distinct from
+`plan_abandonne` (see below): the cars were sold on Aug 25, the crew kept going
+to São Domingos and Cape Verde until Sep 3.
 `terminus` `{after, cp, label, lat, lng}` shortens the plan to a single
 confirmed final checkpoint: `apply_terminus()` cuts the route right after the
 `after` checkpoint, appends the terminus waypoint, drops the abandoned
@@ -888,11 +891,21 @@ source), `app/www/app.js` (donc la carte de choix s'ouvre normalement) et
 **`plan_abandonne` : le voyage n'est plus planifié.** Les deux voitures ont été
 vendues le 25 août en Guinée-Bissau et l'équipage continue à pied. Le site ne
 montre donc plus que **ce qui a eu lieu** : plus d'itinéraire, plus d'étapes,
-plus de pointillé « à venir », plus de position prévue, et la frise s'arrête à
-aujourd'hui.
+plus de pointillé « à venir », plus de position prévue.
 
-**La frise s'arrête le jour de la vente** (25 août), pas aujourd'hui : c'est là
-que le carnet de route s'achève. Elle ne grandit donc plus.
+**DEUX FAITS, DEUX DATES.** `plan_abandonne` (25 août) est le jour où le plan
+meurt — c'est lui, et lui seul, qui date la vente des voitures dans le panneau
+(`VENDUES_LE` → bloc « À pied »). `carnet_fin` (3 septembre) est le dernier jour
+que le carnet raconte. Une seule valeur portait les deux, et ce chapitre était
+alors indicible : étendre la frise jusqu'au Cap-Vert faisait dire au site
+« voitures vendues le 3 septembre » et faisait **réapparaître les sièges le
+30 août**, dans des voitures parties depuis huit jours. Absent, `carnet_fin`
+vaut `plan_abandonne` : le carnet s'achève à la vente, exactement comme avant.
+`carnet_fin` ne peut pas précéder `plan_abandonne` — `parse_csv.py` refuse.
+
+**La frise ne grandit pas toute seule.** Elle s'arrête à `carnet_fin`, pas à
+aujourd'hui : c'est une décision éditoriale, à corriger ici quand le récit
+avance. Valeur courante : 3 septembre, le retour du Cap-Vert.
 
 Conséquence heureuse et non évidente : **rien n'est masqué pour autant.** Le
 dernier enregistrement garde une fenêtre ouverte (`dayWindowEnd()` rend

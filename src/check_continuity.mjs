@@ -35,7 +35,14 @@ await new Promise(r => setTimeout(r, 9000));   // laisser Firebase répondre
 const rapport = await page.evaluate(async (TOL) => {
   const anomalies = [];
   let controles = 0;
-  const dernierJour = REC.findIndex(r => r.iso === TODAY_ISO);
+  // Jusqu'a aujourd'hui, ou jusqu'au dernier jour du carnet s'il s'acheve
+  // avant. Chercher TODAY_ISO seul rendait ce test MUET : le carnet s'arrete
+  // au 3 septembre, la recherche renvoyait -1, la boucle ne tournait pas une
+  // fois et le script sortait 0 en annoncant "aucune anomalie" sans avoir rien
+  // regarde. C'est exactement la panne que ce fichier a ete ecrit pour
+  // remplacer — un test qui rassure au lieu de verifier.
+  const iAujourdhui = REC.findIndex(r => r.iso === TODAY_ISO);
+  const dernierJour = iAujourdhui >= 0 ? iAujourdhui : REC.length - 1;
   const sujets = ['vehicle:hugodouard', 'vehicle:paul-pot',
     ...CAR1.concat(CAR2).map(n => 'person:' + slug(n))];
 
@@ -81,6 +88,14 @@ const rapport = await page.evaluate(async (TOL) => {
 await browser.close();
 
 console.log(`${rapport.controles} combinaisons sujet × jour contrôlées`);
+// UN BALAYAGE VIDE EST UNE PANNE, PAS UN SUCCES. Sans cette ligne, n'importe
+// quoi qui vide REC — ou une date de fin que le calendrier ne contient pas —
+// rend ce script silencieusement inutile, et il annonce alors la bonne
+// nouvelle qu'on attend de lui.
+if (!rapport.controles) {
+  console.log('\nRIEN N\'A ETE CONTROLE : le balayage est vide (REC est vide ?).');
+  process.exit(1);
+}
 if (erreurs.length) {
   console.log('\nErreurs de page :');
   erreurs.slice(0, 5).forEach(e => console.log('  ' + e));

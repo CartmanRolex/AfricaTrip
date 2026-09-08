@@ -42,6 +42,18 @@ File shape (then transformed by `src/parse_csv.py`):
   CSVs directly and dropping that override would work too — the override is
   kept because it documents the decision in one readable place.
 
+**Après le 25 août, la grille ne parle plus de sièges.** Les voitures sont
+vendues ce jour-là ; une case « présent » y dit désormais « encore en voyage »,
+et le panneau les regroupe dans un bloc « À pied » (`renderAPied()` dans
+`src/template.html`). Ces jours-là sont donc à tenir à jour à la main, comme
+n'importe quel fait : Jehan est marqué absent à partir du **29 août**, ses
+photos le plaçant à Dakar le 28 et chez lui le 29, pendant que les cinq autres
+continuaient — São Domingos les 27-28, puis le Cap-Vert (Édouard, Hugo, Paul) et
+Cap Skirring (Gal, Younous) jusqu'au 3 septembre. Le calendrier importé décrit
+toujours le plan abandonné jusqu'au 30 septembre : les jours au-delà de
+`carnet_fin` sont simplement retirés à la construction, ils ne sont pas faux,
+ils ne sont plus racontés.
+
 If the grid structure changes (new traveler, new column layout), the parser
 detects the layout dynamically; if something no longer fits, fix
 `src/parse_csv.py` and document it in `src/CLAUDE.md`.

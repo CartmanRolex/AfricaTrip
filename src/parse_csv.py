@@ -79,7 +79,7 @@ def read_site_overrides():
                 "removed_travelers": set(), "phones": {}, "terminus": None,
                 "track_start": None, "roles": {}, "vehicle_from": {},
                 "excluded_points": [], "traversees": [],
-                "plan_abandonne": None}
+                "plan_abandonne": None, "carnet_fin": None}
     if not isinstance(raw, dict):
         raise ValueError("site-overrides.json must contain a JSON object")
     removed = raw.get("removed_travelers", [])
@@ -117,6 +117,21 @@ def read_site_overrides():
     if plan_abandonne is not None and not re.fullmatch(
             r"\d{4}-\d{2}-\d{2}", str(plan_abandonne).strip()):
         raise ValueError("plan_abandonne : format YYYY-MM-DD attendu")
+    # DEUX FAITS, DEUX DATES. `plan_abandonne` est le jour ou le plan meurt
+    # (les voitures sont vendues) ; `carnet_fin` est le dernier jour que le
+    # carnet raconte. Les confondre — ce qu'une seule valeur faisait — donnait
+    # une frise qui ne pouvait pas depasser la vente : etendre le recit au
+    # 3 septembre faisait dire au site "voitures vendues le 3 septembre" et
+    # faisait reapparaitre les sieges le 30 aout, dans des voitures parties
+    # depuis huit jours. Absent, il vaut `plan_abandonne` : le comportement
+    # d'avant, ou le carnet s'achevait a la vente.
+    carnet_fin = raw.get("carnet_fin")
+    if carnet_fin is not None and not re.fullmatch(
+            r"\d{4}-\d{2}-\d{2}", str(carnet_fin).strip()):
+        raise ValueError("carnet_fin : format YYYY-MM-DD attendu")
+    carnet_fin = str(carnet_fin).strip() if carnet_fin else None
+    if carnet_fin and plan_abandonne and carnet_fin < str(plan_abandonne).strip():
+        raise ValueError("carnet_fin ne peut pas preceder plan_abandonne")
     excluded = raw.get("excluded_points") or []
     if not isinstance(excluded, list) or any(not isinstance(x, str) for x in excluded):
         raise ValueError("excluded_points must be a list of point ids")
@@ -133,6 +148,7 @@ def read_site_overrides():
             "vehicle_from": vehicles,
             "traversees": traversees,
             "plan_abandonne": (str(plan_abandonne).strip() if plan_abandonne else None),
+            "carnet_fin": carnet_fin,
             "excluded_points": sorted({x.strip() for x in excluded if x.strip()})}
 
 
@@ -533,20 +549,25 @@ def main():
     # venir. Les jours passes gardent leur grille de presence : elle raconte un
     # fait, pas une prevision.
     #
-    # La frise s'arrete LE JOUR DE LA VENTE, pas aujourd'hui : c'est la que le
-    # carnet de route s'acheve. Elle ne grandit donc plus.
+    # LA VENTE N'EST PAS LA FIN DU VOYAGE. Le plan meurt le 25 aout ; le
+    # carnet, lui, va jusqu'au dernier jour raconte (`carnet_fin` — Sao Domingos
+    # les 27-28, le Cap-Vert jusqu'au 3 septembre). Une seule date pour les deux
+    # faits rendait ce chapitre indicible : la frise ne pouvait pas depasser le
+    # jour de la vente sans deplacer la vente elle-meme. Sans `carnet_fin`, le
+    # carnet s'acheve a la vente, exactement comme avant.
     if overrides["plan_abandonne"]:
-        fin = overrides["plan_abandonne"]
+        vendu = overrides["plan_abandonne"]
+        fin = overrides["carnet_fin"] or vendu
         avant = len(records)
         records[:] = [r for r in records if r.get("iso", "") <= fin]
         config["sansPlan"] = True
-        config["planAbandonneLe"] = overrides["plan_abandonne"]
+        config["planAbandonneLe"] = vendu
         # L'itineraire editorial et ses etapes n'ont plus d'objet.
         config["route"] = []
         config["etapes"] = []
         config["checkpoints"] = {}
-        print(f"  plan abandonne le {fin} : {avant - len(records)} jours retires, "
-              f"itineraire efface, frise arretee au {fin}")
+        print(f"  plan abandonne le {vendu} : {avant - len(records)} jours retires, "
+              f"itineraire efface, carnet arrete au {fin}")
     if overrides["track_start"]:
         config["trackStart"] = overrides["track_start"]
 

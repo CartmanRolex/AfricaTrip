@@ -1,9 +1,12 @@
 # Voyage en Afrique — Carnet de route
 
-Interactive one-page site tracking a friends' road trip from Switzerland to
-Dakar and on to **Freetown** (Aug 2 – Sep 30, 2026): a Leaflet map with the
+Interactive one-page site telling a friends' road trip from Switzerland to
+Dakar and on into Casamance (Aug 2 – Sep 3, 2026): a Leaflet map with the
 route, a day-by-day timeline scrubber, and RPG-flavored dashboards for the two
-cars and their crews. Everything is tongue-in-cheek (XP, HP bars, skills,
+cars and their crews. **The plan died on Aug 25**, the day both cars were sold;
+the crew carried on without them — São Domingos (Guinea-Bissau) on the 27th-28th,
+then Cape Verde (Sal) until Sep 3, where the carnet closes. Freetown was never
+reached. Everything is tongue-in-cheek (XP, HP bars, skills,
 danger zones) — keep that tone when adding features.
 
 ## Golden rules
@@ -212,6 +215,13 @@ version.json                       (build id, for the auto-refresh below)
 sweeps every subject on every day so far, and exits 1 on a break the data does
 not justify (see the invariant in `src/CLAUDE.md`) or on any page error. It is
 what replaced hunting gaps one screenshot at a time.
+**It sweeps up to today, or to the last day of the carnet when that comes
+first**, and **an empty sweep now exits 1**. Both guards were added the day the
+check was found mute: it looked up `TODAY_ISO` in the records, the carnet had
+closed on Sep 3 while the clock said Sep 8, the lookup returned -1, the loop
+never ran once — and the script announced "invariant respected" without having
+looked at anything. A test that reassures instead of verifying is the exact
+failure this file was written to replace.
 
 There is no test suite; checks are visual + runtime. Puppeteer is the tool on
 this machine (`npm install` at the root, `node_modules/` is git-ignored):
