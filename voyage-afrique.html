@@ -227,10 +227,18 @@ body.danger-far .danger-label{display:none}
 .diapo{position:fixed;inset:0;z-index:2200;background:#0C0A08;display:none;
   grid-template-columns:1fr minmax(260px,32%);grid-template-rows:1fr auto}
 .diapo.open{display:grid}
-.diapo-scene{position:relative;display:grid;place-items:center;overflow:hidden;
-  min-height:0;min-width:0}
-.diapo-scene img,.diapo-scene video{max-width:100%;max-height:100%;
-  object-fit:contain;border-radius:4px}
+.diapo-scene{position:relative;overflow:hidden;min-height:0;min-width:0}
+/* LA PHOTO EST POSEE EN ABSOLU, PAS CENTREE DANS UNE GRILLE. `max-height:100%`
+   sur un enfant de grille ne s'applique pas ici — le pourcentage se resout
+   contre une zone dont la hauteur depend justement du contenu — et une photo
+   VERTICALE etait donc mise a la largeur du cadre puis coupee net : 979x1741
+   dans une scene de 979x843, plus de la moitie hors de l'ecran. En paysage on
+   ne voyait rien, d'ou une correction qui a attendu qu'on montre de vraies
+   photos de telephone. Un cadre absolu a des dimensions definies, et
+   `object-fit:contain` fait alors ce qu'on lui demande : l'image entiere, au
+   plus grand, jamais rognee. */
+.diapo-scene img,.diapo-scene video{position:absolute;inset:8px;width:calc(100% - 16px);
+  height:calc(100% - 16px);object-fit:contain;border-radius:4px}
 .diapo-scene video{background:#000}
 .diapo-carte{position:relative;border-left:1px solid var(--line);min-height:0}
 #diapo-map{position:absolute;inset:0}
@@ -257,7 +265,7 @@ body.danger-far .danger-label{display:none}
 /* La barre d'avancement du minuteur : elle dit qu'il reste du temps sur cette
    photo, et s'arrête net en pause. C'est ce qui évite de se demander si le
    diaporama tourne encore. */
-.diapo-jauge{position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--line)}
+.diapo-jauge{position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--line);z-index:2}
 .diapo-jauge i{display:block;height:100%;width:0;background:var(--sand-dim)}
 /* Une position posée à la main ou déduite n'est PAS une mesure : elle le dit,
    ici comme partout ailleurs sur le site. */
@@ -810,7 +818,7 @@ const HAS_SNAPSHOT = !!(TRACKS.chunks && TRACKS.chunks.length);
 // (jamais mis en cache) et, si un build plus recent est publie, on recharge une
 // seule fois. Sans reseau, depuis le disque, ou si quoi que ce soit echoue, on
 // ne fait rien.
-const BUILD = "694ecdc73b2e";
+const BUILD = "ca77266b47bc";
 if(location.protocol!=='file:'){
   fetch(`version.json?t=${Date.now()}`,{cache:'no-store'})
     .then(r=>r.ok?r.json():null)

@@ -602,6 +602,17 @@ Key JS structures (all near the top of the script):
   grise. Le **zoom appartient à celui qui regarde** (`DIAPO.zoom`, `zoomend`) :
   forcer une valeur à chaque photo recadrait de force quelqu'un qui venait de
   dézoomer pour situer un village dans son pays.
+  **La photo est posée en ABSOLU dans la scène, pas centrée dans une grille.**
+  `max-height:100%` sur un enfant de grille ne s'applique pas ici — le
+  pourcentage se résout contre une zone dont la hauteur dépend justement du
+  contenu — et une photo VERTICALE était mise à la largeur du cadre puis coupée
+  net : 979×1741 dans une scène de 979×843, plus de la moitié hors de l'écran.
+  Les photos de téléphone sont verticales ; en paysage le défaut ne se voyait
+  pas, et il a fallu de vraies photos pour qu'il saute aux yeux. Un cadre absolu
+  a des dimensions définies, et `object-fit:contain` fait alors ce qu'on lui
+  demande : l'image entière, au plus grand, jamais rognée. Ne jamais revenir à
+  `cover` ici — recadrer la photo de quelqu'un pour qu'elle remplisse mieux
+  l'écran, c'est décider à sa place de ce qu'on coupe.
   Défilement 3/5/8/12 s avec jauge d'avancement — la jauge n'est pas décorative,
   c'est ce qui distingue une pause d'une photo qui met du temps à charger ; une
   **vidéo se regarde en entier** et c'est sa fin qui enchaîne, pas le minuteur.
